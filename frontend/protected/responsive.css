@@ -1,0 +1,118 @@
+/* ===================== PLAYER RESPONSIVE ===================== */
+@media (max-width: 1024px) {
+  /* Player general */
+  .player-container {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 1rem;
+  }
+
+  /* Left */
+  .player-left {
+    justify-content: flex-start;
+    gap: 0.4rem;
+    width: 100%;
+  }
+
+  .player-cover {
+    width: 40px;
+    height: 40px;
+  }
+
+  .track-info {
+    font-size: 0.65rem;
+  }
+
+  #track-title {
+    font-size: 0.7rem;
+  }
+
+  #track-album,
+  #track-artist,
+  #track-quality {
+    font-size: 0.55rem;
+  }
+
+  /* Center */
+  .player-center {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    width: 100%;
+  }
+
+  #player {
+    width: 90%;
+    height: 4px;
+  }
+
+  .controls button {
+    font-size: 1.1rem;
+    padding: 0.2rem;
+  }
+
+  /* Right */
+  .player-right {
+    display: none; /* Oculta mute y volumen */
+  }
+
+  /* Asegura que slider de volumen y mute estén ocultos */
+  #volumeSlider,
+  .volume-container,
+  #mute {
+    display: none !important;
+  }
+}
+
+/* ===================== TV LARGE SCREEN ===================== */
+@media (min-width: 1025px) and (max-width: 1920px) {
+  .player-container {
+    padding: 0.6rem 1.5rem;
+    gap: 1rem;
+  }
+
+  .player-left .player-cover {
+    width: 50px;
+    height: 50px;
+  }
+
+  .track-info {
+    font-size: 0.9rem;
+  }
+
+  .controls button {
+    font-size: 1.3rem;
+  }
+
+  #player {
+    width: 80%;
+    height: 5px;
+  }
+}
+
+/* ===================== EXTRA LARGE TV ===================== */
+@media (min-width: 1921px) {
+  .player-container {
+    padding: 1rem 2rem;
+    gap: 1.5rem;
+  }
+
+  .player-left .player-cover {
+    width: 60px;
+    height: 60px;
+  }
+
+  .track-info {
+    font-size: 1rem;
+  }
+
+  .controls button {
+    font-size: 1.5rem;
+  }
+
+  #player {
+    width: 70%;
+    height: 6px;
+  }
+}

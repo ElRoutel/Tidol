@@ -1,0 +1,146 @@
+/* ===================== VARIABLES ===================== */
+:root {
+  --bg-dark: #0f0f0f;
+  --bg-medium: #1a1a1a;
+  --bg-light: #222;
+  --primary: #1db954;
+  --primary-hover: #17a442;
+  --text-light: #fff;
+  --text-muted: #ccc;
+  --shadow: rgba(0,0,0,0.5);
+}
+
+/* ===================== RESET ===================== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+  background-color: var(--bg-dark);
+  color: var(--text-light);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===================== HEADER ===================== */
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 25px;
+  background: var(--bg-medium);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  border-bottom: 1px solid var(--bg-light);
+}
+
+/* ===================== TITULOS ===================== */
+h2, h3 {
+  text-align: center;
+  margin: 15px 0 25px 0;
+  font-size: 1.5rem;
+  color: var(--text-light);
+}
+
+/* ===================== CONTENEDOR DE CARDS ===================== */
+.cards-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 20px;
+  padding: 0 20px 80px 20px; /* espacio inferior para el player */
+}
+
+/* ===================== CARD ARTISTA / ALBUM ===================== */
+.search-card {
+  background: var(--bg-medium);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  text-align: center;
+  padding-bottom: 10px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.search-card:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 14px var(--shadow);
+}
+
+.search-card img {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+}
+
+.search-card span {
+  display: block;
+  margin-top: 8px;
+  font-weight: bold;
+  color: var(--text-light);
+}
+
+.search-card small {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* ===================== ARTIST BANNER ===================== */
+.artist-banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 20px;
+  padding: 20px;
+  background: var(--bg-medium);
+  border-radius: 12px;
+  box-shadow: 0 6px 18px var(--shadow);
+}
+
+.artist-banner img.artist-photo-large {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid var(--primary);
+}
+
+.artist-banner h1 {
+  font-size: 1.8rem;
+  color: var(--text-light);
+}
+
+.artist-banner p {
+  font-size: 1rem;
+  color: var(--text-muted);
+}
+
+/* ===================== RESPONSIVE ===================== */
+@media (max-width: 768px) {
+  .cards-container {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 15px;
+    padding: 0 10px 80px 10px;
+  }
+
+  .search-card img {
+    height: 120px;
+  }
+
+  .artist-banner img.artist-photo-large {
+    width: 120px;
+    height: 120px;
+  }
+}
+
+@media (max-width: 480px) {
+  h2, h3 {
+    font-size: 1.3rem;
+  }
+}

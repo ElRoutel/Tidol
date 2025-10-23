@@ -1,0 +1,20 @@
+:root {
+  --bg-color: #121212;
+  --accent-color: #1db954;
+  --text-color: #fff;
+  --text-muted: #b3b3b3;
+  --radius: 8px;
+  --transition: 0.3s ease;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}

@@ -1,0 +1,156 @@
+/* ====== RESET ====== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+  background-color: #0f0f0f;
+  color: #fff;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ====== HEADER ====== */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 25px;
+  background: #1a1a1a;
+  border-bottom: 1px solid #222;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.logo {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #1db954; /* verde tipo Spotify */
+}
+
+.nav ul {
+  display: flex;
+  list-style: none;
+  gap: 20px;
+}
+
+.nav-item {
+  cursor: pointer;
+  transition: color 0.3s;
+}
+
+.nav-item:hover {
+  color: #1db954;
+}
+
+/* ====== MAIN ====== */
+.main {
+  flex: 1;
+  padding: 20px;
+}
+
+.section {
+  display: none;
+}
+
+.section.active {
+  display: block;
+}
+
+/* ====== TITULOS ====== */
+h2 {
+  margin-bottom: 15px;
+  color: #fff;
+  font-size: 1.3rem;
+}
+
+/* ====== GRID DE CANCIONES ====== */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 15px;
+}
+
+.song-card {
+  background: #1a1a1a;
+  padding: 10px;
+  border-radius: 8px;
+  transition: transform 0.2s, background 0.2s;
+  text-align: center;
+}
+
+.song-card:hover {
+  background: #222;
+  transform: scale(1.05);
+}
+
+.song-card img {
+  width: 100%;
+  border-radius: 8px;
+}
+
+.song-title {
+  margin-top: 10px;
+  font-size: 0.9rem;
+  font-weight: bold;
+}
+
+/* ====== FORM UPLOAD ====== */
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 400px;
+}
+
+input[type="file"],
+input[type="text"] {
+  padding: 10px;
+  border-radius: 5px;
+  border: none;
+  background: #1a1a1a;
+  color: #fff;
+}
+
+button {
+  padding: 10px;
+  background: #1db954;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+button:hover {
+  background: #17a442;
+}
+
+/* ====== FOOTER PLAYER ====== */
+.player-container {
+  background: #1a1a1a;
+  padding: 10px;
+  border-top: 1px solid #222;
+}
+
+audio {
+  width: 100%;
+  outline: none;
+}
+
+/* ====== RESPONSIVE ====== */
+@media (max-width: 768px) {
+  .nav ul {
+    gap: 10px;
+  }
+
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+}

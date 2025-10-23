@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tidol Developer – Album IA</title>
+
+<!-- CSS -->
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="css/sidebarIA.css">
+<link rel="stylesheet" href="css/IAplayer.css">
+
+<link rel="stylesheet" href="css/IAalbum.css">
+<link rel="stylesheet" href="cardsAlbum.css"> 
+
+<script type="module" src="/js/main.js" defer></script>
+</head>
+<body>
+<header>
+  <div class="logo" onclick="location.href='/index_dev.html'">Tidol</div>
+  <nav>
+    <ul class="nav-list">
+      <li><button class="menu-btn" onclick="location.href='/index_dev.html'">Inicio</button></li>
+      <li><button class="menu-btn" onclick="location.href='/protected/subir_dev.html'">Subir</button></li>
+      <li><button class="menu-btn" onclick="location.href='/protected/buscar_dev.html'">Buscar</button></li>
+      <li><button class="menu-btn active" onclick="location.href='/protected/albumes_dev.html'">Álbumes</button></li>
+      <li><button class="menu-btn" onclick="location.href='/protected/artistas_dev.html'">Artistas</button></li>
+    </ul>
+    <div class="user-container">
+      <span id="user-name">Usuario</span>
+      <button id="logout-btn">Salir</button>
+    </div>
+  </nav>
+</header>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="profile">
+    <a href="/protected/perfil_dev.html">
+      <img src="/default_cover.png" alt="Foto de perfil" class="profile-pic">
+      <span id="user-name">Usuario</span>
+    </a>
+  </div>
+  <ul class="sidebar-menu">
+    <li><button onclick="location.href='/index_dev.html'">Inicio</button></li>
+    <li><button onclick="location.href='subir_dev.html'">Subir Música</button></li>
+    <li><button onclick="location.href='buscar_dev.html'">Buscar</button></li>
+    <li><button onclick="location.href='albumes_dev.html'">Álbumes</button></li>
+    <li><button onclick="location.href='artistas_dev.html'">Artistas</button></li>
+    <li><button id="logout-btn">Salir</button></li>
+  </ul>
+</aside>
+
+<!-- Contenido principal -->
+<main class="main-content">
+  <div id="album-container">
+    <div class="album-header">
+      <img id="album-cover" class="album-cover" src="/default_cover.png" alt="Portada álbum">
+      <div class="album-info">
+        <h2 id="album-title">Cargando álbum... <span class="ia-tag">IA</span></h2>
+        <p id="album-creator"></p>
+
+        <label for="filter-name">Buscar por nombre:</label>
+        <input type="text" id="filter-name" placeholder="Escribe para buscar...">
+
+        <label for="filter-format">Filtrar por formato:</label>
+        <select id="filter-format">
+          <option value="">Todos</option>
+          <option value=".mp3">mp3</option>
+          <option value=".flac">flac</option>
+          <option value=".wav">wav</option>
+          <option value=".m4a">m4a</option>
+          <option value=".ogg">ogg</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Grid de canciones -->
+    <div id="tracks-list" class="cards-grid"></div>
+  </div>
+</main>
+
+<!-- Footer / Player -->
+<footer class="player-container">
+  <audio id="audio-player"></audio>
+  <div class="player-left">
+    <img id="player-cover" src="/default_cover.png" alt="Portada" class="player-cover">
+    <div class="track-info">
+      <span id="player-title">Título</span>
+      <span id="player-album">Álbum</span>
+      <span id="player-artist">Artista</span>
+      <span id="player-format"></span>
+    </div>
+  </div>
+  <div class="player-center">
+    <div class="controls">
+      <button id="player-prev" title="Anterior">⏮</button>
+      <button id="player-playPause" title="Reproducir/Pausar">▶</button>
+      <button id="player-next" title="Siguiente">⏭</button>
+    </div>
+    <input type="range" id="player-progress" class="progress-bar" min="0" max="100" value="0">
+    <div class="time">
+      <span id="player-currentTime">0:00</span>
+      <span id="player-duration">0:00</span>
+    </div>
+  </div>
+  <div class="player-right">
+    <button id="player-mute" title="Silencio">🔊</button>
+    <div class="volume-container">
+      <input type="range" id="player-volume" min="0" max="1" step="0.01" value="1">
+    </div>
+  </div>
+</footer>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const identifier = params.get('id');
+
+const albumTitleEl = document.getElementById('album-title');
+const albumCreatorEl = document.getElementById('album-creator');
+const albumCoverEl = document.getElementById('album-cover');
+const tracksListEl = document.getElementById('tracks-list');
+const filterFormatEl = document.getElementById('filter-format');
+const filterNameEl = document.getElementById('filter-name');
+
+const audio = document.getElementById('audio-player');
+const progress = document.getElementById('player-progress');
+const volumeSlider = document.getElementById('player-volume');
+const titleEl = document.getElementById('player-title');
+const albumEl = document.getElementById('player-album');
+const artistEl = document.getElementById('player-artist');
+const coverEl = document.getElementById('player-cover');
+const formatEl = document.getElementById('player-format');
+const playBtn = document.getElementById('player-playPause');
+const nextBtn = document.getElementById('player-next');
+const prevBtn = document.getElementById('player-prev');
+const muteBtn = document.getElementById('player-mute');
+const currentTimeEl = document.getElementById('player-currentTime');
+const durationEl = document.getElementById('player-duration');
+
+let tracks = [];
+let currentPlaylist = [];
+let currentIndex = 0;
+
+function formatTime(seconds) {
+  if (isNaN(seconds)) return '0:00';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60).toString().padStart(2,'0');
+  return `${m}:${s}`;
+}
+
+function renderTracks() {
+  tracksListEl.innerHTML = '';
+  const formatFilter = filterFormatEl.value;
+  const nameFilter = filterNameEl.value.toLowerCase().trim();
+
+  currentPlaylist = tracks.filter(track => {
+    const nameMatch = !nameFilter || track.name.toLowerCase().includes(nameFilter);
+    const formatMatch = !formatFilter || track.name.toLowerCase().endsWith(formatFilter);
+    return nameMatch && formatMatch;
+  });
+
+  if (!currentPlaylist.length) {
+    tracksListEl.innerHTML = '<p>No se encontraron canciones.</p>';
+    return;
+  }
+
+  currentPlaylist.forEach((track, index) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <img src="https://archive.org/services/img/${identifier}" class="cover" alt="Portada">
+      <div class="card-info">
+        <h3>${track.name}</h3>
+        <p>${track.format.toUpperCase()}</p>
+      </div>
+      <div class="overlay">
+        <button class="play-btn">▶</button>
+      </div>
+    `;
+    card.querySelector('.play-btn').addEventListener('click', () => playTrack(index));
+    tracksListEl.appendChild(card);
+  });
+}
+
+function playTrack(index) {
+  if (index < 0 || index >= currentPlaylist.length) return;
+  currentIndex = index;
+  const track = currentPlaylist[index];
+
+  audio.src = track.url;
+  audio.play();
+
+  titleEl.textContent = track.name;
+  albumEl.textContent = albumTitleEl.textContent;
+  artistEl.textContent = albumCreatorEl.textContent;
+  formatEl.textContent = track.format.toUpperCase();
+  coverEl.src = `https://archive.org/services/img/${identifier}`;
+  playBtn.textContent = '⏸';
+}
+
+playBtn.addEventListener('click', () => {
+  if (audio.paused) audio.play();
+  else audio.pause();
+});
+
+audio.addEventListener('play', () => playBtn.textContent = '⏸');
+audio.addEventListener('pause', () => playBtn.textContent = '▶');
+
+nextBtn.addEventListener('click', () => {
+  if (currentIndex < currentPlaylist.length - 1) playTrack(currentIndex + 1);
+});
+prevBtn.addEventListener('click', () => {
+  if (currentIndex > 0) playTrack(currentIndex - 1);
+});
+
+audio.addEventListener('ended', () => {
+  if (currentIndex < currentPlaylist.length - 1) playTrack(currentIndex + 1);
+  else playBtn.textContent = '▶';
+});
+
+audio.addEventListener('timeupdate', () => {
+  const percent = (audio.currentTime / audio.duration) * 100;
+  progress.value = percent || 0;
+  currentTimeEl.textContent = formatTime(audio.currentTime);
+  durationEl.textContent = formatTime(audio.duration);
+});
+
+progress.addEventListener('input', () => {
+  audio.currentTime = (progress.value / 100) * audio.duration;
+});
+volumeSlider.addEventListener('input', () => audio.volume = volumeSlider.value);
+
+filterFormatEl.addEventListener('change', renderTracks);
+filterNameEl.addEventListener('input', renderTracks);
+
+if (!identifier) {
+  albumTitleEl.textContent = 'Error: No se proporcionó album ID';
+} else {
+  fetch(`https://archive.org/metadata/${identifier}`)
+    .then(res => res.json())
+    .then(data => {
+      albumTitleEl.textContent = data.metadata?.title || identifier;
+      albumCreatorEl.textContent = data.metadata?.creator || 'Autor desconocido';
+      albumCoverEl.src = `https://archive.org/services/img/${identifier}`;
+
+      tracks = Object.values(data.files || {}).filter(f =>
+        f.name.match(/\.(mp3|flac|wav|m4a|ogg)$/i)
+      ).map(f => ({
+        name: f.name,
+        format: (f.format || 'unknown').replace('Audio','').trim(),
+        url: `https://archive.org/download/${identifier}/${encodeURIComponent(f.name)}`
+      }));
+
+      renderTracks();
+    })
+    .catch(err => {
+      albumTitleEl.textContent = 'Error al cargar álbum';
+      console.error(err);
+    });
+}
+</script>
+<script>
+function playTrack(index) {
+  if (index < 0 || index >= currentPlaylist.length) return;
+  currentIndex = index;
+  const track = currentPlaylist[index];
+
+  // Cambiar fuente y reproducir
+  audio.src = track.url;
+  audio.play();
+
+  // Actualizar footer player
+  titleEl.textContent = track.name;
+  albumEl.textContent = albumTitleEl.textContent;
+  artistEl.textContent = albumCreatorEl.textContent;
+  formatEl.textContent = track.format.toUpperCase();
+  coverEl.src = albumCoverEl.src;
+  playBtn.textContent = '⏸';
+
+  // Actualizar título de la pestaña
+  document.title = `${track.name} – ${albumTitleEl.textContent}`;
+
+  // Actualizar lock screen y mini-player en iOS / Android (Media Session)
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: track.name,
+      artist: albumCreatorEl.textContent,
+      album: albumTitleEl.textContent,
+      artwork: [
+        { src: albumCoverEl.src, sizes: '512x512', type: 'image/png' },
+        { src: albumCoverEl.src, sizes: '256x256', type: 'image/png' }
+      ]
+    });
+
+    navigator.mediaSession.setActionHandler('play', () => audio.play());
+    navigator.mediaSession.setActionHandler('pause', () => audio.pause());
+    navigator.mediaSession.setActionHandler('previoustrack', () => {
+      if (currentIndex > 0) playTrack(currentIndex - 1);
+    });
+    navigator.mediaSession.setActionHandler('nexttrack', () => {
+      if (currentIndex < currentPlaylist.length - 1) playTrack(currentIndex + 1);
+    });
+  }
+}
+
+</script>
+<script>
+// === Mostrar/ocultar player ===
+const playerContainer = document.querySelector('.player-container');
+
+// Cuando se inicia la reproducción
+audio.addEventListener('play', () => {
+  playerContainer.classList.add('active');
+});
+
+// Cuando se pausa (solo si quieres ocultarlo al pausar)
+audio.addEventListener('pause', () => {
+  // Ocultar solo si está realmente pausado y no cargando
+  if (audio.currentTime > 0 && !audio.paused) return;
+  playerContainer.classList.remove('active');
+});
+
+// Cuando termina la canción
+audio.addEventListener('ended', () => {
+  playerContainer.classList.remove('active');
+});
+
+// Si cambia el src (nueva pista), lo ocultamos hasta que empiece
+audio.addEventListener('emptied', () => {
+  playerContainer.classList.remove('active');
+});
+
+
+</script>
+</body>
+</html>

@@ -1,0 +1,238 @@
+/* ===================== PLAYER / FOOTER ===================== */
+.player-container {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  background: #181818;
+  padding: 0.5rem 1rem;
+  border-top: 1px solid #282828;
+  box-shadow: 0 -6px 12px rgba(0,0,0,0.5);
+  gap: 1.5rem;
+  color: var(--text-color);
+  font-family: 'Inter', sans-serif;
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  z-index: 100;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+/* LEFT */
+.player-left {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.player-cover {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: var(--radius);
+}
+
+.track-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.track-info span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* CENTER */
+.player-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.controls {
+  display: flex;
+  gap: 0.8rem;
+}
+
+.controls button {
+  background: none;
+  border: none;
+  color: var(--text-color);
+  font-size: 1.4rem;
+  cursor: pointer;
+  border-radius: 50%;
+  padding: 0.3rem;
+  transition: color 0.2s ease, transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.controls button:hover {
+  color: #fff;
+  background-color: var(--accent-color);
+  transform: scale(1.15);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.5);
+}
+
+/* PROGRESS */
+#progress-bar {
+  width: 75%;
+  height: 6px;
+  border-radius: 10px;
+  background: #747474;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  overflow: hidden;
+}
+
+/* RIGHT */
+.player-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+#mute {
+  background: none;
+  border: none;
+  color: var(--text-color);
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+#volumeSlider {
+  width: 100px;
+  height: 6px;
+  border-radius: 10px;
+}
+
+/* ===================== ANIMACIONES ===================== */
+.player-container.show {
+  display: flex;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.player-container.hide {
+  opacity: 0;
+  transform: translateY(100%);
+}
+
+/* ===================== RESPONSIVE ===================== */
+
+/* MÓVIL */
+@media (max-width: 768px) {
+  .player-container {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0.4rem;
+    gap: 0.5rem;
+  }
+
+  .player-left {
+    max-width: 55%;
+    gap: 0.4rem;
+  }
+
+  .player-cover {
+    width: 40px;
+    height: 40px;
+  }
+
+  .track-info span {
+    font-size: 0.7rem;
+  }
+
+  .player-center {
+    flex: 1;
+    gap: 0.3rem;
+    justify-content: flex-end;
+  }
+
+  .controls button {
+    font-size: 1rem;
+    padding: 0.2rem;
+  }
+
+  .player-right,
+  #mute,
+  #volumeSlider {
+    display: none !important;
+  }
+
+  #progress-bar {
+    width: 50%;
+    height: 4px;
+  }
+}
+
+/* TABLET */
+@media (min-width: 769px) and (max-width: 1199px) {
+  .player-cover {
+    width: 50px;
+    height: 50px;
+  }
+
+  .track-info span {
+    font-size: 0.85rem;
+  }
+
+  .controls button {
+    font-size: 1.2rem;
+  }
+
+  #progress-bar {
+    width: 65%;
+    height: 5px;
+  }
+}
+
+/* DESKTOP */
+@media (min-width: 1200px) {
+  .player-cover {
+    width: 56px;
+    height: 56px;
+  }
+
+  .track-info span {
+    font-size: 1rem;
+  }
+
+  .controls button {
+    font-size: 1.4rem;
+  }
+
+  #progress-bar {
+    width: 75%;
+    height: 6px;
+  }
+}
+
+/* TV / PANTALLAS MUY GRANDES */
+@media (min-width: 1800px) {
+  .player-container {
+    padding: 1rem 2rem;
+    gap: 2rem;
+  }
+
+  .player-cover {
+    width: 64px;
+    height: 64px;
+  }
+
+  .track-info span {
+    font-size: 1.1rem;
+  }
+
+  .controls button {
+    font-size: 1.6rem;
+    padding: 0.5rem;
+  }
+
+  #progress-bar {
+    height: 8px;
+  }
+}

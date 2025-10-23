@@ -1,0 +1,250 @@
+/* ===================== VARIABLES ===================== */
+:root {
+  --bg-dark: #0f0f0f;
+  --bg-medium: #1a1a1a;
+  --bg-light: #222;
+  --primary: #1db954;
+  --primary-hover: #17a442;
+  --text-light: #fff;
+  --text-muted: #ccc;
+  --shadow: rgba(0,0,0,0.5);
+}
+
+/* ===================== RESET ===================== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+  background-color: var(--bg-dark);
+  color: var(--text-light);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===================== HEADER ===================== */
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 25px;
+  background: var(--bg-medium);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  border-bottom: 1px solid var(--bg-light);
+}
+
+.logo {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: var(--primary);
+}
+
+.nav-list {
+  display: flex;
+  list-style: none;
+  gap: 20px;
+}
+
+.menu-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-light);
+  font: inherit;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: background 0.2s, color 0.2s, transform 0.2s;
+}
+
+.menu-btn:hover {
+  background: rgba(29, 185, 84, 0.2);
+}
+
+.menu-btn.active {
+  background: var(--primary);
+  color: #000;
+}
+
+h2 {
+  text-align: center;
+  margin: 15px 0 25px 0;
+  font-size: 1.5rem;
+  color: var(--text-light);
+}
+/*Usuario header */
+header nav {
+  display: flex;
+  align-items: center;       /* los alinea verticalmente */
+  gap: 20px;                 /* espacio entre nav-list y user */
+}
+.nav-list {
+  display: flex;
+  list-style: none;
+  gap: 20px;
+}
+.nav-user {
+  display: flex;
+  align-items: center;
+  gap: 15px; /* espacio entre nav y usuario */
+}
+
+.menu-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-light);
+  font: inherit;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: background 0.2s, color 0.2s, transform 0.2s;
+}
+
+.menu-btn:hover {
+  background: rgba(29, 185, 84, 0.2);
+    transform: scale(1.05);
+   box-shadow: 0 6px 14px rgba(0,0,0,0.5);
+
+}
+
+.menu-btn.active {
+  background: var(--primary);
+  color: #000;
+}
+
+
+/* Usuario */
+.user-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#user-name {
+  padding: 4px 10px;
+  background-color: var(--bg-light);
+  color: var(--text-light);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.user-container button {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 12px;
+  background-color: var(--primary);
+  color: var(--bg-dark);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: bold;
+  transition: background 0.3s, transform 0.2s;
+}
+
+.user-container button:hover {
+  background-color: var(--primary-hover);
+  transform: scale(1.05);
+}
+
+
+
+
+
+/* ===================== FORMULARIO SUBIR ===================== */
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  max-width: 500px;
+  margin: 30px auto 80px auto; /* margen inferior para player */
+  background: var(--bg-medium);
+  padding: 25px;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px var(--shadow);
+}
+
+label {
+  font-weight: bold;
+  margin-bottom: 5px;
+  font-size: 0.95rem;
+}
+
+input[type="file"],
+input[type="text"] {
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #333;
+  background: var(--bg-dark);
+  color: var(--text-light);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 8px var(--primary);
+}
+
+button {
+  padding: 14px;
+  background: var(--primary);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.3s, transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 8px var(--shadow);
+}
+
+button:hover {
+  background: var(--primary-hover);
+  transform: scale(1.05);
+  box-shadow: 0 6px 14px var(--shadow);
+}
+
+.uploadstatus {
+  text-align: fixed;
+  margin-top: 10px;
+  font-weight: bold;
+  color: var(--primary);
+  font-size: 0.95rem;
+}
+
+/* ===================== PLAYER / FOOTER ===================== */
+.player-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: var(--bg-medium);
+  color: var(--text-light);
+  padding: 12px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 -4px 10px var(--shadow);
+  z-index: 100;
+}
+
+#nowPlaying {
+  font-size: 1rem;
+  opacity: 0.8;
+}
+
+audio {
+  width: 100%;
+  outline: none;
+  border-radius: 6px;
+}
+
+/* ===================== RESPONSIVE ===================== */
+@media (max-width: 768px) {
+  .nav-list { gap: 15px; }
+  form { max-width: 90%; padding: 20px; }
+}

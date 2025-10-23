@@ -1,0 +1,218 @@
+/* Contenedor de la card: permitir layout flexible sin que la imagen crezca */
+.cards-grid .card,
+.cards-grid article.card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+/* Portada fija a 50x50px */
+.cards-grid .card .cover,
+.cards-grid .card img.cover,
+.card img.cover {
+  display: block !important;
+  width: 50px !important;
+  height: 50px !important;
+  aspect-ratio: 1 / 1 !important;
+  object-fit: cover !important;
+  object-position: center;
+  border-radius: 6px !important;
+  flex: 0 0 50px !important; /* evita que cambie por flexbox */
+  min-width: 50px !important;
+  min-height: 50px !important;
+  max-width: 50px !important;
+  max-height: 50px !important;
+}
+
+/* Fallback para clases .fallback o navegadores antiguos */
+.cards-grid .card .cover.fallback,
+.card img.cover.fallback {
+  width: 50px !important;
+  height: 50px !important;
+  object-fit: cover !important;
+}
+
+/* Forzar anulación de reglas globales que reduzcan o escalen la imagen */
+.cards-grid .card img,
+.cards-grid img,
+img[src^="/uploads/"],
+img[src*="cover"],
+.cards-grid .card img {
+  min-width: 50px !important;
+  min-height: 50px !important;
+  max-width: 50px !important;
+  max-height: 50px !important;
+  width: 50px !important;
+  height: 50px !important;
+  display: block !important;
+}
+
+/* ===== Estilo tipo Deezer ===== */
+
+/* Portada con esquinas suaves y sombra ligera */
+.card {
+  background: transparent;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.25);
+}
+
+/* Imagen: sin bordes duros, zoom suave */
+.card .cover {
+  border-radius: 8px;
+  transition: transform 0.4s ease;
+}
+
+.card:hover .cover {
+  transform: scale(1.05);
+}
+
+/* Overlay degradado desde abajo */
+.overlay {
+  background: linear-gradient(to top, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0) 60%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.card:hover .overlay {
+  opacity: 1;
+}
+
+/* Botón de play centrado y flotante */
+.play-btn {
+  background: white;
+  color: black;
+  width: 50px;
+  height: 50px;
+  font-size: 1.2rem;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.card:hover .play-btn {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Texto: título más grande, artista más sutil */
+.card-info {
+  padding: 0.5rem 0.2rem;
+}
+
+.card-info h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.card-info p {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.7);
+}
+
+/* Fondo general oscuro tipo Deezer */
+body {
+  background-color: #121216;
+  color: #fff;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+}
+/* ===== Estilo tipo Deezer ===== */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1.5rem;
+  padding: 2rem;
+}
+
+.card {
+  position: relative;
+  background: transparent;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.25);
+}
+
+.cover {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 8px;
+  transition: transform 0.4s ease;
+}
+
+.card:hover .cover {
+  transform: scale(1.05);
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0) 60%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.card:hover .overlay {
+  opacity: 1;
+}
+
+.play-btn {
+  background: white;
+  color: black;
+  width: 50px;
+  height: 50px;
+  font-size: 1.2rem;
+  border: none;
+  border-radius: 50%;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.card:hover .play-btn {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.card-info {
+  padding: 0.5rem 0.2rem;
+}
+
+.card-info h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.card-info p {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.7);
+}
+
+.song-quality {
+  font-size: 0.7rem;
+  color: rgba(255,255,255,0.5);
+}
+
+body {
+  background-color: #121216;
+  color: #fff;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+}

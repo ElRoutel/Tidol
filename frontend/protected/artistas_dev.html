@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Artistas - Tidol</title>
+  <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="css/artistas.css">
+</head>
+<body>
+  <header>
+    <div class="logo">Tidol Developer</div>
+    <nav>
+      <ul class="nav-list">
+        <li><button class="menu-btn" onclick="location.href='index_dev.html'">Inicio</button></li>
+        <li><button class="menu-btn" onclick="location.href='subir_dev.html'">Subir</button></li>
+        <li><button class="menu-btn" onclick="location.href='buscar_dev.html'">Buscar</button></li>
+        <li><button class="menu-btn" onclick="location.href='albumes_dev.html'">Álbumes</button></li>
+        <li><button class="menu-btn active" onclick="location.href='artistas_dev.html'">Artistas</button></li>
+      </ul>
+      <div class="user-container">
+       <span id="user-name">Usuario</span>
+        <button id="logout-btn">Salir</button>
+      </div>
+    </nav>
+  </header>
+
+  <h2>Artistas</h2>
+  <div id="artists-container" class="cards-container"></div>
+
+
+  <main>
+    <div id="artists-container" class="cards-container"></div>
+  </main>
+
+  <script type="module">
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = 'login.html?redirect=artistas.html';
+
+    const container = document.getElementById('artists-container');
+
+    async function loadArtists() {
+      try {
+        const res = await fetch('/api/artists', { headers: { 'x-token': token } });
+        const artists = await res.json();
+
+        container.innerHTML = '';
+        if (!artists.length) {
+          container.innerHTML = '<p>No hay artistas disponibles.</p>';
+          return;
+        }
+
+        artists.forEach(artist => {
+          const div = document.createElement('div');
+          div.className = 'search-card';
+          div.innerHTML = `
+            <img src="${artist.imagen}" alt="${artist.nombre}" class="artist-photo">
+            <span>${artist.nombre}</span>
+            <small>${artist.albums} álbumes - ${artist.canciones} canciones</small>
+          `;
+          div.addEventListener('click', () => {
+            window.location.href = `artista_dev.html?id=${artist.id}`;
+          });
+          container.appendChild(div);
+        });
+      } catch (err) {
+        console.error(err);
+        container.innerHTML = '<p>Error cargando artistas.</p>';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadArtists);
+  </script>
+
+ <script> // Mostrar usuario
+const userNameEl = document.getElementById('user-name');
+const storedUser = localStorage.getItem('user');
+if (storedUser) {
+    const user = JSON.parse(storedUser);
+    userNameEl.textContent = user.username;
+}
+
+// Botón de logout
+document.getElementById('logout-btn').addEventListener('click', () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('role');
+    window.location.href = 'login.html';
+});
+  </script>
+</body>
+</html>
+
+</body>
+</html>

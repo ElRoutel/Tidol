@@ -1,0 +1,36 @@
+import sqlite3 from "sqlite3";
+import { open } from "sqlite";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const dbPath = path.join(__dirname, "database.sqlite");
+const schemaPath = path.join(__dirname, "schema.sql");
+
+const db = await open({
+  filename: dbPath,
+  driver: sqlite3.Database,
+});
+
+// Activar claves foráneas
+await db.exec("PRAGMA foreign_keys = ON;");
+
+if (!fs.existsSync(dbPath)) {
+  console.warn("⚠️ database.sqlite no existe. Creando...");
+  if (fs.existsSync(schemaPath)) {
+    try {
+      const schema = fs.readFileSync(schemaPath, "utf-8");
+      await db.exec(schema);
+      console.log("✅ Esquema inicial aplicado");
+    } catch (err) {
+      console.error("❌ Error al ejecutar schema.sql:", err.message);
+    }
+  } else {
+    console.error("❌ No se encontró schema.sql");
+  }
+}
+
+export default db;

@@ -1,0 +1,120 @@
+/* ===================== VARIABLES ===================== */
+:root {
+  --bg-dark: #0f0f0f;
+  --bg-medium: #1a1a1a;
+  --bg-light: #222;
+  --primary: #1db954;
+  --primary-hover: #17a442;
+  --text-light: #fff;
+  --text-muted: #ccc;
+  --shadow: rgba(0,0,0,0.5);
+}
+
+/* ===================== RESET ===================== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+  background-color: var(--bg-dark);
+  color: var(--text-light);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===================== BUSCADOR ===================== */
+#search-input {
+  display: block;
+  width: 90%;
+  max-width: 500px;
+  margin: 25px auto;
+  padding: 12px 15px;
+  border-radius: 10px;
+  border: 1px solid #333;
+  background: var(--bg-medium);
+  color: var(--text-light);
+  font-size: 1rem;
+  outline: none;
+  transition: border 0.2s, box-shadow 0.2s;
+}
+
+#search-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 10px var(--primary);
+}
+
+#search-results {
+  width: 90%;
+  max-width: 1000px;
+  margin: 0 auto 100px auto; /* espacio para player footer */
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ===================== SECCIONES ===================== */
+#search-results h3 {
+  margin: 10px 0;
+  color: var(--primary);
+  font-size: 1.2rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ===================== CARDS ===================== */
+.search-card {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 10px 15px;
+  background: var(--bg-medium);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px var(--shadow);
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.search-card img {
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.search-card span {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-light);
+}
+
+.search-card:hover {
+  transform: scale(1.03);
+  box-shadow: 0 6px 16px var(--shadow);
+  background: var(--bg-light);
+}
+
+/* ===================== ARTISTAS ESPECÍFICOS ===================== */
+.artista-photo {
+  border-radius: 50%;
+}
+
+/* ===================== RESPONSIVE ===================== */
+@media (max-width: 768px) {
+  #search-results {
+    width: 95%;
+  }
+
+  .search-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .search-card img {
+    width: 100%;
+    height: auto;
+  }
+}

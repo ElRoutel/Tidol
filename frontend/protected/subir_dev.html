@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Subir Música - TIDOL</title>
+  <link rel="stylesheet" href="style.css">
+ <link rel="stylesheet" href="style1.css">
+</head>
+<body>
+
+<header>
+  <div class="logo">Tidol Developer</div>
+  <nav>
+    <ul class="nav-list">
+      <li><button class="menu-btn" onclick="location.href='/index_dev.html'">Inicio</button></li>
+      <li><button class="menu-btn active" onclick="location.href='subir_dev.html'">Subir</button></li>
+      <li><button class="menu-btn" onclick="location.href='buscar_dev.html'">Buscar</button></li>
+      <li><button class="menu-btn" onclick="location.href='albumes_dev.html'">Álbumes</button></li>
+      <li><button class="menu-btn" onclick="location.href='artistas_dev.html'">Artistas</button></li>
+    </ul>
+    <div class="user-container">
+      <span id="user-name">Usuario</span>
+      <button onclick="logout()">Salir</button>
+    </div>
+  </nav>
+</header>
+
+<main class="main">
+  <section id="uploadSection" class="section active">
+    <h2>Subir Canciones/Albums</h2>
+    <form id="uploadForm">
+      <input type="file" id="songFile" name="song" multiple accept=".mp3,.wav,.ogg,.flac,.alac" required>
+      <input type="file" id="coverFile" name="coverFile" accept="image/*">
+      <input type="text" id="albumName" name="albumName" placeholder="Nombre del álbum" required>
+      <button type="submit">Subir</button>
+    </form>
+    <p id="uploadStatus"></p>
+
+    <div id="uploadedSongs"></div> >
+  </section>
+  <button type="button" id="btnSubirArtista">Subir foto de artista</button>
+</main>
+
+<script>
+
+  document.getElementById("btnSubirArtista").addEventListener("click", () => {
+    window.location.href = "subirArtistaFoto.html";
+});
+
+/* ==================== USUARIO ==================== */
+async function showUser() {
+  const token = localStorage.getItem('token');
+  if(!token) return window.location.href = 'login.html';
+
+  try {
+    const res = await fetch('/validate', { headers: { 'x-token': token } });
+    if(!res.ok) throw new Error();
+    const data = await res.json();
+    document.getElementById('user-name').textContent = data.username;
+  } catch {
+    localStorage.removeItem('token');
+    window.location.href = 'login.html';
+  }
+}
+
+function logout() {
+  localStorage.removeItem('token');
+  window.location.href = 'login.html';
+}
+
+showUser();
+
+/* ==================== SUBIDA DE CANCIONES ==================== */
+const uploadForm = document.getElementById("uploadForm");
+const uploadStatus = document.getElementById("uploadStatus");
+const uploadedSongs = document.getElementById("uploadedSongs");
+
+uploadForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const songFiles = document.getElementById("songFile").files;
+  const coverFile = document.getElementById("coverFile").files[0];
+  const albumName = document.getElementById("albumName").value.trim();
+
+  uploadStatus.textContent = "";
+  uploadedSongs.innerHTML = "";
+
+  if (!songFiles.length) {
+    uploadStatus.textContent = "❌ Selecciona al menos una canción";
+    return;
+  }
+
+  const formData = new FormData();
+  for (let i = 0; i < songFiles.length; i++) {
+    formData.append("song", songFiles[i]);
+  }
+  if (coverFile) formData.append("coverFile", coverFile);
+  if (albumName) formData.append("albumName", albumName);
+
+  const token = localStorage.getItem('token');
+  if (!token) return window.location.href = 'login.html';
+
+  try {
+    const res = await fetch("/uploads/musica", {
+      method: "POST",
+      headers: { 'x-token': token },
+      body: formData
+    });
+    const data = await res.json();
+
+    if (data.error) {
+      uploadStatus.textContent = `❌ ${data.error}`;
+    } else {
+      uploadStatus.textContent = `✅ ${data.message}`;
+      uploadForm.reset();
+      localStorage.setItem("songsUpdated", "true");
+
+      // Mostrar info de calidad de las canciones subidas
+      if (data.canciones && data.canciones.length) {
+        data.canciones.forEach(song => {
+          const div = document.createElement("div");
+          div.classList.add("song-info");
+          div.innerHTML = `
+            <strong>${song.titulo}</strong> - ${song.artista} (${song.album})<br>
+            Calidad: ${song.bitDepth}-bit ${song.sampleRate/1000} kHz ${song.bitRate ? Math.round(song.bitRate/1000) + " kbps" : "N/A"}
+          `;
+          uploadedSongs.appendChild(div);
+        });
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    uploadStatus.textContent = "❌ Error al subir canciones";
+  }
+});
+</script>
+
+</body>
+</html>

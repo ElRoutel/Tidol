@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Artista - Tidol</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="artist.css">
+<script type="module" src="js/auth.js"></script>
+</head>
+<body>
+<header>
+  <div class="logo">Tidol</div>
+  <nav>
+    <ul class="nav-list">
+      <li><button class="menu-btn" onclick="location.href='index.html'">Inicio</button></li>
+      <li><button class="menu-btn" onclick="location.href='subir.html'">Subir</button></li>
+      <li><button class="menu-btn active" onclick="location.href='buscar.html'">Buscar</button></li>
+      <li><button class="menu-btn" onclick="location.href='albumes.html'">Álbumes</button></li>
+      <li><button class="menu-btn" onclick="location.href='artistas.html'">Artistas</button></li>
+    </ul>
+    <div class="user-container">
+      <span id="user-name">Usuario</span>
+      <button id="logout-btn">Salir</button>
+    </div>
+  </nav>
+</header>
+
+<main>
+  <section id="artist-info" class="artist-banner"></section>
+
+  <section>
+    <h3>Álbumes</h3>
+    <div id="artist-albums"></div>
+  </section>
+
+
+</main>
+
+<script type="module">
+const token = localStorage.getItem('token');
+if(!token) window.location.href='login.html?redirect=artista.html';
+
+const artistId = new URLSearchParams(window.location.search).get('id');
+const infoEl = document.getElementById('artist-info');
+const albumsContainer = document.getElementById('artist-albums');
+const songsBody = document.getElementById('songs-body');
+
+async function loadArtist() {
+  try {
+    const res = await fetch(`/api/artists/${artistId}`, { headers:{'x-token':token} });
+    const data = await res.json();
+
+    // Banner dinámico
+    infoEl.style.setProperty('--banner-bg', `url('${data.imagen || '/img/default-artist.png'}')`);
+    infoEl.innerHTML = `
+      <img src="${data.imagen || '/img/default-artist.png'}" alt="${data.nombre}" class="artist-photo-large">
+      <h1>${data.nombre}</h1>
+      <p>${data.canciones} canciones • ${data.albums.length} álbumes</p>
+    `;
+
+    // Álbumes
+    albumsContainer.innerHTML='';
+    if(!data.albums.length){ albumsContainer.innerHTML='<p>No hay álbumes.</p>'; }
+    data.albums.forEach(album=>{
+      const div=document.createElement('div');
+      div.className='search-card';
+      div.innerHTML=`
+        <img src="${album.portada}" alt="${album.titulo}" class="album-cover">
+        <span>${album.titulo}</span>
+        <small>${album.canciones} canciones</small>
+      `;
+      div.addEventListener('click',()=>{ window.location.href=`album.html?id=${album.id}` });
+      albumsContainer.appendChild(div);
+    });
+
+
+    
+    const topSongsBody = document.getElementById('top-songs-body');
+
+async function loadTopSongs() {
+  try {
+    const res = await fetch(`/api/artists/${artistId}`, { headers: { 'x-token': token } });
+    const data = await res.json();
+
+    // Si el artista no tiene álbumes ni canciones
+    if (!data.albums || data.albums.length === 0) {
+      topSongsBody.innerHTML = `<tr><td colspan="4">No hay canciones disponibles.</td></tr>`;
+      return;
+    }
+
+    // Recopilar canciones de todos los álbumes
+    const canciones = [];
+    for (const album of data.albums) {
+      const resAlbum = await fetch(`/api/albums/${album.id}/canciones`, { headers: { 'x-token': token } });
+      const albumSongs = await resAlbum.json();
+      canciones.push(...albumSongs);
+    }
+
+    // Ordenar por duración descendente (o cualquier criterio que quieras)
+    canciones.sort((a, b) => b.duracion - a.duracion);
+
+    // Limitar top 10
+    const top10 = canciones.slice(0, 10);
+
+    topSongsBody.innerHTML = '';
+    top10.forEach((c, i) => {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${i+1}</td>
+        <td>${c.titulo}</td>
+        <td>${formatDuration(c.duracion)}</td>
+        <td><audio controls src="${c.url}"></audio></td>
+      `;
+      topSongsBody.appendChild(row);
+    });
+
+  } catch (err) {
+    console.error(err);
+    topSongsBody.innerHTML = `<tr><td colspan="4">Error cargando canciones.</td></tr>`;
+  }
+}
+
+// Función para mostrar duración en mm:ss
+function formatDuration(sec) {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${s.toString().padStart(2,'0')}`;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadArtist();
+  loadTopSongs();
+});
+
+
+  } catch(err){
+    console.error(err);
+    infoEl.innerHTML='<p>Error cargando artista.</p>';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadArtist);
+</script>
+
+<script> // Mostrar usuario
+const userNameEl = document.getElementById('user-name');
+const userData = JSON.parse(localStorage.getItem('user'));
+if(userData) userNameEl.textContent = userData.username || 'Usuario';
+
+// Logout
+document.getElementById('logout-btn').addEventListener('click', () => {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  window.location.href = 'login.html';
+});
+</script>
+
+</body>
+</html>

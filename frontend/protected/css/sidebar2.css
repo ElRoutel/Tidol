@@ -1,0 +1,78 @@
+/* ===================== SIDEBAR UNIFICADO ===================== */
+.sidebar {
+  width: 220px;
+  background: #121212;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  position: fixed;
+  height: 100%;
+}
+
+.profile {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+}
+
+.profile-pic {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* Menú de la sidebar */
+.sidebar-menu {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Botones del menú */
+.sidebar-menu button {
+  background: none;
+  border: none;
+  color: var(--text-color);
+  text-align: left;
+  padding: 0.5rem 0.8rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+/* Hover elegante, uniforme para todas las páginas */
+.sidebar-menu button:hover,
+.sidebar-menu .active {
+  background: rgba(255, 255, 255, 0.05); /* sutil, estilo oscuro como el home */
+}
+
+/* Links dentro de profile (si los hubiera) */
+.sidebar .profile a {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+/* ===================== RESPONSIVE ===================== */
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 60px;
+    padding: 0.5rem;
+  }
+
+  .profile span,
+  .sidebar-menu button {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    display: none;
+  }
+}
