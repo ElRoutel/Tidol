@@ -1,2 +1,117 @@
+# ==========================
+#   TIDOL - CLEAN GITIGNORE
+# ==========================
+
+# --- NODE / BACKEND ---
 node_modules/
-clave.env
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+.env
+.env.*
+
+# --- BUILD / CACHE ---
+dist/
+build/
+.cache/
+.tmp/
+temp/
+tmp/
+
+# --- FRONTEND STATIC FILES ---
+frontend/.vscode/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.cache/
+frontend/temp/
+frontend/tmp/
+
+# --- BACKEND STATIC FILES ---
+backend/.vscode/
+backend/node_modules/
+backend/dist/
+backend/build/
+backend/.cache/
+backend/temp/
+backend/tmp/
+
+# --- BASE DE DATOS / LOGS ---
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# --- ARCHIVOS MULTIMEDIA PESADOS ---
+# Música (todas las extensiones comunes)
+*.mp3
+*.wav
+*.flac
+*.ogg
+*.aac
+*.m4a
+*.wma
+*.aiff
+*.mid
+*.midi
+
+# Portadas e imágenes
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.tif
+*.webp
+*.svg
+*.ico
+*.heic
+*.avif
+*.psd
+
+# --- VIDEO / OTROS ---
+*.mp4
+*.mkv
+*.mov
+*.avi
+*.wmv
+*.flv
+*.webm
+*.m4v
+
+# --- ARCHIVOS EJECUTABLES O COMPRIMIDOS ---
+*.zip
+*.rar
+*.7z
+*.tar
+*.gz
+*.exe
+*.dll
+*.bin
+
+# --- IGNORAR CONTENIDO LOCAL DE UPLOADS ---
+# (esto evita subir las canciones y portadas locales)
+frontend/uploads/
+frontend/protected/uploads/
+frontend/music/
+frontend/covers/
+backend/uploads/
+backend/music/
+backend/covers/
+
+# --- CONFIGS DEL SISTEMA ---
+Thumbs.db
+ehthumbs.db
+Icon?
+desktop.ini
+
+# --- EDITORES / IDEs ---
+.vscode/
+.idea/
+*.code-workspace
+
+# --- GIT BACKUPS ---
+*.orig
+*.bak
