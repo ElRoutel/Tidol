@@ -285,6 +285,25 @@ app.post("/uploads/musica", authMiddleware, upload.fields([{ name: "song", maxCo
     res.status(500).json({ error: "Error interno al subir canción" });
   }
 });
+app.get('/api/me', (req, res) => {
+  const token = req.headers["authorization"]?.replace(/^Bearer\s+/i, '') || req.headers["x-token"];
+  if (!token) return res.status(401).json({ message: "No autorizado" });
+
+  try {
+    const payload = jwt.verify(token, SECRET);
+    db.get(
+      "SELECT id, nombre, role, profile_img FROM usuarios WHERE nombre = ?",
+      [payload.username],
+      (err, user) => {
+        if (err) return res.status(500).json({ message: "Error de base de datos" });
+        if (!user) return res.status(404).json({ message: "Usuario no encontrado" });
+        res.json(user);
+      }
+    );
+  } catch (err) {
+    res.status(401).json({ message: "Token inválido" });
+  }
+});
 
 // ----------------------
 // Listado canciones, álbumes, artistas, buscador, etc.
