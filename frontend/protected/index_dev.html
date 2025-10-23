@@ -3,56 +3,46 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TIDOL - Home</title>
+<title>TIDOL - Developer</title>
 
-<script src="/js/auth-guard.js"></script>
+<!-- Guardar sesión / autorización -->
+<script type="module" src="/js/auth-guard.js" defer></script>
 
 <!-- Estilos base -->
-<link rel="stylesheet" href="style.css">
-<link rel="stylesheet" href="css/sidebar.css">
-<link rel="stylesheet" href="css/player.css">
-<link rel="stylesheet" href="css/cards.css">
-<link rel="stylesheet" href="css/responsive.css">
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/css/sidebar.css">
+<link rel="stylesheet" href="/css/player.css">
+<link rel="stylesheet" href="/css/cards.css">
+<link rel="stylesheet" href="/css/responsive.css">
 
-<!-- Reproductor -->
+<!-- Reproductor SPA y lógica de navegación -->
+<script type="module" src="/js/spa.js" defer></script>
 <script type="module" src="/js/main.js" defer></script>
-
 
 </head>
 <body>
 
 <!-- SIDEBAR -->
 <aside class="sidebar">
-<div class="profile">
-  <a href="/protected/perfil_dev.html">
-    <img src="/default_cover.png" alt="Foto de perfil" class="profile-pic">
-    <span id="user-name">Usuario</span>
-  </a>
-</div>
-<ul class="sidebar-menu">
-  <li><button onclick="location.href='/index_dev.html'">Inicio</button></li>
-  <li><button onclick="location.href='protected/subir_dev.html'">Subir Música</button></li>
-  <li><button onclick="location.href='protected/buscar_dev.html'">Buscar</button></li>
-  <li><button onclick="location.href='protected/albumes_dev.html'">Álbumes</button></li>
-  <li><button onclick="location.href='protected/artistas_dev.html'">Artistas</button></li>
-  <li><button id="logout-btn">Salir</button></li>
-</ul>
+  <div class="profile">
+    <a href="#" id="profile-link">
+      <img src="/default_cover.png" alt="Foto de perfil" class="profile-pic" id="profile-pic">
+      <span id="user-name">Usuario</span>
+    </a>
+  </div>
+  <ul class="sidebar-menu">
+    <li><button data-fragment="inicio_dev">Inicio</button></li>
+    <li><button data-fragment="subir_dev">Subir Música</button></li>
+    <li><button data-fragment="buscar_dev">Buscar</button></li>
+    <li><button data-fragment="albumes_dev">Álbumes</button></li>
+    <li><button data-fragment="artistas_dev">Artistas</button></li>
+    <li><button id="logout-btn">Salir</button></li>
+  </ul>
 </aside>
 
-<main class="main-content">
-  <header class="main-header">
-    <a href="/index_dev.html" class="logo">Tidol Developer</a>
-  </header>
-
-  <section class="panel">
-    <h2>Recientes</h2>
-    <div id="songs-container" class="cards-grid"></div>
-  </section>
-
-  <section class="panel">
-    <h2>Recomendaciones</h2>
-    <div id="recommendations" class="cards-grid"></div>
-  </section>
+<!-- CONTENEDOR PRINCIPAL SPA -->
+<main class="main-content" id="main-content">
+  <!-- Los fragmentos se cargan aquí dinámicamente -->
 </main>
 
 <!-- FOOTER / PLAYER -->
@@ -87,8 +77,6 @@
     </div>
   </div>
 </footer>
-
-
 
 </body>
 </html>
