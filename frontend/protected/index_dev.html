@@ -3,53 +3,44 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TIDOL - Developer</title>
+<title>TIDOL Dev</title>
 
-<!-- Guardar sesión / autorización -->
-<script type="module" src="/js/auth-guard.js" defer></script>
-
-<!-- Estilos base -->
+<!-- Estilos -->
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/css/sidebar.css">
 <link rel="stylesheet" href="/css/player.css">
 <link rel="stylesheet" href="/css/cards.css">
-<link rel="stylesheet" href="/css/responsive.css">
 
-<!-- Reproductor SPA y lógica de navegación -->
-<script type="module" src="/js/spa.js" defer></script>
+<!-- Scripts SPA -->
 <script type="module" src="/js/main.js" defer></script>
-
 </head>
 <body>
 
 <!-- SIDEBAR -->
 <aside class="sidebar">
   <div class="profile">
-    <a href="#" id="profile-link">
-      <img src="/default_cover.png" alt="Foto de perfil" class="profile-pic" id="profile-pic">
-      <span id="user-name">Usuario</span>
-    </a>
+    <img src="/default_cover.png" alt="Foto de perfil" class="profile-pic">
+    <span id="user-name">Usuario</span>
   </div>
   <ul class="sidebar-menu">
-    <li><button data-fragment="inicio_dev">Inicio</button></li>
-    <li><button data-fragment="subir_dev">Subir Música</button></li>
-    <li><button data-fragment="buscar_dev">Buscar</button></li>
-    <li><button data-fragment="albumes_dev">Álbumes</button></li>
-    <li><button data-fragment="artistas_dev">Artistas</button></li>
+    <li><button data-view="home">Inicio</button></li>
+    <li><button data-view="subir">Subir Música</button></li>
+    <li><button data-view="buscar">Buscar</button></li>
+    <li><button data-view="albumes">Álbumes</button></li>
+    <li><button data-view="artistas">Artistas</button></li>
     <li><button id="logout-btn">Salir</button></li>
   </ul>
 </aside>
 
-<!-- CONTENEDOR PRINCIPAL SPA -->
-<main class="main-content" id="main-content">
-  <!-- Los fragmentos se cargan aquí dinámicamente -->
+<!-- CONTENIDO DINÁMICO -->
+<main id="app-content">
+  <!-- Las vistas se inyectan aquí mediante router.js -->
 </main>
 
-<!-- FOOTER / PLAYER -->
+<!-- PLAYER -->
 <footer class="player-container" id="player-container">
-  <audio id="audio-player"></audio>
   <div class="player-left">
-    <img id="cover" src="/default_cover.png" alt="Portada" class="player-cover">
+    <img id="cover" src="/default_cover.png" alt="Portada">
     <div class="track-info">
       <span id="track-title">Título</span>
       <span id="track-album">Álbum</span>
@@ -58,23 +49,16 @@
     </div>
   </div>
   <div class="player-center">
-    <div class="controls">
-      <button id="prev" title="Anterior">⏮</button>
-      <button id="playPause" title="Reproducir/Pausar">▶</button>
-      <button id="next" title="Siguiente">⏭</button>
-    </div>
-    <input type="range" id="player" class="progress-bar" min="0" max="100" value="0">
-    <div class="time">
-      <span id="currentTime">0:00</span>
-      <span id="duration">0:00</span>
-    </div>
+    <button id="prev">⏮</button>
+    <button id="playPause">▶</button>
+    <button id="next">⏭</button>
+    <input type="range" id="player" min="0" max="100" value="0">
+    <span id="currentTime">0:00</span>
+    <span id="duration">0:00</span>
   </div>
   <div class="player-right">
-    <button id="mute" title="Silencio">🔊</button>
-    <div class="volume-container">
-      <input type="range" id="volumeSlider" min="0" max="1" step="0.01">
-      <div class="volume-fill"></div>
-    </div>
+    <button id="mute">🔊</button>
+    <input type="range" id="volumeSlider" min="0" max="1" step="0.01">
   </div>
 </footer>
 

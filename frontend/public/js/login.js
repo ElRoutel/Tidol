@@ -64,7 +64,7 @@ async function loginUser() {
             if (redirectPage) {
                 window.location.href = redirectPage;
             } else if (["owner", "admin", "tester"].includes(data.role)) {
-                window.location.href = "/dev";
+                window.location.href = "/index_dev.html";
             } else {
                 window.location.href = "/index.html";
             }

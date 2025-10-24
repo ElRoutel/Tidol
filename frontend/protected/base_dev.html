@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TIDOL</title>
+
+  <!-- =================== CSS =================== -->
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/css/sidebar.css">
+  <link rel="stylesheet" href="/css/player.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+</head>
+
+<body>
+  <!-- =================== SIDEBAR =================== -->
+  <aside class="sidebar">
+    <div class="profile">
+      <img src="/default_cover.png" alt="Foto de perfil" class="profile-pic" />
+      <span id="user-name">Usuario</span>
+    </div>
+    <ul class="sidebar-menu">
+      <li><button data-view="home">Inicio</button></li>
+      <li><button data-view="subir">Subir Música</button></li>
+      <li><button data-view="buscar">Buscar</button></li>
+      <li><button data-view="albumes">Álbumes</button></li>
+      <li><button data-view="artistas">Artistas</button></li>
+      <li><button id="logout-btn">Salir</button></li>
+    </ul>
+  </aside>
+
+  <!-- =================== CONTENIDO =================== -->
+  <main id="app-content"></main>
+
+  <!-- =================== PLAYER =================== -->
+  <footer class="player-container" id="player-container">
+    <audio id="audio-player"></audio>
+
+    <div class="player-left">
+      <img id="cover" src="/default_cover.png" alt="Portada" class="player-cover" />
+      <div class="track-info">
+        <span id="track-title">Título</span>
+        <span id="track-artist">Artista</span>
+      </div>
+    </div>
+
+    <div class="player-center">
+      <button id="prev">⏮</button>
+      <button id="playPause">▶</button>
+      <button id="next">⏭</button>
+      <input type="range" id="progress" min="0" max="100" value="0" />
+    </div>
+
+    <div class="player-right">
+      <button id="mute">🔊</button>
+      <input type="range" id="volumeSlider" min="0" max="1" step="0.01" />
+    </div>
+  </footer>
+
+  <!-- =================== JS =================== -->
+  <!-- El auth-guard primero -->
+  <script src="/js/auth-guard.js"></script>
+
+  <!-- Router y player como módulos -->
+  <script type="module" src="/js/router.js"></script>
+  <script type="module" src="/js/player.js"></script>
+  <script type="module" src="/js/songs.js"></script>
+<script type="module" src="/js/main.js"></script>
+</body>
+</html>

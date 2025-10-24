@@ -1,15 +1,16 @@
-// progress.js
-import { formatTime } from './utils.js';
+export function initProgress(audio, progressBar, currentTimeEl, durationEl) {
+  if (!progressBar || !currentTimeEl || !durationEl) return;
 
-export function initProgress(audio, progress, currentTimeEl, durationEl) {
-  audio.addEventListener('timeupdate', () => {
-    const dur = audio.duration || 0;
-    progress.value = dur ? (audio.currentTime / dur) * 100 : 0;
-    currentTimeEl.textContent = formatTime(audio.currentTime);
-    durationEl.textContent = formatTime(dur);
+  progressBar.addEventListener('input', e => {
+    const value = e.target.value;
+    audio.currentTime = (value / 100) * audio.duration;
   });
 
-  progress.addEventListener('input', () => {
-    audio.currentTime = (progress.value / 100) * audio.duration;
+  audio.addEventListener('timeupdate', () => {
+    if (audio.duration) {
+      progressBar.value = (audio.currentTime / audio.duration) * 100;
+      currentTimeEl.textContent = formatTime(audio.currentTime);
+      durationEl.textContent = formatTime(audio.duration);
+    }
   });
 }
