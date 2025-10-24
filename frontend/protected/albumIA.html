@@ -12,26 +12,10 @@
 <link rel="stylesheet" href="/css/track-list.css">
 <link rel="stylesheet" href="css/IAalbum.css">
 
-
 <script type="module" src="/js/main.js" defer></script>
 </head>
 <body>
-<header>
-  <div class="logo" onclick="location.href='/index_dev.html'">Tidol</div>
-  <nav>
-    <ul class="nav-list">
-      <li><button class="menu-btn" onclick="location.href='/index_dev.html'">Inicio</button></li>
-      <li><button class="menu-btn" onclick="location.href='/protected/subir_dev.html'">Subir</button></li>
-      <li><button class="menu-btn" onclick="location.href='/protected/buscar_dev.html'">Buscar</button></li>
-      <li><button class="menu-btn active" onclick="location.href='/protected/albumes_dev.html'">Álbumes</button></li>
-      <li><button class="menu-btn" onclick="location.href='/protected/artistas_dev.html'">Artistas</button></li>
-    </ul>
-    <div class="user-container">
-      <span id="user-name">Usuario</span>
-      <button id="logout-btn">Salir</button>
-    </div>
-  </nav>
-</header>
+
 
 <!-- Sidebar -->
 <aside class="sidebar">
@@ -278,6 +262,20 @@ audio.addEventListener('emptied', () => playerContainer.classList.remove('active
 // Filtros
 filterFormatEl.addEventListener('change', renderTracks);
 filterNameEl.addEventListener('input', renderTracks);
+function cleanTrackName(fileName) {
+  // Elimina "Album: …, Cancion: …/" y número inicial
+  let name = fileName;
+
+  // Si contiene "/", tomar la última parte
+  if (name.includes('/')) {
+    name = name.split('/').pop();
+  }
+
+  // Elimina números iniciales tipo "01. "
+  name = name.replace(/^\d+\.\s*/, '');
+
+  return name;
+}
 
 // Cargar álbum
 if (!identifier) {
@@ -290,13 +288,14 @@ if (!identifier) {
       albumCreatorEl.textContent = data.metadata?.creator || 'Autor desconocido';
       albumCoverEl.src = `https://archive.org/services/img/${identifier}`;
 
-      tracks = Object.values(data.files || {}).filter(f =>
-        f.name.match(/\.(mp3|flac|wav|m4a|ogg)$/i)
-      ).map(f => ({
-        name: f.name,
-        format: (f.format || 'unknown').replace('Audio','').trim(),
-        url: `https://archive.org/download/${identifier}/${encodeURIComponent(f.name)}`
-      }));
+tracks = Object.values(data.files || {}).filter(f =>
+  f.name.match(/\.(mp3|flac|wav|m4a|ogg)$/i)
+).map(f => ({
+  name: cleanTrackName(f.name), // <-- aquí
+  format: (f.format || 'unknown').replace('Audio','').trim(),
+  url: `https://archive.org/download/${identifier}/${encodeURIComponent(f.name)}`
+}));
+
 
       renderTracks();
     })
@@ -305,6 +304,7 @@ if (!identifier) {
       console.error(err);
     });
 }
+
 </script>
 
 </body>

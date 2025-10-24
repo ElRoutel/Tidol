@@ -1,15 +1,13 @@
 @charset "UTF-8";
-/* ===== NUEVA LISTA DE CANCIONES (reemplaza cardsAlbum.css) ===== */
-/* Tu archivo: /css/track-list.scss */
-/* Contenedor principal de la lista */
+
 .track-list {
   display: flex;
   flex-direction: column;
-  padding: 0 2rem; /* Menos padding que el grid */
+  padding: 0 1rem; /* Menos padding que el grid */
   margin-top: 1.5rem;
 }
 
-/* Fila individual de canción (reemplaza .card) */
+
 .track-row {
   display: grid;
   grid-template-columns: 40px 1fr 60px 50px;
@@ -19,12 +17,7 @@
   border-radius: 6px;
   transition: background-color 0.2s ease;
   cursor: pointer;
-  /* --- Columnas de la fila --- */
-  /* Columna 1: Número y botón Play */
-  /* Columna 2: Título y Artista (crece para llenar espacio) */
-  /* Columna 3: Formato (opcional) */
-  /* Columna 4: Duración */
-  /* --- Interacciones --- */
+
 }
 .track-row .track-play {
   position: relative;
@@ -98,11 +91,12 @@
 /* --- Media Queries (Móvil) --- */
 @media (max-width: 767px) {
   .track-list {
-    padding: 0 0.5rem;
+    padding: 0 0.1rem;
   }
+  
   .track-row {
-    grid-template-columns: 40px 1fr;
-    padding: 0.75rem 0.5rem;
+    grid-template-columns: auto 1fr; /* Auto para que la columna desaparezca cuando no hay contenido */
+    padding: 0.3rem 0.5rem;
   }
   .track-row .track-format,
   .track-row .track-duration {
@@ -112,6 +106,9 @@
     font-size: 0.95rem;
   }
   .track-row .track-info p {
-    font-size: 0.8rem;
+    font-size: 0.9rem;
+  } 
+.track-row span.track-number {
+    display: none;
   }
 }/*# sourceMappingURL=track-list.css.map */
