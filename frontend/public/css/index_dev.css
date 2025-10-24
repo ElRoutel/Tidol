@@ -1,0 +1,383 @@
+/* ===================== VARIABLES ===================== */
+:root {
+  --bg-dark: #0f0f0f;
+  --bg-medium: #1a1a1a;
+  --bg-light: #222;
+  --primary: #1db954;
+  --primary-hover: #18dd5d;
+  --text-light: #fff;
+  --text-medium: #ccc;
+  --text-muted: #bbb;
+  --shadow: rgba(0,0,0,0.5);
+  --accent-color: #1ed760;
+  --radius: 8px;
+  --transition: 0.2s ease;
+}
+
+/* ===================== RESET ===================== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* ===================== BODY ===================== */
+body {
+  background-color: #121216;
+  color: #fff;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  display: flex;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ===================== SIDEBAR ===================== */
+.sidebar {
+  width: 220px;
+  background: #121212;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  position: fixed;
+  height: 100%;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+}
+
+.profile {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+}
+
+.profile-pic {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.sidebar-menu {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sidebar-menu button {
+  background: none;
+  border: none;
+  color: #fff;
+  text-align: left;
+  padding: 0.5rem 0.8rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.sidebar-menu button:hover {
+  background: rgba(30, 215, 96, 0.2);
+}
+
+/* ===================== CONTENIDO PRINCIPAL ===================== */
+#app-content {
+  margin-left: 220px; /* espacio para sidebar */
+  padding: 2rem 1rem 6rem 1rem; /* abajo espacio para player */
+  width: calc(100% - 220px);
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* ===================== CARDS GRID ===================== */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1.5rem;
+}
+
+/* ===================== CARDS ESTILO DEEZER ===================== */
+.card {
+  position: relative;
+  background: transparent;
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.25);
+}
+
+.cover {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: var(--radius);
+  transition: transform 0.4s ease;
+}
+
+.card:hover .cover {
+  transform: scale(1.05);
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0) 60%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.card:hover .overlay {
+  opacity: 1;
+}
+
+.play-btn {
+  background: white;
+  color: black;
+  width: 50px;
+  height: 50px;
+  font-size: 1.2rem;
+  border: none;
+  border-radius: 50%;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.card:hover .play-btn {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.card-info {
+  padding: 0.5rem 0.2rem;
+}
+
+.card-info h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.card-info p {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.7);
+}
+
+.song-quality {
+  font-size: 0.7rem;
+  color: rgba(255,255,255,0.5);
+}
+
+/* ===================== PLAYER / FOOTER ===================== */
+.player-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #181818;
+  padding: 0.8rem 1.2rem;
+  border-top: 1px solid #282828;
+  box-shadow: 0 -6px 12px rgba(0,0,0,0.5);
+  gap: 1.5rem;
+  color: #fff;
+  font-family: 'Inter', sans-serif;
+  position: fixed;
+  bottom: 0;
+  left: 220px; /* empieza después del sidebar */
+  width: calc(100% - 220px);
+  z-index: 100;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.player-left {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.player-cover {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: var(--radius);
+}
+
+.track-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+#track-title {
+  font-weight: bold;
+  font-size: 1rem;
+  color: #fff;
+}
+
+#track-album {
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.7);
+}
+
+#track-artist {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.5);
+}
+
+.player-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.controls {
+  display: flex;
+  gap: 0.8rem;
+}
+
+.controls button {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.4rem;
+  cursor: pointer;
+  transition: color var(--transition), transform var(--transition), background var(--transition), box-shadow var(--transition);
+  border-radius: 50%;
+  padding: 0.3rem;
+}
+
+.controls button:hover {
+  color: #fff;
+  background-color: var(--accent-color);
+  transform: scale(1.15);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.5);
+}
+
+#player {
+  width: 100%;
+  height: 6px;
+  border-radius: 10px;
+  background: #747474;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  overflow: hidden;
+}
+
+#player::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-color);
+  border: 2px solid #022001;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+}
+
+#player::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-color);
+  border: 2px solid #6b6b6b;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+}
+
+.player-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+#mute {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+#mute:hover {
+  color: var(--accent-color);
+  transform: scale(1.2);
+}
+
+#volumeSlider {
+  width: 100%;
+  height: 6px;
+  border-radius: 10px;
+  background: #6b6b6b;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  overflow: hidden;
+  transition: background 0.2s ease;
+}
+
+.volume-filled {
+  height: 100%;
+  background: var(--accent-color);
+  border-radius: 6px 0 0 6px;
+  transition: width 0.1s linear;
+}
+
+.player-container.show {
+  display: flex;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.player-container.hide {
+  opacity: 0;
+  transform: translateY(100%);
+}
+
+/* ===================== RESPONSIVE ===================== */
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 60px;
+    padding: 0.5rem;
+  }
+
+  #app-content {
+    margin-left: 60px;
+    width: calc(100% - 60px);
+    padding: 1rem;
+  }
+
+  .player-container {
+    left: 60px;
+    width: calc(100% - 60px);
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    display: none;
+  }
+
+  #app-content {
+    margin-left: 0;
+    width: 100%;
+    padding: 1rem;
+  }
+
+  .player-container {
+    left: 0;
+    width: 100%;
+  }
+}
