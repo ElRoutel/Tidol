@@ -1,0 +1,132 @@
+/* ===== NUEVA LISTA DE CANCIONES (reemplaza cardsAlbum.css) ===== */
+/* Tu archivo: /css/track-list.scss */
+
+/* Contenedor principal de la lista */
+.track-list {
+  display: flex;
+  flex-direction: column;
+  padding: 0 2rem; /* Menos padding que el grid */
+  margin-top: 1.5rem;
+}
+
+/* Fila individual de canción (reemplaza .card) */
+.track-row {
+  display: grid;
+  // Definimos las columnas: [Play] [Info] [Formato] [Duración]
+  grid-template-columns: 40px 1fr 60px 50px; 
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+  cursor: pointer;
+
+  /* --- Columnas de la fila --- */
+  
+  /* Columna 1: Número y botón Play */
+  .track-play {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.6);
+
+    .track-number {
+      font-size: 0.95rem;
+      transition: opacity 0.2s ease;
+    }
+    
+    .play-icon {
+      position: absolute;
+      opacity: 0; // Oculto por defecto
+      transition: opacity 0.2s ease;
+      background: none;
+      border: none;
+      color: white;
+      font-size: 0.9rem;
+      padding: 0;
+      cursor: pointer;
+    }
+  }
+  
+  /* Columna 2: Título y Artista (crece para llenar espacio) */
+  .track-info {
+    // flex-grow: 1; // No es necesario con grid
+    min-width: 0; // Evita que el texto se desborde
+
+    h3 {
+      font-size: 1rem;
+      font-weight: 500;
+      color: #fff;
+      margin: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    p {
+      font-size: 0.85rem;
+      color: rgba(255, 255, 255, 0.7);
+      margin: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+  
+  /* Columna 3: Formato (opcional) */
+  .track-format {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-align: center;
+  }
+  
+  /* Columna 4: Duración */
+  .track-duration {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.6);
+    text-align: right;
+  }
+  
+  /* --- Interacciones --- */
+  
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    
+    /* Magia de Spotify: esconder número, mostrar play */
+    .track-number {
+      opacity: 0;
+    }
+    .play-icon {
+      opacity: 1;
+    }
+  }
+}
+
+/* --- Media Queries (Móvil) --- */
+@media (max-width: 767px) {
+  .track-list {
+    padding: 0 0.5rem;
+  }
+  
+  .track-row {
+    // En móvil, ocultamos formato y duración
+    grid-template-columns: 40px 1fr;
+    padding: 0.75rem 0.5rem;
+    
+    .track-format,
+    .track-duration {
+      display: none;
+    }
+    
+    .track-info {
+      h3 { font-size: 0.95rem; }
+      p { font-size: 0.8rem; }
+    }
+  }
+}

@@ -9,9 +9,9 @@
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="css/sidebarIA.css">
 <link rel="stylesheet" href="css/IAplayer.css">
-
+<link rel="stylesheet" href="/css/track-list.css">
 <link rel="stylesheet" href="css/IAalbum.css">
-<link rel="stylesheet" href="cardsAlbum.css"> 
+
 
 <script type="module" src="/js/main.js" defer></script>
 </head>
@@ -76,7 +76,8 @@
     </div>
 
     <!-- Grid de canciones -->
-    <div id="tracks-list" class="cards-grid"></div>
+   <div id="tracks-list" class="track-list"></div>
+ <div style="height: 100px;"></div> <!-- Espacio para el player -->
   </div>
 </main>
 
@@ -137,6 +138,7 @@ const prevBtn = document.getElementById('player-prev');
 const muteBtn = document.getElementById('player-mute');
 const currentTimeEl = document.getElementById('player-currentTime');
 const durationEl = document.getElementById('player-duration');
+const playerContainer = document.querySelector('.player-container');
 
 let tracks = [];
 let currentPlaylist = [];
@@ -166,20 +168,33 @@ function renderTracks() {
   }
 
   currentPlaylist.forEach((track, index) => {
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = `
-      <img src="https://archive.org/services/img/${identifier}" class="cover" alt="Portada">
-      <div class="card-info">
+    const row = document.createElement('div');
+    row.className = 'track-row';
+    row.innerHTML = `
+      <div class="track-play">
+        <span class="track-number">${index + 1}</span>
+        <button class="play-icon">▶</button>
+      </div>
+      <div class="track-info">
         <h3>${track.name}</h3>
-        <p>${track.format.toUpperCase()}</p>
+        <p>${albumCreatorEl.textContent}</p>
       </div>
-      <div class="overlay">
-        <button class="play-btn">▶</button>
-      </div>
+      <div class="track-format">${track.format.toUpperCase()}</div>
+      <div class="track-duration">--:--</div>
     `;
-    card.querySelector('.play-btn').addEventListener('click', () => playTrack(index));
-    tracksListEl.appendChild(card);
+
+    // Reproducir al hacer click en cualquier parte de la fila
+    row.addEventListener('click', (e) => {
+      if (e.target.tagName.toLowerCase() !== 'button') playTrack(index);
+    });
+
+    // Reproducir si se hace click en el botón play
+    row.querySelector('.play-icon').addEventListener('click', (e) => {
+      e.stopPropagation();
+      playTrack(index);
+    });
+
+    tracksListEl.appendChild(row);
   });
 }
 
@@ -195,45 +210,76 @@ function playTrack(index) {
   albumEl.textContent = albumTitleEl.textContent;
   artistEl.textContent = albumCreatorEl.textContent;
   formatEl.textContent = track.format.toUpperCase();
-  coverEl.src = `https://archive.org/services/img/${identifier}`;
+  coverEl.src = albumCoverEl.src;
   playBtn.textContent = '⏸';
+
+  document.title = `${track.name} – ${albumTitleEl.textContent}`;
+
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: track.name,
+      artist: albumCreatorEl.textContent,
+      album: albumTitleEl.textContent,
+      artwork: [
+        { src: albumCoverEl.src, sizes: '512x512', type: 'image/png' },
+        { src: albumCoverEl.src, sizes: '256x256', type: 'image/png' }
+      ]
+    });
+    navigator.mediaSession.setActionHandler('play', () => audio.play());
+    navigator.mediaSession.setActionHandler('pause', () => audio.pause());
+    navigator.mediaSession.setActionHandler('previoustrack', () => {
+      if (currentIndex > 0) playTrack(currentIndex - 1);
+    });
+    navigator.mediaSession.setActionHandler('nexttrack', () => {
+      if (currentIndex < currentPlaylist.length - 1) playTrack(currentIndex + 1);
+    });
+  }
 }
 
+// Player controles
 playBtn.addEventListener('click', () => {
   if (audio.paused) audio.play();
   else audio.pause();
 });
-
-audio.addEventListener('play', () => playBtn.textContent = '⏸');
-audio.addEventListener('pause', () => playBtn.textContent = '▶');
-
 nextBtn.addEventListener('click', () => {
   if (currentIndex < currentPlaylist.length - 1) playTrack(currentIndex + 1);
 });
 prevBtn.addEventListener('click', () => {
   if (currentIndex > 0) playTrack(currentIndex - 1);
 });
-
+audio.addEventListener('play', () => playBtn.textContent = '⏸');
+audio.addEventListener('pause', () => playBtn.textContent = '▶');
 audio.addEventListener('ended', () => {
   if (currentIndex < currentPlaylist.length - 1) playTrack(currentIndex + 1);
   else playBtn.textContent = '▶';
 });
-
 audio.addEventListener('timeupdate', () => {
   const percent = (audio.currentTime / audio.duration) * 100;
   progress.value = percent || 0;
   currentTimeEl.textContent = formatTime(audio.currentTime);
   durationEl.textContent = formatTime(audio.duration);
-});
 
+  // Actualizar duración en cada fila
+  document.querySelectorAll('.track-row').forEach((row, i) => {
+    if (i === currentIndex) row.querySelector('.track-duration').textContent = formatTime(audio.duration);
+  });
+});
 progress.addEventListener('input', () => {
   audio.currentTime = (progress.value / 100) * audio.duration;
 });
 volumeSlider.addEventListener('input', () => audio.volume = volumeSlider.value);
 
+// Mostrar/ocultar player
+audio.addEventListener('play', () => playerContainer.classList.add('active'));
+audio.addEventListener('pause', () => { if (audio.currentTime === 0) playerContainer.classList.remove('active'); });
+audio.addEventListener('ended', () => playerContainer.classList.remove('active'));
+audio.addEventListener('emptied', () => playerContainer.classList.remove('active'));
+
+// Filtros
 filterFormatEl.addEventListener('change', renderTracks);
 filterNameEl.addEventListener('input', renderTracks);
 
+// Cargar álbum
 if (!identifier) {
   albumTitleEl.textContent = 'Error: No se proporcionó album ID';
 } else {
@@ -260,78 +306,6 @@ if (!identifier) {
     });
 }
 </script>
-<script>
-function playTrack(index) {
-  if (index < 0 || index >= currentPlaylist.length) return;
-  currentIndex = index;
-  const track = currentPlaylist[index];
 
-  // Cambiar fuente y reproducir
-  audio.src = track.url;
-  audio.play();
-
-  // Actualizar footer player
-  titleEl.textContent = track.name;
-  albumEl.textContent = albumTitleEl.textContent;
-  artistEl.textContent = albumCreatorEl.textContent;
-  formatEl.textContent = track.format.toUpperCase();
-  coverEl.src = albumCoverEl.src;
-  playBtn.textContent = '⏸';
-
-  // Actualizar título de la pestaña
-  document.title = `${track.name} – ${albumTitleEl.textContent}`;
-
-  // Actualizar lock screen y mini-player en iOS / Android (Media Session)
-  if ('mediaSession' in navigator) {
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: track.name,
-      artist: albumCreatorEl.textContent,
-      album: albumTitleEl.textContent,
-      artwork: [
-        { src: albumCoverEl.src, sizes: '512x512', type: 'image/png' },
-        { src: albumCoverEl.src, sizes: '256x256', type: 'image/png' }
-      ]
-    });
-
-    navigator.mediaSession.setActionHandler('play', () => audio.play());
-    navigator.mediaSession.setActionHandler('pause', () => audio.pause());
-    navigator.mediaSession.setActionHandler('previoustrack', () => {
-      if (currentIndex > 0) playTrack(currentIndex - 1);
-    });
-    navigator.mediaSession.setActionHandler('nexttrack', () => {
-      if (currentIndex < currentPlaylist.length - 1) playTrack(currentIndex + 1);
-    });
-  }
-}
-
-</script>
-<script>
-// === Mostrar/ocultar player ===
-const playerContainer = document.querySelector('.player-container');
-
-// Cuando se inicia la reproducción
-audio.addEventListener('play', () => {
-  playerContainer.classList.add('active');
-});
-
-// Cuando se pausa (solo si quieres ocultarlo al pausar)
-audio.addEventListener('pause', () => {
-  // Ocultar solo si está realmente pausado y no cargando
-  if (audio.currentTime > 0 && !audio.paused) return;
-  playerContainer.classList.remove('active');
-});
-
-// Cuando termina la canción
-audio.addEventListener('ended', () => {
-  playerContainer.classList.remove('active');
-});
-
-// Si cambia el src (nueva pista), lo ocultamos hasta que empiece
-audio.addEventListener('emptied', () => {
-  playerContainer.classList.remove('active');
-});
-
-
-</script>
 </body>
 </html>
