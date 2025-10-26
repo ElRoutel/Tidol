@@ -5,19 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tidol Developer – Album IA</title>
 
-<!-- CSS -->
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="css/sidebarIA.css">
 <link rel="stylesheet" href="css/IAplayer.css">
 <link rel="stylesheet" href="/css/track-list.css">
 <link rel="stylesheet" href="css/IAalbum.css">
-
 <script type="module" src="/js/main.js" defer></script>
 </head>
 <body>
 
-
-<!-- Sidebar -->
 <aside class="sidebar">
   <div class="profile">
     <a href="/protected/perfil_dev.html">
@@ -35,37 +31,40 @@
   </ul>
 </aside>
 
-<!-- Contenido principal -->
 <main class="main-content">
   <div id="album-container">
     <div class="album-header">
-      <img id="album-cover" class="album-cover" src="/default_cover.png" alt="Portada álbum">
-      <div class="album-info">
-        <h2 id="album-title">Cargando álbum... <span class="ia-tag">IA</span></h2>
-        <p id="album-creator"></p>
-
-        <label for="filter-name">Buscar por nombre:</label>
-        <input type="text" id="filter-name" placeholder="Escribe para buscar...">
-
-        <label for="filter-format">Filtrar por formato:</label>
-        <select id="filter-format">
-          <option value="">Todos</option>
-          <option value=".mp3">mp3</option>
-          <option value=".flac">flac</option>
-          <option value=".wav">wav</option>
-          <option value=".m4a">m4a</option>
-          <option value=".ogg">ogg</option>
-        </select>
+      
+      <div class="album-metadata">
+        <img id="album-cover" class="album-cover" src="/default_cover.png" alt="Portada álbum">
+        <div class="album-info">
+          <h2 id="album-title">Cargando álbum... <span class="ia-tag">IA</span></h2>
+          <p id="album-creator">Nombre del Artista</p> 
+        </div>
       </div>
+ 
+
+    </div>
+    
+    <div class="filter-controls">
+      <label for="filter-name">Buscar por nombre:</label>
+      <input type="text" id="filter-name" placeholder="Escribe para buscar...">
+
+      <label for="filter-format">Filtrar por formato:</label>
+      <select id="filter-format">
+        <option value="">Todos</option>
+        <option value=".mp3">mp3</option>
+        <option value=".flac">flac</option>
+        <option value=".wav">wav</option>
+        <option value=".m4a">m4a</option>
+        <option value=".ogg">ogg</option>
+      </select>
     </div>
 
-    <!-- Grid de canciones -->
-   <div id="tracks-list" class="track-list"></div>
- <div style="height: 100px;"></div> <!-- Espacio para el player -->
-  </div>
+    <div id="tracks-list" class="track-list"></div>
+    <div style="height: 100px;"></div> </div>
 </main>
 
-<!-- Footer / Player -->
 <footer class="player-container">
   <audio id="audio-player"></audio>
   <div class="player-left">
@@ -97,215 +96,7 @@
   </div>
 </footer>
 
-<script>
-const params = new URLSearchParams(window.location.search);
-const identifier = params.get('id');
-
-const albumTitleEl = document.getElementById('album-title');
-const albumCreatorEl = document.getElementById('album-creator');
-const albumCoverEl = document.getElementById('album-cover');
-const tracksListEl = document.getElementById('tracks-list');
-const filterFormatEl = document.getElementById('filter-format');
-const filterNameEl = document.getElementById('filter-name');
-
-const audio = document.getElementById('audio-player');
-const progress = document.getElementById('player-progress');
-const volumeSlider = document.getElementById('player-volume');
-const titleEl = document.getElementById('player-title');
-const albumEl = document.getElementById('player-album');
-const artistEl = document.getElementById('player-artist');
-const coverEl = document.getElementById('player-cover');
-const formatEl = document.getElementById('player-format');
-const playBtn = document.getElementById('player-playPause');
-const nextBtn = document.getElementById('player-next');
-const prevBtn = document.getElementById('player-prev');
-const muteBtn = document.getElementById('player-mute');
-const currentTimeEl = document.getElementById('player-currentTime');
-const durationEl = document.getElementById('player-duration');
-const playerContainer = document.querySelector('.player-container');
-
-let tracks = [];
-let currentPlaylist = [];
-let currentIndex = 0;
-
-function formatTime(seconds) {
-  if (isNaN(seconds)) return '0:00';
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60).toString().padStart(2,'0');
-  return `${m}:${s}`;
-}
-
-function renderTracks() {
-  tracksListEl.innerHTML = '';
-  const formatFilter = filterFormatEl.value;
-  const nameFilter = filterNameEl.value.toLowerCase().trim();
-
-  currentPlaylist = tracks.filter(track => {
-    const nameMatch = !nameFilter || track.name.toLowerCase().includes(nameFilter);
-    const formatMatch = !formatFilter || track.name.toLowerCase().endsWith(formatFilter);
-    return nameMatch && formatMatch;
-  });
-
-  if (!currentPlaylist.length) {
-    tracksListEl.innerHTML = '<p>No se encontraron canciones.</p>';
-    return;
-  }
-
-  currentPlaylist.forEach((track, index) => {
-    const row = document.createElement('div');
-    row.className = 'track-row';
-    row.innerHTML = `
-      <div class="track-play">
-        <span class="track-number">${index + 1}</span>
-        <button class="play-icon">▶</button>
-      </div>
-      <div class="track-info">
-        <h3>${track.name}</h3>
-        <p>${albumCreatorEl.textContent}</p>
-      </div>
-      <div class="track-format">${track.format.toUpperCase()}</div>
-      <div class="track-duration">--:--</div>
-    `;
-
-    // Reproducir al hacer click en cualquier parte de la fila
-    row.addEventListener('click', (e) => {
-      if (e.target.tagName.toLowerCase() !== 'button') playTrack(index);
-    });
-
-    // Reproducir si se hace click en el botón play
-    row.querySelector('.play-icon').addEventListener('click', (e) => {
-      e.stopPropagation();
-      playTrack(index);
-    });
-
-    tracksListEl.appendChild(row);
-  });
-}
-
-function playTrack(index) {
-  if (index < 0 || index >= currentPlaylist.length) return;
-  currentIndex = index;
-  const track = currentPlaylist[index];
-
-  audio.src = track.url;
-  audio.play();
-
-  titleEl.textContent = track.name;
-  albumEl.textContent = albumTitleEl.textContent;
-  artistEl.textContent = albumCreatorEl.textContent;
-  formatEl.textContent = track.format.toUpperCase();
-  coverEl.src = albumCoverEl.src;
-  playBtn.textContent = '⏸';
-
-  document.title = `${track.name} – ${albumTitleEl.textContent}`;
-
-  if ('mediaSession' in navigator) {
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: track.name,
-      artist: albumCreatorEl.textContent,
-      album: albumTitleEl.textContent,
-      artwork: [
-        { src: albumCoverEl.src, sizes: '512x512', type: 'image/png' },
-        { src: albumCoverEl.src, sizes: '256x256', type: 'image/png' }
-      ]
-    });
-    navigator.mediaSession.setActionHandler('play', () => audio.play());
-    navigator.mediaSession.setActionHandler('pause', () => audio.pause());
-    navigator.mediaSession.setActionHandler('previoustrack', () => {
-      if (currentIndex > 0) playTrack(currentIndex - 1);
-    });
-    navigator.mediaSession.setActionHandler('nexttrack', () => {
-      if (currentIndex < currentPlaylist.length - 1) playTrack(currentIndex + 1);
-    });
-  }
-}
-
-// Player controles
-playBtn.addEventListener('click', () => {
-  if (audio.paused) audio.play();
-  else audio.pause();
-});
-nextBtn.addEventListener('click', () => {
-  if (currentIndex < currentPlaylist.length - 1) playTrack(currentIndex + 1);
-});
-prevBtn.addEventListener('click', () => {
-  if (currentIndex > 0) playTrack(currentIndex - 1);
-});
-audio.addEventListener('play', () => playBtn.textContent = '⏸');
-audio.addEventListener('pause', () => playBtn.textContent = '▶');
-audio.addEventListener('ended', () => {
-  if (currentIndex < currentPlaylist.length - 1) playTrack(currentIndex + 1);
-  else playBtn.textContent = '▶';
-});
-audio.addEventListener('timeupdate', () => {
-  const percent = (audio.currentTime / audio.duration) * 100;
-  progress.value = percent || 0;
-  currentTimeEl.textContent = formatTime(audio.currentTime);
-  durationEl.textContent = formatTime(audio.duration);
-
-  // Actualizar duración en cada fila
-  document.querySelectorAll('.track-row').forEach((row, i) => {
-    if (i === currentIndex) row.querySelector('.track-duration').textContent = formatTime(audio.duration);
-  });
-});
-progress.addEventListener('input', () => {
-  audio.currentTime = (progress.value / 100) * audio.duration;
-});
-volumeSlider.addEventListener('input', () => audio.volume = volumeSlider.value);
-
-// Mostrar/ocultar player
-audio.addEventListener('play', () => playerContainer.classList.add('active'));
-audio.addEventListener('pause', () => { if (audio.currentTime === 0) playerContainer.classList.remove('active'); });
-audio.addEventListener('ended', () => playerContainer.classList.remove('active'));
-audio.addEventListener('emptied', () => playerContainer.classList.remove('active'));
-
-// Filtros
-filterFormatEl.addEventListener('change', renderTracks);
-filterNameEl.addEventListener('input', renderTracks);
-function cleanTrackName(fileName) {
-  // Elimina "Album: …, Cancion: …/" y número inicial
-  let name = fileName;
-
-  // Si contiene "/", tomar la última parte
-  if (name.includes('/')) {
-    name = name.split('/').pop();
-  }
-
-  // Elimina números iniciales tipo "01. "
-  name = name.replace(/^\d+\.\s*/, '');
-
-  return name;
-}
-
-// Cargar álbum
-if (!identifier) {
-  albumTitleEl.textContent = 'Error: No se proporcionó album ID';
-} else {
-  fetch(`https://archive.org/metadata/${identifier}`)
-    .then(res => res.json())
-    .then(data => {
-      albumTitleEl.textContent = data.metadata?.title || identifier;
-      albumCreatorEl.textContent = data.metadata?.creator || 'Autor desconocido';
-      albumCoverEl.src = `https://archive.org/services/img/${identifier}`;
-
-tracks = Object.values(data.files || {}).filter(f =>
-  f.name.match(/\.(mp3|flac|wav|m4a|ogg)$/i)
-).map(f => ({
-  name: cleanTrackName(f.name), // <-- aquí
-  format: (f.format || 'unknown').replace('Audio','').trim(),
-  url: `https://archive.org/download/${identifier}/${encodeURIComponent(f.name)}`
-}));
-
-
-      renderTracks();
-    })
-    .catch(err => {
-      albumTitleEl.textContent = 'Error al cargar álbum';
-      console.error(err);
-    });
-}
-
-</script>
+<script type="module" src="/js/albumIA.js" defer></script>
 
 </body>
 </html>

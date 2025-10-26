@@ -690,6 +690,26 @@ router.get("/searchArchive", async (req, res) => {
     return res.status(500).json({ error: "Error al buscar en Internet Archive" });
   }
 });
+app.get("/api/recommendations/:songId", authMiddleware, async (req, res) => {
+  const { songId } = req.params;
+  const reproducidas = req.query.played?.split(",") || []; // IDs ya reproducidas
+
+  try {
+    const current = await db.get("SELECT * FROM canciones WHERE id = ?", [songId]);
+    if (!current) return res.status(404).json({ error: "Canción no encontrada" });
+
+    const candidates = await db.all(`
+      SELECT * FROM canciones
+      WHERE artista_id = ?
+      AND id NOT IN (${reproducidas.map(() => "?").join(",")})
+      LIMIT 10
+    `, [current.artista_id, ...reproducidas]);
+
+    res.json(candidates);
+  } catch (err) {
+    res.status(500).json({ error: "Error generando recomendaciones" });
+  }
+});
 
 export default router;
 // ----------------------

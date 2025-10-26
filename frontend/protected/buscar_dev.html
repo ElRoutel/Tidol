@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="css/integrado.css">
   <link rel="stylesheet" href="css/buscador.css">
-
+  <link rel="stylesheet" href="css/overlay.css">
   <link rel="stylesheet" href="css/sidebarIA.css">
   <!-- JS -->
   <script type="module" src="/js/main.js" defer></script>
@@ -50,154 +50,30 @@
   <div id="search-progress" class="progress-message"></div>
 </main>
 
-  <script>
-const token = localStorage.getItem('token') || '';
-const input = document.getElementById('search-input');
-const btn = document.getElementById('search-btn');
-const resultsContainer = document.getElementById('search-results');
-const progressEl = document.getElementById('search-progress');
-
-btn.addEventListener('click', handleSearch);
-input.addEventListener('keypress', e => { if(e.key==='Enter') handleSearch(); });
-
-async function handleSearch() {
-  const query = input.value.trim();
-  if(!query) return;
-  
-  resultsContainer.innerHTML = '<p class="loading">Buscando...</p>';
-  progressEl.textContent = ''; // limpiar mensaje de progreso
-
-  // Resultados locales
-  try {
-    const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`, {
-      headers: { 'x-token': token }
-    });
-    const data = await res.json();
-    renderLocalResults(data);
-  } catch (err) {
-    console.error('Error en búsqueda local:', err);
-  }
-
-  // Resultados de Internet Archive
-  await buscarInternetArchive(query);
-}
-
-function renderLocalResults({ canciones = [], albums = [], artists = [] }) {
-  // No limpiamos el contenedor para dejar lugar a IA, solo agregamos contenido local
-  resultsContainer.innerHTML = '';
-
-  const renderGroup = (title, items, renderItem) => {
-    if(!items.length) return;
-    const h = document.createElement('h3'); h.textContent = title;
-    resultsContainer.appendChild(h);
-    const grid = document.createElement('div'); grid.className='result-grid';
-    items.forEach(item => grid.appendChild(renderItem(item)));
-    resultsContainer.appendChild(grid);
-  };
-
-  renderGroup('Artistas (Locales)', artists, artista => 
-    createCard(artista.nombre, '', 'Artista', artista.imagen, () => location.href=`artista_dev.html?id=${artista.id}`)
-  );
-  renderGroup('Álbumes (Locales)', albums, album => 
-    createCard(album.titulo, album.autor, 'Álbum', album.portada, () => location.href=`album_dev.html?id=${album.id}`)
-  );
-  renderGroup('Canciones (Locales)', canciones, song => 
-    createCard(song.titulo, song.artista, song.formato?.toUpperCase() || 'LOCAL', song.portada, () => location.href=`album_dev.html?id=${song.albumId}&song=${song.id}`)
-  );
-}
-
-function createCard(title, subtitle, tag, imgSrc, onClick) {
-  const div = document.createElement('div');
-  div.classList.add('result-card');
-  div.innerHTML = `
-    <img src="${imgSrc}" alt="${title}" class="result-img">
-    <div class="result-info">
-      <h3>${title}</h3>
-      <p>${subtitle}</p>
-      <span class="format-tag">${tag}</span>
-    </div>
-  `;
-  div.onclick = onClick;
-  return div;
-}
-
-// ===================== INTERNET ARCHIVE =====================
-async function buscarInternetArchive(query) {
-  progressEl.textContent = 'Buscando en Internet Archive... Esto puede tardar unos segundos.';
-
-  const palabras = query.trim().split(/\s+/);
-
-  // Generar todas las combinaciones posibles de 1 a N palabras
-  const combinaciones = [];
-  for (let i = 0; i < palabras.length; i++) {
-    for (let j = i; j < palabras.length; j++) {
-      combinaciones.push(palabras.slice(i, j + 1).join(' '));
-    }
-  }
-
-  const formatos = ['mp3','flac','wav','m4a'];
-  const todosResultados = [];
-  let count = 0;
-
-  for (const combo of combinaciones) {
-    count++;
-    progressEl.textContent = `Buscando combinaciones (${count}/${combinaciones.length}) (Esto puede tardar unos segundos)...`;
-
-    const keywords = `"${combo}"`;
-    const fetches = formatos.map(f =>
-      fetch(`https://archive.org/advancedsearch.php?q=(title:${keywords} OR creator:${keywords}) AND mediatype:audio AND format:${f}&fl[]=identifier,title,creator,format&sort[]=downloads+desc&rows=30&page=1&output=json`)
-        .then(res => res.json())
-        .then(data => data.response?.docs || [])
-    );
-
-    const resultadosPorFormato = await Promise.all(fetches);
-    todosResultados.push(...[].concat(...resultadosPorFormato));
-  }
-
-  // Contar cuántas veces aparece cada identifier (para relevancia)
-  const contador = {};
-  todosResultados.forEach(item => {
-    contador[item.identifier] = (contador[item.identifier] || 0) + 1;
-  });
-
-  // Eliminar duplicados
-  const resultadosUnicos = Object.values(
-    todosResultados.reduce((acc, item) => {
-      if (!acc[item.identifier]) acc[item.identifier] = item;
-      return acc;
-    }, {})
-  );
-
-  // Ordenar por coincidencias (más coincidencias arriba)
-  resultadosUnicos.sort((a, b) => contador[b.identifier] - contador[a.identifier]);
-
-  progressEl.textContent = ''; // limpiar mensaje de progreso
-
-  if (!resultadosUnicos.length) {
-    resultsContainer.innerHTML += '<p>No se encontraron resultados en IA.</p>';
-    return;
-  }
-
-  const h = document.createElement('h3');
-  h.textContent = 'Resultados de Internet Archive';
-  resultsContainer.appendChild(h);
-
-  resultadosUnicos.forEach(item => {
-    const ext = item.format ? item.format.join(', ') : 'Desconocido';
-    const identifier = item.identifier;
-    const div = createCard(
-      item.title || 'Sin título',
-      item.creator || 'Autor desconocido',
-      ext,
-      `https://archive.org/services/img/${identifier}`,
-      () => { window.location.href = `/protected/albumIA.html?id=${identifier}`; }
-    );
-    div.classList.add('search-card');
-    resultsContainer.appendChild(div);
-  });
-}
-
-
-</script>
+  <script type="module" src="/js/search.js"></script>
 </body>
+<!-- Overlay de álbum IA -->
+<div id="albumIA-overlay" class="overlay hidden">
+  <div class="overlay-content">
+    <button id="overlay-close" class="close-btn">✖</button>
+    <div id="albumIA-header">
+      <img id="overlay-cover" src="/default_cover.png" alt="Portada álbum">
+      <div id="overlay-info">
+        <h2 id="overlay-title">Cargando álbum...</h2>
+        <p id="overlay-creator"></p>
+        <input type="text" id="overlay-filter-name" placeholder="Buscar por nombre...">
+        <select id="overlay-filter-format">
+          <option value="">Todos</option>
+          <option value=".mp3">mp3</option>
+          <option value=".flac">flac</option>
+          <option value=".wav">wav</option>
+          <option value=".m4a">m4a</option>
+          <option value=".ogg">ogg</option>
+        </select>
+      </div>
+    </div>
+    <div id="overlay-tracks-list" class="track-list"></div>
+  </div>
+</div>
+
 </html>

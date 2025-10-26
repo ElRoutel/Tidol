@@ -18,61 +18,156 @@ const db = await open({
 // Activar claves foráneas
 await db.exec("PRAGMA foreign_keys = ON;");
 
-// 1️⃣ Si la DB no existe, crearla y aplicar schema.sql
+// 1️⃣ Crear DB si no existe
 if (!fs.existsSync(dbPath)) {
-  console.warn("⚠️ database.sqlite no existe. Creando...");
+  console.warn("⚠️ Base de datos no encontrada. Creando...");
   if (fs.existsSync(schemaPath)) {
     try {
       const schema = fs.readFileSync(schemaPath, "utf-8");
       await db.exec(schema);
-      console.log("✅ Esquema inicial aplicado");
+      console.log("✅ Esquema inicial aplicado correctamente");
     } catch (err) {
       console.error("❌ Error al ejecutar schema.sql:", err.message);
     }
   } else {
-    console.error("❌ No se encontró schema.sql");
+    console.error("❌ No se encontró el archivo schema.sql");
   }
 }
 
 // 2️⃣ Migraciones automáticas
 try {
-  // Agregar columna 'role' si no existe
+  console.log("🚀 Aplicando migraciones automáticas...");
+
+  // ========== USUARIOS ==========
+  // Agregar columna 'role'
   try {
     await db.exec(`
-      ALTER TABLE usuarios
-      ADD COLUMN role TEXT DEFAULT 'nombre';
+      ALTER TABLE usuarios ADD COLUMN role TEXT DEFAULT 'user';
     `);
+    console.log("🆕 Columna 'role' agregada");
   } catch (err) {
-    if (!/duplicate column/i.test(err.message)) {
-      throw err;
-    }
-    console.log("ℹ️ Columna 'role' ya existe, se omite");
+    if (!/duplicate column/i.test(err.message)) console.error(err.message);
   }
 
-  // Marcar tu usuario 'Routel' como owner
+  // Agregar columna 'profile_img'
+  try {
+    await db.exec(`
+      ALTER TABLE usuarios ADD COLUMN profile_img TEXT DEFAULT '/public/default_cover.png';
+    `);
+    console.log("🆕 Columna 'profile_img' agregada");
+  } catch (err) {
+    if (!/duplicate column/i.test(err.message)) console.error(err.message);
+  }
+
+  // Asignar rol 'owner' a tu usuario
   await db.exec(`
     UPDATE usuarios
     SET role = 'owner'
-    WHERE nombre = 'Routel';
+    WHERE LOWER(nombre) IN ('routel', 'elroutel', 'adolfo');
   `);
 
-  // Agregar columna 'profile_img' si no existe
-  try {
-    await db.exec(`
-      ALTER TABLE usuarios
-      ADD COLUMN profile_img TEXT DEFAULT '/public/default_cover.png';
-    `);
-  } catch (err) {
-    if (!/duplicate column/i.test(err.message)) {
-      throw err;
-    }
-    console.log("ℹ️ Columna 'profile_img' ya existe, se omite");
-  }
+  // Insertar usuarios base
+  await db.exec(`
+    INSERT OR IGNORE INTO usuarios (nombre, password, role)
+    VALUES 
+      ('admin', '$2b$12$RmttDJ9ySItjgv8vsBYyRe0owrY02N.Ssh4bSjQNilJxqh2dYR0Vm', 'admin'),
+      ('ADOLFO', '$2b$12$eTB99h98Nn3csDPEDTYw1.1uLgA4sQGAORRNwDWdU2ubpICu/vpjy', 'tester');
+  `);
 
-  console.log("✅ Migraciones aplicadas correctamente");
+  // ========== ARTISTAS ==========
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS artistas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nombre TEXT NOT NULL UNIQUE,
+      bio TEXT DEFAULT '',
+      imagen TEXT DEFAULT '/public/default_cover.png',
+      genero TEXT DEFAULT '',
+      pais TEXT DEFAULT '',
+      fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_artistas_nombre ON artistas(nombre);
+  `);
+
+  // ========== ÁLBUMES ==========
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS albumes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      titulo TEXT NOT NULL,
+      artista_id INTEGER NOT NULL,
+      portada TEXT DEFAULT '',
+      anio INTEGER,
+      genero TEXT DEFAULT '',
+      fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (artista_id) REFERENCES artistas(id) ON DELETE CASCADE ON UPDATE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_albumes_titulo ON albumes(titulo);
+  `);
+
+  // ========== CANCIONES ==========
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS canciones (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      titulo TEXT NOT NULL,
+      archivo TEXT NOT NULL,
+      artista_id INTEGER NOT NULL,
+      album_id INTEGER,
+      duracion INTEGER DEFAULT 0,
+      genero TEXT DEFAULT '',
+      portada TEXT DEFAULT '',
+      bit_depth INTEGER DEFAULT 0,
+      sample_rate INTEGER DEFAULT 44100,
+      bit_rate INTEGER DEFAULT 0,
+      fecha_subida DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (artista_id) REFERENCES artistas(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      FOREIGN KEY (album_id) REFERENCES albumes(id) ON DELETE SET NULL ON UPDATE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_canciones_titulo ON canciones(titulo);
+  `);
+
+  // ========== PLAYLISTS ==========
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS playlists (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nombre TEXT NOT NULL,
+      usuario_id INTEGER NOT NULL,
+      fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE ON UPDATE CASCADE
+    );
+  `);
+
+  // ========== PLAYLIST_CANCIONES ==========
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS playlist_canciones (
+      playlist_id INTEGER NOT NULL,
+      cancion_id INTEGER NOT NULL,
+      fecha_agregada DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (playlist_id, cancion_id),
+      FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      FOREIGN KEY (cancion_id) REFERENCES canciones(id) ON DELETE CASCADE ON UPDATE CASCADE
+    );
+  `);
+
+  // ========== CALIDAD AUDIO ==========
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS calidad_audio (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      cancion_id INTEGER NOT NULL,
+      codec TEXT NOT NULL DEFAULT 'flac',
+      bit_depth INTEGER DEFAULT 0,
+      sample_rate INTEGER DEFAULT 44100,
+      bit_rate INTEGER DEFAULT 0,
+      clasificacion TEXT DEFAULT '',
+      sospechoso BOOLEAN DEFAULT 0,
+      espectrograma TEXT DEFAULT '',
+      fecha_analisis DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (cancion_id) REFERENCES canciones(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_calidad_cancion_id ON calidad_audio(cancion_id);
+  `);
+
+  console.log("✅ Migraciones aplicadas correctamente ✅");
 } catch (err) {
   console.error("❌ Error al aplicar migraciones:", err.message);
 }
 
 export default db;
-// Ahora 'db' está listo para usarse en otros módulos
