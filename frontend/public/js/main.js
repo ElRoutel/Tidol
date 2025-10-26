@@ -4,7 +4,7 @@ import { initVolumeControls } from './volume.js';
 import { loadSongs, songs } from './songs.js';
 import { initPlayer, playSongByIndex } from './player.js';
 import { initProgress } from './progress.js';
-import { addToQueue, reproducirSiguiente, obtenerCancionSimilar } from './queue.js';
+
 
 // ===== ELEMENTOS DEL DOM =====
 const audio = new Audio();

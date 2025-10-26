@@ -581,4 +581,5 @@ if (!identifier) {
       albumTitleEl.textContent = 'Error al cargar álbum';
       console.error(err);
     });
-}
+
+  } 
