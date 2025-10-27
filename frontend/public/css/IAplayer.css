@@ -1,0 +1,288 @@
+/* ===================== PLAYER / FOOTER (LIMPIO Y CONSISTENTE) ===================== */
+
+/* Safety: evita cálculos raros de ancho dentro del player */
+.player-container,
+.player-container * {
+  box-sizing: border-box;
+}
+
+.player-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #181818;
+  padding: 0.6rem 1rem;
+  border-top: 1px solid #282828;
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  max-width: 1400px;
+  left: 50%;
+  transform: translateX(-50%);
+  gap: 1rem;
+  z-index: 100;
+  color: var(--text-color);
+  /* evita que el player empuje ancho extra por padding en pantallas pequeñas */
+  overflow: hidden;
+}
+
+/* ===================== LEFT ===================== */
+.player-left {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: 40%; /* Limita la parte izquierda */
+  min-width: 0; /* importante para evitar overflow por flex items */
+}
+
+.track-info {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.8rem;
+  gap: 2px;
+  overflow: hidden;        /* Evita desbordes */
+  text-overflow: ellipsis; /* ... para texto largo */
+  white-space: nowrap;     /* Texto en una línea */
+  min-width: 0;            /* para que text-overflow funcione dentro de flex */
+}
+
+.track-info span {
+  line-height: 1.1;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-cover {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  flex-shrink: 0;
+}
+
+/* CENTER */
+.player-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.controls {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.controls button {
+  background: none;
+  border: none;
+  color: var(--text-color);
+  font-size: 1.2rem;
+  cursor: pointer;
+  border-radius: 50%;
+  padding: 0.3rem;
+  transition: transform var(--transition), background var(--transition), color var(--transition);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.controls button:hover {
+  color: #fff;
+  background: var(--accent-color);
+  transform: scale(1.15);
+}
+
+.controls button:focus {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+/* PROGRESS BAR */
+.progress-bar {
+  width: 90%;
+  height: 5px;
+  border-radius: 10px;
+  background: #747474;
+  appearance: none;
+  cursor: pointer;
+  -webkit-appearance: none;
+  border: none;
+  min-width: 0;
+}
+
+.progress-bar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent-color);
+  border: 2px solid #000;
+}
+
+.progress-bar::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent-color);
+}
+
+/* RIGHT (Volumen y Mute) */
+.player-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* ===================== RESPONSIVE ===================== */
+
+/* Tablet grande / pantallas medias */
+@media (max-width: 1024px) {
+  .player-container {
+    max-width: 100%;
+  }
+}
+
+/* Móvil — compact row layout (unificado y consistente) */
+@media (max-width: 768px) {
+  .player-container {
+    flex-direction: row;               /* compacto en fila para ocupar menos altura */
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    padding: 0.4rem;
+    bottom: 0;
+    width: 100%;
+    left: 0;                           /* desactivar el centrado absoluto para evitar overflow */
+    transform: none;
+    max-width: none;
+  }
+
+  .player-left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    max-width: 60%;
+    min-width: 0;
+  }
+
+  .player-cover {
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+  }
+
+  .track-info {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 0.7rem;
+  }
+
+  .track-info span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.7rem;
+    line-height: 1.1;
+  }
+
+  .player-center {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.3rem;
+    min-width: 0;
+  }
+
+  .controls {
+    gap: 0.5rem;
+  }
+
+  .controls button {
+    font-size: 1rem;
+    padding: 0.2rem;
+  }
+
+  /* Oculta la parte derecha (mute y volumen) en móvil para simplificar UI */
+  .player-right,
+  #mute,
+  #volumeSlider,
+  .volume-container {
+    display: none !important;
+  }
+
+  /* Barra de progreso compacta en móvil */
+  .progress-bar {
+    width: 50%;
+    height: 4px;
+  }
+}
+
+/* ===================== TV / PANTALLAS MUY GRANDES ===================== */
+@media (min-width: 1800px) {
+  .player-container {
+    padding: 1rem 2rem;
+    gap: 2rem;
+  }
+
+  .player-cover {
+    width: 64px;
+    height: 64px;
+  }
+
+  .track-info {
+    font-size: 1rem;
+  }
+
+  .controls button {
+    font-size: 1.6rem;
+    padding: 0.5rem;
+  }
+
+  .progress-bar {
+    height: 8px;
+  }
+}
+/* === FIX: Ajuste del player con sidebar === */
+.player-container {
+  left: 60px; /* deja espacio para la sidebar mini */
+  width: calc(100% - 60px);
+  transform: none; /* quitamos el centrado absoluto */
+  max-width: none;
+}
+
+/* Cuando la sidebar se expande */
+.sidebar:hover ~ .player-container {
+  left: 220px; /* espacio para sidebar expandida */
+  width: calc(100% - 220px);
+}
+
+/* Responsive: cuando la sidebar desaparece */
+@media (max-width: 768px) {
+  .player-container {
+    left: 0;
+    width: 100%;
+  }
+}
+/* === VISIBILIDAD DEL PLAYER === */
+.player-container {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(100%); /* lo ocultamos abajo */
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+/* Cuando está activo (reproduciendo) */
+.player-container.active {
+  opacity: 1;
+  pointer-events: all;
+  transform: translateY(0);
+}

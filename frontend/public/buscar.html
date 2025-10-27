@@ -1,125 +1,79 @@
-<script type="module" src="js/main.js"></script>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tidol Developer – Buscar</title>
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="css/integrado.css">
+  <link rel="stylesheet" href="css/buscador1.css">
+  <link rel="stylesheet" href="css/overlay.css">
+  <link rel="stylesheet" href="css/sidebar2.css">
+  <!-- JS -->
+  <script type="module" src="/js/main.js" defer></script>
+</head>
+
 <body>
-  <header>
-    <div class="logo">Tidol</div>
-    <nav>
-      <ul class="nav-list">
-        <li><button class="menu-btn" onclick="location.href='index.html'">Inicio</button></li>
-        <li><button class="menu-btn" onclick="location.href='subir.html'">Subir</button></li>
-        <li><button class="menu-btn active" onclick="location.href='buscar.html'">Buscar</button></li>
-        <li><button class="menu-btn" onclick="location.href='albumes.html'">Álbumes</button></li>
-        <li><button class="menu-btn" onclick="location.href='artistas.html'">Artistas</button></li>
-      </ul>
-      <div class="user-container">
-        <span id="user-name">Usuario</span>
-        <button id="logout-btn">Salir</button>
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="sidebar">
+
+    <div class="profile">
+      <img src="/default_cover.png" alt="Usuario" class="profile-pic">
+      <span id="user-name">Usuario</span>
+    </div>
+    <ul class="sidebar-menu">
+      <li><button onclick="location.href='/index.html'">Inicio</button></li>
+      <li><button onclick="location.href='subir.html'">Subir Música</button></li>
+      <li><button class="active" onclick="location.href='buscar.html'">Buscar</button></li>
+      <li><button onclick="location.href='albumes.html'">Álbumes</button></li>
+      <li><button onclick="location.href='artistas.html'">Artistas</button></li>
+    </ul>
+  </aside>
+
+  <!-- ===================== CONTENIDO PRINCIPAL ===================== -->
+  <main class="main-content">
+    <div class="search-bar">
+      <input type="text" id="search-input" placeholder="Buscar canción, álbum o artista...">
+      <button id="search-btn">Buscar</button>
+      <select id="filter-format">
+        <option value="">Todos</option>
+        <option value="mp3">MP3</option>
+        <option value="flac">FLAC</option>
+        <option value="wav">WAV</option>
+        <option value="alac">ALAC</option>
+      </select>
+    </div>
+
+    <div id="search-results"></div>
+  <div id="search-progress" class="progress-message"></div>
+</main>
+
+  <script type="module" src="/js/searchU.js"></script>
+</body>
+<!-- Overlay de álbum IA -->
+<div id="albumIA-overlay" class="overlay hidden">
+  <div class="overlay-content">
+    <button id="overlay-close" class="close-btn">✖</button>
+    <div id="albumIA-header">
+      <img id="overlay-cover" src="/default_cover.png" alt="Portada álbum">
+      <div id="overlay-info">
+        <h2 id="overlay-title">Cargando álbum...</h2>
+        <p id="overlay-creator"></p>
+        <input type="text" id="overlay-filter-name" placeholder="Buscar por nombre...">
+        <select id="overlay-filter-format">
+          <option value="">Todos</option>
+          <option value=".mp3">mp3</option>
+          <option value=".flac">flac</option>
+          <option value=".wav">wav</option>
+          <option value=".m4a">m4a</option>
+          <option value=".ogg">ogg</option>
+        </select>
       </div>
-    </nav>
-  </header>
+    </div>
+    <div id="overlay-tracks-list" class="track-list"></div>
+  </div>
+</div>
 
-<!-- Style del buscador-!>
-
-<!-search.html -->
-<input type="text" id="search-input" placeholder="Buscar canción, álbum o artista..." />
-<div id="search-results"></div>
- <link rel="stylesheet" href="style.css">       <!-- General -->
-
-  <link rel="stylesheet" href="css/buscador.css">  <!-- Cards -->
-<script>
-const token = localStorage.getItem('token');
-if (!token) {
-  window.location.href = 'login.html?redirect=search.html';
-}
-
-const input = document.getElementById('search-input');
-const resultsContainer = document.getElementById('search-results');
-let timeout = null;
-
-// Función para renderizar resultados
-function renderResults({ canciones, albums, artists }) {
-  resultsContainer.innerHTML = '';
-
-  if (canciones.length === 0 && albums.length === 0 && artists.length === 0) {
-    resultsContainer.innerHTML = '<p>No se encontraron resultados.</p>';
-    return;
-  }
-
-  if (artists.length) {
-    const h = document.createElement('h3');
-    h.textContent = 'Artistas';
-    resultsContainer.appendChild(h);
-
-    artists.forEach(artista => {
-      const div = document.createElement('div');
-      div.classList.add('search-card');
-      div.innerHTML = `
-        <img src="${artista.imagen}" alt="${artista.nombre}" class="artista -photo">
-        <span>${artista.nombre}</span>
-      `;
-      div.addEventListener('click', () => window.location.href = `artista.html?id=${artista.id}`);
-      resultsContainer.appendChild(div);
-    });
-  }
-
-  if (albums.length) {
-    const h = document.createElement('h3');
-    h.textContent = 'Álbumes';
-    resultsContainer.appendChild(h);
-
-    albums.forEach(album => {
-      const div = document.createElement('div');
-      div.classList.add('search-card');
-      div.innerHTML = `
-        <img src="${album.portada}" alt="${album.titulo}" class="album-cover">
-        <span>${album.titulo} - ${album.autor}</span>
-      `;
-      div.addEventListener('click', () => window.location.href = `album.html?id=${album.id}`);
-      resultsContainer.appendChild(div);
-    });
-  }
-
-  if (canciones.length) {
-  const h = document.createElement('h3');
-  h.textContent = 'Canciones';
-  resultsContainer.appendChild(h);
-
-  canciones.forEach(song => {
-    const div = document.createElement('div');
-    div.classList.add('search-card');
-    div.innerHTML = `
-      <img src="${song.portada}" alt="${song.titulo}" class="song-cover">
-      <span>${song.titulo} - ${song.artista}</span>
-    `;
-    // Redirige al álbum y manda la canción a reproducir
-    div.addEventListener('click', () => {
-      window.location.href = `album.html?id=${song.albumId}&song=${song.id}`;
-    });
-    resultsContainer.appendChild(div);
-  });
-}
-
-}
-
-// Función para buscar con debounce
-input.addEventListener('input', () => {
-  clearTimeout(timeout);
-  const query = input.value.trim();
-  if (!query) {
-    resultsContainer.innerHTML = '';
-    return;
-  }
-
-  timeout = setTimeout(async () => {
-    try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`, {
-        headers: { 'x-token': token }
-      });
-      const data = await res.json();
-      renderResults(data);
-    } catch (err) {
-      console.error(err);
-      resultsContainer.innerHTML = '<p>Error al buscar.</p>';
-    }
-  }, 300); // Espera 300ms para no saturar requests
-});
-</script>
+</html>

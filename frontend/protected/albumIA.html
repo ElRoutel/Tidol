@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="css/sidebarIA.css">
 <link rel="stylesheet" href="css/IAplayer.css">
 <link rel="stylesheet" href="/css/track-list.css">
+<script type="module" src="/js/auth-guard.js"defer></script>
 <link rel="stylesheet" href="css/IAalbum.css">
 <script type="module" src="/js/main.js" defer></script>
 </head>
@@ -118,6 +119,57 @@
   </div>
 </div>
 
+<!-- FULLSCREEN PLAYER -->
+<div class="fullscreen-player" id="fullscreenPlayer">
+  <div class="fs-background" id="fsBackground"></div>
+  <button class="fs-exit" id="fsExit" title="Cerrar (Esc)">×</button>
+  
+  <div class="fs-content">
+    <div class="fs-cover-container">
+      <img id="fs-cover" src="/default_cover.png" alt="Portada" class="fs-cover">
+      <div class="fs-vinyl"></div>
+    </div>
+    
+    <div class="fs-info">
+      <h1 id="fs-title" class="fs-title">Título de la canción</h1>
+      <p id="fs-artist" class="fs-artist">Artista</p>
+      <p id="fs-album" class="fs-album">Álbum</p>
+    </div>
+    
+    <div class="fs-progress-container">
+      <span id="fs-current" class="fs-time">0:00</span>
+      <input type="range" id="fs-progress" class="fs-progress" min="0" max="100" value="0">
+      <span id="fs-duration" class="fs-time">0:00</span>
+    </div>
+    
+    <div class="fs-controls">
+      <button id="fs-prev" class="fs-btn" title="Anterior">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
+        </svg>
+      </button>
+      <button id="fs-playPause" class="fs-btn fs-btn-play" title="Reproducir/Pausar">
+        <svg id="fs-play-icon" width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+        <svg id="fs-pause-icon" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" style="display: none;">
+          <path d="M6 4h4v16H6zM14 4h4v16h-4z"/>
+        </svg>
+      </button>
+      <button id="fs-next" class="fs-btn" title="Siguiente">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M16 18h2V6h-2zm-11-7l8.5-6v12z"/>
+        </svg>
+      </button>
+    </div>
+    
+    <div class="fs-volume-container">
+      <button id="fs-mute" class="fs-volume-btn">🔊</button>
+      <input type="range" id="fs-volume" class="fs-volume" min="0" max="1" step="0.01" value="1">
+    </div>
+  </div>
+</div>
+
 <!-- Sidebar existente -->
 <aside class="sidebar">
   <div class="profile">
@@ -140,7 +192,7 @@
   <div id="album-container">
     <div class="album-header">
       <div class="album-metadata">
-        <img id="album-cover" class="album-cover" src="/default_cover.png" alt="Portada álbum">
+        <img id="album-cover" class="album-cover" src="/default_cover.png" alt="Portada álbum" style="cursor: pointer;" title="Haz clic para pantalla completa">
         <div class="album-info">
           <h2 id="album-title">Cargando álbum... <span class="ia-tag">IA</span></h2>
           <p id="album-creator">Nombre del Artista</p>
@@ -169,7 +221,7 @@
 <footer class="player-container">
   <audio id="audio-player"></audio>
   <div class="player-left">
-    <img id="player-cover" src="/default_cover.png" alt="Portada" class="player-cover">
+    <img id="player-cover" src="/default_cover.png" alt="Portada" class="player-cover" style="cursor: pointer;" title="Haz clic para pantalla completa">
     <div class="track-info">
       <span id="player-title">Título</span>
       <span id="player-album">Álbum</span>
@@ -200,7 +252,9 @@
 <script type="module" src="/js/albumIA.js" defer></script>
 
 <style>
-/* Estilos del menú hamburguesa */
+/* ========================================
+   ESTILOS DEL MENÚ HAMBURGUESA
+   ======================================== */
 .menu-btn {
   position: fixed;
   top: 20px;
@@ -596,6 +650,373 @@
   background: #555;
 }
 
+/* ========================================
+   ESTILOS DEL FULLSCREEN PLAYER
+   ======================================== */
+.fullscreen-player {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #000;
+  z-index: 9999;
+  display: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.fullscreen-player.active {
+  display: flex;
+  opacity: 1;
+  animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fs-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-size: cover;
+  background-position: center;
+  filter: blur(60px) brightness(0.4);
+  transform: scale(1.2);
+}
+
+.fs-exit {
+  position: absolute;
+  top: 30px;
+  right: 30px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  font-size: 32px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+  backdrop-filter: blur(10px);
+  z-index: 10;
+}
+
+.fs-exit:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: scale(1.1) rotate(90deg);
+}
+
+.fs-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 600px;
+  margin: auto;
+  padding: 40px;
+  z-index: 1;
+}
+
+.fs-cover-container {
+  position: relative;
+  margin-bottom: 40px;
+  animation: scaleIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.fs-cover {
+  width: 400px;
+  height: 400px;
+  border-radius: 20px;
+  object-fit: cover;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+  animation: float 6s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+
+.fs-vinyl { display: none !important; }
+
+@keyframes spin {
+  from {
+    transform: translateY(-50%) rotate(0deg);
+  }
+  to {
+    transform: translateY(-50%) rotate(360deg);
+  }
+}
+
+.fs-info {
+  text-align: center;
+  margin-bottom: 40px;
+  animation: fadeInUp 0.8s ease 0.2s both;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fs-title {
+  font-size: 36px;
+  font-weight: bold;
+  color: white;
+  margin: 0 0 10px 0;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+.fs-artist {
+  font-size: 20px;
+  color: #bbb;
+  margin: 0 0 5px 0;
+}
+
+.fs-album {
+  font-size: 16px;
+  color: #888;
+  margin: 0;
+}
+
+.fs-progress-container {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  width: 100%;
+  margin-bottom: 40px;
+  animation: fadeInUp 1s ease 0.4s both;
+}
+
+.fs-progress {
+  flex: 1;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  outline: none;
+  cursor: pointer;
+}
+
+.fs-progress::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #1db954;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(29, 185, 84, 0.5);
+  transition: all 0.2s;
+}
+
+.fs-progress::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 15px rgba(29, 185, 84, 0.8);
+}
+
+.fs-progress::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #1db954;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 10px rgba(29, 185, 84, 0.5);
+  transition: all 0.2s;
+}
+
+.fs-time {
+  color: #ccc;
+  font-size: 14px;
+  font-weight: 500;
+  min-width: 45px;
+}
+
+.fs-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  margin-bottom: 30px;
+  animation: fadeInUp 1.2s ease 0.6s both;
+}
+
+.fs-btn {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  backdrop-filter: blur(10px);
+}
+
+.fs-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: scale(1.1);
+}
+
+.fs-btn:active {
+  transform: scale(0.95);
+}
+
+.fs-btn-play {
+  width: 90px;
+  height: 90px;
+  background: linear-gradient(135deg, #1db954 0%, #1ed760 100%);
+  border-color: #1db954;
+  box-shadow: 0 10px 30px rgba(29, 185, 84, 0.4);
+}
+
+.fs-btn-play:hover {
+  background: linear-gradient(135deg, #1ed760 0%, #1db954 100%);
+  box-shadow: 0 15px 40px rgba(29, 185, 84, 0.6);
+  transform: scale(1.15);
+}
+
+.fs-volume-container {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  width: 100%;
+  max-width: 300px;
+  animation: fadeInUp 1.4s ease 0.8s both;
+}
+
+.fs-volume-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.fs-volume-btn:hover {
+  transform: scale(1.2);
+}
+
+.fs-volume {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  outline: none;
+  cursor: pointer;
+}
+
+.fs-volume::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  background: white;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.fs-volume::-webkit-slider-thumb:hover {
+  transform: scale(1.3);
+}
+
+.fs-volume::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  background: white;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+@media (max-width: 768px) {
+  .fs-content {
+    padding: 20px;
+  }
+  
+  .fs-cover {
+    width: 280px;
+    height: 280px;
+  }
+  
+  .fs-vinyl {
+    width: 250px;
+    height: 250px;
+  }
+  
+  .fs-title {
+    font-size: 24px;
+  }
+  
+  .fs-artist {
+    font-size: 16px;
+  }
+  
+  .fs-btn {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .fs-btn-play {
+    width: 80px;
+    height: 80px;
+  }
+  
+  .fs-exit {
+    top: 15px;
+    right: 15px;
+    width: 40px;
+    height: 40px;
+  }
+}
+
 @media (max-width: 768px) {
   .side-panel {
     width: 100%;
@@ -608,5 +1029,203 @@
   }
 }
 </style>
+
+<script>
+// ========================================
+// FULLSCREEN PLAYER LOGIC
+// ========================================
+(function() {
+  const fullscreenPlayer = document.getElementById('fullscreenPlayer');
+  const fsExit = document.getElementById('fsExit');
+  const fsBackground = document.getElementById('fsBackground');
+  
+  // Referencias a elementos del player principal
+  const audio = document.getElementById('audio-player');
+  const playerCover = document.getElementById('player-cover');
+  const albumCover = document.getElementById('album-cover');
+  
+  // Referencias a elementos del fullscreen player
+  const fsCover = document.getElementById('fs-cover');
+  const fsTitle = document.getElementById('fs-title');
+  const fsArtist = document.getElementById('fs-artist');
+  const fsAlbum = document.getElementById('fs-album');
+  const fsCurrent = document.getElementById('fs-current');
+  const fsDuration = document.getElementById('fs-duration');
+  const fsProgress = document.getElementById('fs-progress');
+  const fsPlayPause = document.getElementById('fs-playPause');
+  const fsPlayIcon = document.getElementById('fs-play-icon');
+  const fsPauseIcon = document.getElementById('fs-pause-icon');
+  const fsPrev = document.getElementById('fs-prev');
+  const fsNext = document.getElementById('fs-next');
+  const fsMute = document.getElementById('fs-mute');
+  const fsVolume = document.getElementById('fs-volume');
+  
+  // Función para abrir el fullscreen player
+  function openFullscreen() {
+    // Obtener datos del player principal
+    const title = document.getElementById('player-title').textContent;
+    const artist = document.getElementById('player-artist').textContent;
+    const album = document.getElementById('player-album').textContent;
+    const cover = document.getElementById('player-cover').src;
+    
+    // Actualizar fullscreen player
+    fsTitle.textContent = title;
+    fsArtist.textContent = artist;
+    fsAlbum.textContent = album;
+    fsCover.src = cover;
+    fsBackground.style.backgroundImage = `url(${cover})`;
+    
+    // Sincronizar estado de reproducción
+    if (!audio.paused) {
+      fsPlayIcon.style.display = 'none';
+      fsPauseIcon.style.display = 'block';
+    } else {
+      fsPlayIcon.style.display = 'block';
+      fsPauseIcon.style.display = 'none';
+    }
+    
+    // Sincronizar progreso y volumen
+    fsProgress.value = (audio.currentTime / audio.duration) * 100 || 0;
+    fsVolume.value = audio.volume;
+    fsCurrent.textContent = formatTime(audio.currentTime);
+    fsDuration.textContent = formatTime(audio.duration);
+    
+    // Mostrar fullscreen player
+    fullscreenPlayer.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+  
+  // Función para cerrar el fullscreen player
+  function closeFullscreen() {
+    fullscreenPlayer.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+  
+  // Función para formatear tiempo
+  function formatTime(seconds) {
+    if (isNaN(seconds)) return '0:00';
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  }
+  
+  // Event listeners para abrir
+  playerCover.addEventListener('click', openFullscreen);
+  albumCover.addEventListener('click', openFullscreen);
+  
+  // Event listeners para cerrar
+  fsExit.addEventListener('click', closeFullscreen);
+  
+  // Cerrar con tecla Escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && fullscreenPlayer.classList.contains('active')) {
+      closeFullscreen();
+    }
+  });
+  
+  // Cerrar al hacer clic fuera del contenido
+  fullscreenPlayer.addEventListener('click', (e) => {
+    if (e.target === fullscreenPlayer) {
+      closeFullscreen();
+    }
+  });
+  
+  // ========================================
+  // SINCRONIZACIÓN CON PLAYER PRINCIPAL
+  // ========================================
+  
+  // Sincronizar play/pause
+  fsPlayPause.addEventListener('click', () => {
+    const mainPlayBtn = document.getElementById('player-playPause');
+    mainPlayBtn.click(); // Dispara el click del botón principal
+  });
+  
+  // Sincronizar botón anterior
+  fsPrev.addEventListener('click', () => {
+    const mainPrevBtn = document.getElementById('player-prev');
+    mainPrevBtn.click();
+  });
+  
+  // Sincronizar botón siguiente
+  fsNext.addEventListener('click', () => {
+    const mainNextBtn = document.getElementById('player-next');
+    mainNextBtn.click();
+  });
+  
+  // Sincronizar barra de progreso
+  fsProgress.addEventListener('input', () => {
+    audio.currentTime = (fsProgress.value / 100) * audio.duration;
+  });
+  
+  // Sincronizar volumen
+  fsVolume.addEventListener('input', () => {
+    audio.volume = fsVolume.value;
+    document.getElementById('player-volume').value = fsVolume.value;
+  });
+  
+  // Sincronizar mute
+  fsMute.addEventListener('click', () => {
+    const mainMuteBtn = document.getElementById('player-mute');
+    mainMuteBtn.click();
+  });
+  
+  // ========================================
+  // ACTUALIZAR FULLSCREEN DESDE PLAYER PRINCIPAL
+  // ========================================
+  
+  // Actualizar progreso en tiempo real
+  audio.addEventListener('timeupdate', () => {
+    if (fullscreenPlayer.classList.contains('active')) {
+      const percent = (audio.currentTime / audio.duration) * 100;
+      fsProgress.value = percent || 0;
+      fsCurrent.textContent = formatTime(audio.currentTime);
+      fsDuration.textContent = formatTime(audio.duration);
+    }
+  });
+  
+  // Actualizar botón play/pause
+  audio.addEventListener('play', () => {
+    if (fullscreenPlayer.classList.contains('active')) {
+      fsPlayIcon.style.display = 'none';
+      fsPauseIcon.style.display = 'block';
+    }
+  });
+  
+  audio.addEventListener('pause', () => {
+    if (fullscreenPlayer.classList.contains('active')) {
+      fsPlayIcon.style.display = 'block';
+      fsPauseIcon.style.display = 'none';
+    }
+  });
+  
+  // Actualizar información cuando cambia la canción
+  const observePlayerChanges = new MutationObserver(() => {
+    if (fullscreenPlayer.classList.contains('active')) {
+      fsTitle.textContent = document.getElementById('player-title').textContent;
+      fsArtist.textContent = document.getElementById('player-artist').textContent;
+      fsAlbum.textContent = document.getElementById('player-album').textContent;
+      const newCover = document.getElementById('player-cover').src;
+      fsCover.src = newCover;
+      fsBackground.style.backgroundImage = `url(${newCover})`;
+    }
+  });
+  
+  // Observar cambios en los elementos del player
+  observePlayerChanges.observe(document.getElementById('player-title'), { 
+    childList: true, 
+    characterData: true, 
+    subtree: true 
+  });
+  
+  // Exponer funciones globalmente para uso externo
+  window.fullscreenPlayerAPI = {
+    open: openFullscreen,
+    close: closeFullscreen,
+    isOpen: () => fullscreenPlayer.classList.contains('active')
+  };
+  
+  console.log('✅ Fullscreen Player inicializado');
+})();
+</script>
 </body>
 </html>

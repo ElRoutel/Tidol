@@ -10,6 +10,11 @@ export function addToQueue(track) {
   reproducidas.add(track.id);
   
   console.log(`✓ Track reproducido: ${track.name} (Total: ${reproducidas.size})`);
+  
+  // Notificar al menú si existe
+  if (window.actualizarBadge) {
+    window.actualizarBadge();
+  }
 }
 
 // Añadir track a la cola para reproducción futura
@@ -31,6 +36,11 @@ export function agregarACola(track) {
   
   cola.push(track);
   console.log(`+ Añadido a cola: ${track.name} (Cola: ${cola.length} tracks)`);
+  
+  // Notificar al menú si existe
+  if (window.actualizarBadge) {
+    window.actualizarBadge();
+  }
 }
 
 // Obtener siguiente canción de la cola
@@ -41,11 +51,58 @@ export function obtenerCancionSimilar() {
     // Verificar que no haya sido reproducida
     if (!reproducidas.has(track.id)) {
       console.log(`▶ Siguiente de cola: ${track.name} (Quedan: ${cola.length})`);
+      
+      // Notificar al menú si existe
+      if (window.actualizarBadge) {
+        window.actualizarBadge();
+      }
+      
       return track;
     } else {
       console.log(`⊘ Track en cola ya reproducido, saltando: ${track.name}`);
     }
   }
   
-  console.log('✗ Cola vacía'); 
+  console.log('✗ Cola vacía');
+  
+  // Notificar al menú si existe
+  if (window.actualizarBadge) {
+    window.actualizarBadge();
+  }
+  
+  return null;
 }
+
+// Limpiar cola y reproducidas (útil para debugging)
+export function limpiarCola() {
+  cola.length = 0;
+  reproducidas.clear();
+  console.log('Cola y reproducidas limpiadas');
+  
+  // Notificar al menú si existe
+  if (window.actualizarBadge) {
+    window.actualizarBadge();
+  }
+  if (window.actualizarCola) {
+    window.actualizarCola();
+  }
+}
+
+// Ver estado actual
+export function verEstadoCola() {
+  console.log('=== ESTADO DE LA COLA ===');
+  console.log(`Tracks en cola: ${cola.length}`);
+  console.log(`Tracks reproducidos: ${reproducidas.size}`);
+  if (cola.length > 0) {
+    console.log('Próximos en cola:', cola.slice(0, 5).map(t => t.name));
+  }
+  console.log('========================');
+}
+
+// Exponer para debugging en consola
+window.queueDebug = {
+  ver: verEstadoCola,
+  limpiar: limpiarCola,
+  cola: cola,
+  reproducidas: reproducidas
+};

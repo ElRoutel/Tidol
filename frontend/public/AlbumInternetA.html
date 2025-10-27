@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tidol  – Album Internet Archive</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="css/sidebarIA.css">
+<link rel="stylesheet" href="css/IAplayer.css">
+<link rel="stylesheet" href="/css/track-list.css">
+
+<link rel="stylesheet" href="css/IAalbum.css">
+<script type="module" src="/js/main.js" defer></script>
+</head>
+<body>
+<!-- Botón Hamburguesa -->
+
+
+<!-- Overlay del menú -->
+<div class="overlay" id="overlay"></div>
+
+<!-- Panel lateral del menú -->
+<div class="side-panel" id="sidePanel">
+  <div class="panel-header">
+    <h2>🎵 Menú</h2>
+    <p id="headerSubtitle">Gestiona tu reproducción</p>
+  </div>
+
+  <div class="panel-tabs">
+    <button class="tab-btn active" data-tab="queue">📋 Cola</button>
+    <button class="tab-btn" data-tab="options">⚙️ Opciones</button>
+    <button class="tab-btn" data-tab="stats">📊 Stats</button>
+  </div>
+
+  <div class="panel-content">
+    <!-- Tab: Cola -->
+    <div class="tab-pane active" id="queue-tab">
+      <div id="queueList"></div>
+    </div>
+
+    <!-- Tab: Opciones -->
+    <div class="tab-pane" id="options-tab">
+      <div class="menu-option" id="goHome">
+        <div class="menu-option-icon">🏠</div>
+        <div class="menu-option-info">
+          <div class="menu-option-title">Ir al inicio</div>
+          <div class="menu-option-desc">Volver a la página principal</div>
+        </div>
+        <div class="menu-option-arrow">›</div>
+      </div>
+
+      <div class="menu-option" id="goSearch">
+        <div class="menu-option-icon">🔍</div>
+        <div class="menu-option-info">
+          <div class="menu-option-title">Búsqueda</div>
+          <div class="menu-option-desc">Explorar música</div>
+        </div>
+        <div class="menu-option-arrow">›</div>
+      </div>
+
+      <div class="menu-option" id="goOriginalAlbum">
+        <div class="menu-option-icon">💿</div>
+        <div class="menu-option-info">
+          <div class="menu-option-title">Álbum original</div>
+          <div class="menu-option-desc">Volver al álbum inicial</div>
+        </div>
+        <div class="menu-option-arrow">›</div>
+      </div>
+
+      <button class="action-btn" id="refreshQueue">
+        🔄 Buscar más canciones similares
+      </button>
+
+      <button class="action-btn danger" id="clearQueue">
+        🗑️ Limpiar cola completa
+      </button>
+
+      <button class="action-btn secondary" id="clearHistory">
+        ⏮️ Resetear historial
+      </button>
+    </div>
+
+    <!-- Tab: Estadísticas -->
+    <div class="tab-pane" id="stats-tab">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="statQueue">0</div>
+          <div class="stat-label">En Cola</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statPlayed">0</div>
+          <div class="stat-label">Reproducidas</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statAlbums">0</div>
+          <div class="stat-label">Álbumes</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statTime">0m</div>
+          <div class="stat-label">Tiempo total</div>
+        </div>
+      </div>
+
+      <div style="background: #252525; padding: 15px; border-radius: 8px;">
+        <h3 style="margin-bottom: 10px; font-size: 16px;">🎧 Sesión actual</h3>
+        <p style="color: #999; font-size: 13px; margin-bottom: 5px;">
+          Iniciada: <span id="sessionStart">--</span>
+        </p>
+        <p style="color: #999; font-size: 13px;">
+          Álbum actual: <span id="currentAlbum">--</span>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Sidebar existente -->
+<aside class="sidebar">
+  <div class="profile">
+    <a href="/protected/perfil_dev.html">
+      <img src="/default_cover.png" alt="Foto de perfil" class="profile-pic">
+      <span id="user-name">Usuario</span>
+    </a>
+  </div>
+  <ul class="sidebar-menu">
+    <li><button onclick="location.href='/index.html'">Inicio</button></li>
+    <li><button onclick="location.href='/subir.html'">Subir Música</button></li>
+    <li><button onclick="location.href='/buscar.html'">Buscar</button></li>
+    <li><button onclick="location.href='/albumes.html'">Álbumes</button></li>
+    <li><button onclick="location.href='/artistas.html'">Artistas</button></li>
+    <li><button id="logout-btn">Salir</button></li>
+  </ul>
+</aside>
+
+<main class="main-content">
+  <div id="album-container">
+    <div class="album-header">
+      <div class="album-metadata">
+        <img id="album-cover" class="album-cover" src="/default_cover.png" alt="Portada álbum">
+        <div class="album-info">
+          <h2 id="album-title">Cargando álbum... <span class="ia-tag">IA</span></h2>
+          <p id="album-creator">Nombre del Artista</p>
+        </div>
+      </div>
+    </div>
+   
+    <div class="filter-controls">
+      <label for="filter-name">Buscar por nombre:</label>
+      <input type="text" id="filter-name" placeholder="Escribe para buscar...">
+      <label for="filter-format">Filtrar por formato:</label>
+      <select id="filter-format">
+        <option value="">Todos</option>
+        <option value=".mp3">mp3</option>
+        <option value=".flac">flac</option>
+        <option value=".wav">wav</option>
+        <option value=".m4a">m4a</option>
+        <option value=".ogg">ogg</option>
+      </select>
+    </div>
+    <div id="tracks-list" class="track-list"></div>
+    <div style="height: 100px;"></div>
+  </div>
+</main>
+
+<footer class="player-container">
+  <audio id="audio-player"></audio>
+  <div class="player-left">
+    <img id="player-cover" src="/default_cover.png" alt="Portada" class="player-cover">
+    <div class="track-info">
+      <span id="player-title">Título</span>
+      <span id="player-album">Álbum</span>
+      <span id="player-artist">Artista</span>
+      <span id="player-format"></span>
+    </div>
+  </div>
+  <div class="player-center">
+    <div class="controls">
+      <button id="player-prev" title="Anterior">⏮</button>
+      <button id="player-playPause" title="Reproducir/Pausar">▶</button>
+      <button id="player-next" title="Siguiente">⏭</button>
+    </div>
+    <input type="range" id="player-progress" class="progress-bar" min="0" max="100" value="0">
+    <div class="time">
+      <span id="player-currentTime">0:00</span>
+      <span id="player-duration">0:00</span>
+    </div>
+  </div>
+  <div class="player-right">
+    <button id="player-mute" title="Silencio">🔊</button>
+    <div class="volume-container">
+      <input type="range" id="player-volume" min="0" max="1" step="0.01" value="1">
+    </div>
+  </div>
+</footer>
+
+<script type="module" src="/js/albumIAU.js" defer></script>
+
+<style>
+/* Estilos del menú hamburguesa */
+.menu-btn {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 50px;
+  height: 50px;
+  background: rgba(29, 185, 84, 0.9);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: all 0.3s;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.menu-btn:hover {
+  background: rgba(29, 185, 84, 1);
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(29, 185, 84, 0.4);
+}
+
+.menu-btn span {
+  width: 25px;
+  height: 3px;
+  background: white;
+  border-radius: 2px;
+  transition: all 0.3s;
+}
+
+.menu-btn.active span:nth-child(1) {
+  transform: rotate(45deg) translate(7px, 7px);
+}
+
+.menu-btn.active span:nth-child(2) {
+  opacity: 0;
+}
+
+.menu-btn.active span:nth-child(3) {
+  transform: rotate(-45deg) translate(7px, -7px);
+}
+
+.queue-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #ff4444;
+  color: white;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: bold;
+  box-shadow: 0 2px 8px rgba(255, 68, 68, 0.5);
+}
+
+.side-panel {
+  position: fixed;
+  top: 0;
+  right: -400px;
+  width: 400px;
+  height: 100vh;
+  background: #1a1a1a;
+  box-shadow: -5px 0 25px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.side-panel.open {
+  right: 0;
+}
+
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+  backdrop-filter: blur(5px);
+}
+
+.overlay.active {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.panel-header {
+  padding: 25px 20px;
+  background: linear-gradient(135deg, #1db954 0%, #1ed760 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.panel-header h2 {
+  font-size: 24px;
+  margin-bottom: 5px;
+}
+
+.panel-header p {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.panel-tabs {
+  display: flex;
+  background: #252525;
+  border-bottom: 2px solid #333;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 15px;
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s;
+  position: relative;
+}
+
+.tab-btn:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tab-btn.active {
+  color: #1db954;
+}
+
+.tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #1db954;
+}
+
+.panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 15px;
+}
+
+.tab-pane {
+  display: none;
+}
+
+.tab-pane.active {
+  display: block;
+  animation: fadeInTab 0.3s;
+}
+
+@keyframes fadeInTab {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.queue-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #252525;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.queue-item:hover {
+  background: #2a2a2a;
+  transform: translateX(5px);
+}
+
+.queue-item-cover {
+  width: 50px;
+  height: 50px;
+  border-radius: 6px;
+  object-fit: cover;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.queue-item-info {
+  flex: 1;
+  overflow: hidden;
+}
+
+.queue-item-title {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+  color: white;
+}
+
+.queue-item-artist {
+  font-size: 12px;
+  color: #999;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.queue-item-remove {
+  background: #ff4444;
+  border: none;
+  color: white;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.queue-item-remove:hover {
+  background: #ff0000;
+  transform: scale(1.1);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #666;
+}
+
+.empty-state-icon {
+  font-size: 64px;
+  margin-bottom: 20px;
+  opacity: 0.5;
+}
+
+.empty-state-text {
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+
+.empty-state-hint {
+  font-size: 13px;
+  color: #555;
+}
+
+.menu-option {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px;
+  background: #252525;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 2px solid transparent;
+}
+
+.menu-option:hover {
+  background: #2a2a2a;
+  border-color: #1db954;
+  transform: translateX(5px);
+}
+
+.menu-option-icon {
+  font-size: 24px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(29, 185, 84, 0.1);
+  border-radius: 8px;
+}
+
+.menu-option-info {
+  flex: 1;
+}
+
+.menu-option-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 3px;
+  color: white;
+}
+
+.menu-option-desc {
+  font-size: 12px;
+  color: #999;
+}
+
+.menu-option-arrow {
+  font-size: 18px;
+  color: #666;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  background: #252525;
+  padding: 15px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: bold;
+  color: #1db954;
+  margin-bottom: 5px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.action-btn {
+  width: 100%;
+  padding: 15px;
+  background: linear-gradient(135deg, #1db954 0%, #1ed760 100%);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 10px;
+  transition: all 0.3s;
+  box-shadow: 0 4px 12px rgba(29, 185, 84, 0.3);
+}
+
+.action-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(29, 185, 84, 0.4);
+}
+
+.action-btn.danger {
+  background: linear-gradient(135deg, #ff4444 0%, #ff6666 100%);
+  box-shadow: 0 4px 12px rgba(255, 68, 68, 0.3);
+}
+
+.action-btn.danger:hover {
+  box-shadow: 0 6px 16px rgba(255, 68, 68, 0.4);
+}
+
+.action-btn.secondary {
+  background: #333;
+  box-shadow: none;
+}
+
+.panel-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.panel-content::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+.panel-content::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 4px;
+}
+
+.panel-content::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+@media (max-width: 768px) {
+  .side-panel {
+    width: 100%;
+    right: -100%;
+  }
+  
+  .menu-btn {
+    top: 10px;
+    right: 10px;
+  }
+}
+</style>
+</body>
+</html>

@@ -31,10 +31,7 @@ let currentPlaylist = [];
 let currentIndex = 0;
 let lastTrack = null;
 let buscandoSimilares = false;
-let currentAlbumIdentifier = identifier;
-let originalIdentifier = identifier;
-let sessionStartTime = Date.now();
-let menuAbierto = false;
+let currentAlbumIdentifier = identifier; // Guardar el identifier actual
 
 // SOLUCIÓN 2: Detectar autoplay desde localStorage
 let shouldAutoplay = false;
@@ -46,219 +43,18 @@ if (autoplayData) {
     const data = JSON.parse(autoplayData);
     const age = Date.now() - data.timestamp;
     
+    // Solo si es reciente (menos de 5 segundos) y es el mismo álbum
     if (age < 5000 && data.identifier === identifier) {
       shouldAutoplay = true;
       autoplayTrackIndex = data.trackIndex || 0;
     }
     
+    // Limpiar después de leer
     localStorage.removeItem('autoplay-pending');
   } catch (err) {
     console.error('Error parsing autoplay data:', err);
   }
 }
-
-// ============================================
-// MENÚ HAMBURGUESA - SETUP
-// ============================================
-
-function setupMenuListeners() {
-  const menuBtn = document.getElementById('menuBtn');
-  const sidePanel = document.getElementById('sidePanel');
-  const overlay = document.getElementById('overlay');
-
-  if (!menuBtn || !sidePanel || !overlay) {
-    console.warn('Elementos del menú no encontrados');
-    return;
-  }
-
-  // Toggle menú
-  menuBtn.addEventListener('click', toggleMenu);
-  overlay.addEventListener('click', toggleMenu);
-
-  // Sistema de tabs
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tab = btn.dataset.tab;
-      
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      
-      document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
-      document.getElementById(`${tab}-tab`).classList.add('active');
-      
-      if (tab === 'queue') actualizarCola();
-      if (tab === 'stats') actualizarEstadisticas();
-    });
-  });
-
-  // Opciones del menú
-  document.getElementById('goHome')?.addEventListener('click', () => {
-    window.location.href = '/protected/index_dev.html';
-  });
-
-  document.getElementById('goSearch')?.addEventListener('click', () => {
-    window.location.href = '/protected/buscar_dev.html';
-  });
-
-  document.getElementById('goOriginalAlbum')?.addEventListener('click', () => {
-    if (originalIdentifier) {
-      window.location.href = `/protected/albumIA.html?id=${originalIdentifier}`;
-    } else {
-      mostrarNotificacion('⚠️ No hay álbum original guardado', 2000);
-    }
-  });
-
-  document.getElementById('refreshQueue')?.addEventListener('click', async () => {
-    if (lastTrack) {
-      mostrarNotificacion('🔄 Buscando más canciones...', 2000);
-      const nuevosTracks = await buscarTracksSimilaresIA(lastTrack);
-      nuevosTracks.forEach(t => agregarACola(t));
-      actualizarCola();
-      mostrarNotificacion(`✅ ${nuevosTracks.length} canciones añadidas`, 2000);
-    }
-    toggleMenu();
-  });
-
-  document.getElementById('clearQueue')?.addEventListener('click', () => {
-    if (confirm('¿Seguro que quieres limpiar toda la cola?')) {
-      cola.length = 0;
-      actualizarCola();
-      mostrarNotificacion('✅ Cola limpiada', 2000);
-    }
-  });
-
-  document.getElementById('clearHistory')?.addEventListener('click', () => {
-    if (confirm('¿Resetear el historial de reproducción?')) {
-      reproducidas.clear();
-      actualizarEstadisticas();
-      mostrarNotificacion('✅ Historial reseteado', 2000);
-    }
-  });
-}
-
-// Toggle del menú
-function toggleMenu() {
-  const sidePanel = document.getElementById('sidePanel');
-  const overlay = document.getElementById('overlay');
-  const menuBtn = document.getElementById('menuBtn');
-
-  menuAbierto = !menuAbierto;
-
-  if (menuAbierto) {
-    sidePanel.classList.add('open');
-    overlay.classList.add('active');
-    menuBtn.classList.add('active');
-    actualizarCola();
-    actualizarEstadisticas();
-  } else {
-    sidePanel.classList.remove('open');
-    overlay.classList.remove('active');
-    menuBtn.classList.remove('active');
-  }
-}
-
-// Actualizar badge del contador
-function actualizarBadge() {
-  const badge = document.getElementById('queueBadge');
-  if (badge) {
-    badge.textContent = cola.length;
-    badge.style.display = cola.length > 0 ? 'flex' : 'none';
-  }
-}
-
-// Actualizar lista de cola
-function actualizarCola() {
-  actualizarBadge();
-  const queueList = document.getElementById('queueList');
-  if (!queueList) return;
-
-  if (cola.length === 0) {
-    queueList.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state-icon">📭</div>
-        <div class="empty-state-text">Cola vacía</div>
-        <div class="empty-state-hint">Las canciones aparecerán aquí automáticamente</div>
-      </div>
-    `;
-    return;
-  }
-
-  queueList.innerHTML = '';
-  cola.forEach((track, index) => {
-    const item = document.createElement('div');
-    item.className = 'queue-item';
-    item.innerHTML = `
-      <img src="${track.cover || albumCoverEl.src}" class="queue-item-cover" alt="${track.name}">
-      <div class="queue-item-info">
-        <div class="queue-item-title">${track.name}</div>
-        <div class="queue-item-artist">${track.artist || 'Artista desconocido'}</div>
-      </div>
-      <button class="queue-item-remove" data-index="${index}">×</button>
-    `;
-    
-    item.addEventListener('click', (e) => {
-      if (!e.target.classList.contains('queue-item-remove')) {
-        reproducirDesdeCola(index);
-      }
-    });
-    
-    item.querySelector('.queue-item-remove').addEventListener('click', (e) => {
-      e.stopPropagation();
-      eliminarDeCola(index);
-    });
-    
-    queueList.appendChild(item);
-  });
-}
-
-// Reproducir desde cola
-async function reproducirDesdeCola(index) {
-  if (index >= 0 && index < cola.length) {
-    const track = cola.splice(index, 1)[0];
-    currentPlaylist = [track];
-    currentIndex = 0;
-    await reproducirTrack(track);
-    toggleMenu();
-    actualizarCola();
-    mostrarNotificacion(`▶ Reproduciendo: ${track.name}`, 2000);
-  }
-}
-
-// Eliminar de cola
-function eliminarDeCola(index) {
-  if (index >= 0 && index < cola.length) {
-    const track = cola.splice(index, 1)[0];
-    actualizarCola();
-    mostrarNotificacion(`🗑️ Eliminado: ${track.name}`, 2000);
-  }
-}
-
-// Actualizar estadísticas
-function actualizarEstadisticas() {
-  document.getElementById('statQueue').textContent = cola.length;
-  document.getElementById('statPlayed').textContent = reproducidas.size;
-  
-  const albums = new Set();
-  reproducidas.forEach(id => {
-    const albumId = id.split('_')[0];
-    albums.add(albumId);
-  });
-  document.getElementById('statAlbums').textContent = albums.size;
-  
-  const minutes = Math.floor((Date.now() - sessionStartTime) / 60000);
-  document.getElementById('statTime').textContent = `${minutes}m`;
-  
-  const startTime = new Date(sessionStartTime);
-  document.getElementById('sessionStart').textContent = startTime.toLocaleTimeString('es-ES');
-  document.getElementById('currentAlbum').textContent = albumTitleEl.textContent || '--';
-}
-
-// Actualizar badge periódicamente
-setInterval(() => {
-  if (document.getElementById('queueBadge')) {
-    actualizarBadge();
-  }
-}, 2000);
 
 // ============================================
 // FUNCIÓN PARA ACTUALIZAR URL DINÁMICAMENTE
@@ -267,25 +63,32 @@ setInterval(() => {
 function actualizarURLSiEsNecesario(track) {
   if (!track || !track.id) return;
   
+  // Extraer el identifier del track.id (formato: "identifier_filename")
   const nuevoIdentifier = track.id.split('_')[0];
   
+  // Solo actualizar si cambió de álbum
   if (nuevoIdentifier && nuevoIdentifier !== currentAlbumIdentifier) {
     currentAlbumIdentifier = nuevoIdentifier;
     
-    const nuevaURL = `/protected/albumIA.html?id=${nuevoIdentifier}`;
+    // Actualizar URL sin recargar la página
+    const nuevaURL = `/albumInternetA.html?id=${nuevoIdentifier}`;
     window.history.pushState({ identifier: nuevoIdentifier }, '', nuevaURL);
     
     console.log(`📝 URL actualizada a: ${nuevoIdentifier}`);
     
+    // Actualizar metadatos del álbum en la interfaz
     actualizarMetadatosAlbum(track);
   }
 }
 
+// Actualizar la información del álbum en la UI cuando cambia
 async function actualizarMetadatosAlbum(track) {
   if (!track.album && !track.cover) return;
   
+  // Mostrar notificación de cambio de álbum
   mostrarNotificacion(`🎵 Ahora reproduciendo: ${track.album || 'Nuevo álbum'}`, 3000);
   
+  // Actualizar título y portada del álbum
   if (track.album) {
     albumTitleEl.textContent = track.album;
   }
@@ -296,12 +99,14 @@ async function actualizarMetadatosAlbum(track) {
     albumCoverEl.src = track.cover;
   }
   
+  // Opcional: Cargar los tracks del nuevo álbum
   const nuevoIdentifier = track.id.split('_')[0];
   if (nuevoIdentifier && nuevoIdentifier !== identifier) {
     try {
       const response = await fetch(`https://archive.org/metadata/${nuevoIdentifier}`);
       const data = await response.json();
       
+      // Actualizar tracks del nuevo álbum (sin reemplazar la reproducción actual)
       const nuevosTracks = Object.values(data.files || {})
         .filter(f => f.name.match(/\.(mp3|flac|wav|m4a|ogg)$/i))
         .map(f => ({
@@ -314,6 +119,7 @@ async function actualizarMetadatosAlbum(track) {
           cover: `https://archive.org/services/img/${nuevoIdentifier}`
         }));
       
+      // Actualizar la lista de tracks (opcional: comentar si no quieres esto)
       tracks = nuevosTracks;
       renderTracks();
       
@@ -324,9 +130,14 @@ async function actualizarMetadatosAlbum(track) {
   }
 }
 
+// Manejar navegación hacia atrás/adelante del navegador
 window.addEventListener('popstate', (event) => {
   if (event.state && event.state.identifier) {
+    // Usuario presionó atrás/adelante
     console.log('Navegación detectada:', event.state.identifier);
+    
+    // Opcional: recargar la página con el nuevo identifier
+    // O actualizar la interfaz sin recargar
     location.reload();
   }
 });
@@ -344,6 +155,7 @@ function cleanTrackName(fileName) {
   return name.replace(/^\d+\.\s*/, '');
 }
 
+// SOLUCIÓN 4: Función para mostrar notificación
 function mostrarNotificacion(mensaje, duracion = 3000) {
   const notif = document.createElement('div');
   notif.style.cssText = `
@@ -380,6 +192,7 @@ function mostrarNotificacion(mensaje, duracion = 3000) {
   }, duracion);
 }
 
+// SOLUCIÓN 4: Mostrar overlay si autoplay está bloqueado
 function mostrarBotonAutoplayBloqueado(trackIndex) {
   const overlay = document.createElement('div');
   overlay.id = 'autoplay-overlay';
@@ -460,6 +273,7 @@ function mostrarBotonAutoplayBloqueado(trackIndex) {
     mostrarNotificacion('¡Reproduciendo! 🎶', 2000);
   });
   
+  // También permitir click en el overlay para cerrar
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) {
       overlay.style.animation = 'fadeIn 0.3s ease reverse';
@@ -512,6 +326,7 @@ function renderTracks() {
   });
 }
 
+// Buscar tracks similares en Internet Archive
 async function buscarTracksSimilaresIA(track) {
   if (!track || buscandoSimilares) return [];
   
@@ -521,6 +336,7 @@ async function buscarTracksSimilaresIA(track) {
   try {
     const artist = track.artist || albumCreatorEl.textContent;
     
+    // Construir query de búsqueda en IA
     const queries = [
       `creator:"${artist}" AND mediatype:audio`,
       `${artist} AND mediatype:audio`,
@@ -537,6 +353,7 @@ async function buscarTracksSimilaresIA(track) {
           for (const doc of data.response.docs) {
             const id = doc.identifier;
             
+            // Evitar el álbum actual
             if (id === identifier) continue;
             
             try {
@@ -595,8 +412,8 @@ async function reproducirTrack(track) {
   lastTrack = track;
   addToQueue(track);
   
+  // ACTUALIZAR URL SI EL TRACK ES DE OTRO ÁLBUM
   actualizarURLSiEsNecesario(track);
-  actualizarBadge();
   
   audio.src = track.url;
   await audio.play().catch(err => console.warn('play() bloqueado', err));
@@ -629,10 +446,10 @@ async function reproducirTrack(track) {
     });
   }
   
+  // Buscar similares de forma anticipada si la cola está baja
   if (cola.length < 3) {
     buscarTracksSimilaresIA(track).then(tracks => {
       tracks.forEach(t => agregarACola(t));
-      actualizarBadge();
     });
   }
 }
@@ -643,6 +460,7 @@ async function playTrack(index) {
   await reproducirTrack(currentPlaylist[index]);
 }
 
+// SOLUCIÓN 3 y 4: Intentar autoplay con fallback
 async function intentarAutoplay(trackIndex = 0) {
   try {
     await playTrack(trackIndex);
@@ -716,17 +534,6 @@ audio.addEventListener('ended', async () => await reproducirSiguiente());
 filterFormatEl.addEventListener('change', renderTracks);
 filterNameEl.addEventListener('input', renderTracks);
 
-// Exponer funciones globalmente
-window.actualizarBadge = actualizarBadge;
-window.actualizarCola = actualizarCola;
-window.playerControls = {
-  playPause: () => audio.paused ? audio.play() : audio.pause(),
-  next: async () => await reproducirSiguiente(),
-  prev: () => { if (currentIndex > 0) playTrack(currentIndex - 1); },
-  seek: (time) => audio.currentTime = time,
-  setVolume: (vol) => audio.volume = vol
-};
-
 if (!identifier) {
   albumTitleEl.textContent = 'Error: No se proporcionó album ID';
 } else {
@@ -751,11 +558,13 @@ if (!identifier) {
       
       renderTracks();
       
+      // SOLUCIÓN 3: Si hay autoplay pendiente, intentarlo
       if (shouldAutoplay && tracks.length > 0) {
         setTimeout(() => {
           intentarAutoplay(autoplayTrackIndex);
         }, 500);
       } else {
+        // Mostrar botón de play normal
         const playAlbumBtn = document.createElement('button');
         playAlbumBtn.textContent = '▶';
         playAlbumBtn.id = 'play-album-btn';
@@ -767,13 +576,10 @@ if (!identifier) {
           }
         });
       }
-      
-      // Inicializar menú hamburguesa
-      setupMenuListeners();
-      console.log('✅ Menú hamburguesa inicializado');
     })
     .catch(err => {
       albumTitleEl.textContent = 'Error al cargar álbum';
       console.error(err);
     });
-}
+
+  } 
