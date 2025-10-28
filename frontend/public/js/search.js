@@ -1,5 +1,7 @@
-// search.js - Versión mejorada con autoplay
+// search.js - Versión optimizada con sistema de caché
 import { agregarACola } from '/js/queue.js';
+// ⭐ NUEVO: Importar funciones de caché
+import { getCachedResults, setCachedResults } from '/js/searchCache.js';
 
 const token = localStorage.getItem('token') || '';
 const input = document.getElementById('search-input');
@@ -17,7 +19,7 @@ async function handleSearch() {
   resultsContainer.innerHTML = '<p class="loading">🔍 Buscando...</p>';
   progressEl.textContent = '';
 
-  // 1️⃣ Resultados locales
+  // 1️⃣ Resultados locales (sin cambios)
   try {
     const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`, {
       headers: { 'x-token': token }
@@ -28,7 +30,7 @@ async function handleSearch() {
     console.error('Error en búsqueda local:', err);
   }
 
-  // 2️⃣ Resultados Internet Archive
+  // 2️⃣ Resultados Internet Archive CON CACHÉ
   await buscarInternetArchive(query);
 }
 
@@ -96,7 +98,6 @@ function abrirAlbumIA(identifier) {
 }
 
 function reproducirAlbumIA(identifier, trackIndex = 0) {
-  // SOLUCIÓN 2: Guardar intención de autoplay en localStorage
   localStorage.setItem('autoplay-pending', JSON.stringify({
     identifier: identifier,
     trackIndex: trackIndex,
@@ -114,7 +115,6 @@ function createCard(title, subtitle, tag, imgSrc, onClick, identifier = null, ti
   const div = document.createElement('div');
   div.classList.add('result-card');
   
-  // Si es de IA, agregar botón de play overlay
   if (tipo === 'ia' && identifier) {
     div.innerHTML = `
       <div class="result-cover-wrapper">
@@ -132,7 +132,6 @@ function createCard(title, subtitle, tag, imgSrc, onClick, identifier = null, ti
       </div>
     `;
     
-    // Click en la card: abrir sin autoplay
     const coverWrapper = div.querySelector('.result-cover-wrapper');
     coverWrapper.addEventListener('click', (e) => {
       if (!e.target.closest('.play-overlay-btn')) {
@@ -140,7 +139,6 @@ function createCard(title, subtitle, tag, imgSrc, onClick, identifier = null, ti
       }
     });
     
-    // Click en botón play: reproducir con autoplay
     const playBtn = div.querySelector('.play-overlay-btn');
     playBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -148,7 +146,6 @@ function createCard(title, subtitle, tag, imgSrc, onClick, identifier = null, ti
     });
     
   } else {
-    // Card normal (local o sin identifier)
     div.innerHTML = `
       <img src="${imgSrc}" alt="${title}" class="result-img">
       <div class="result-info">
@@ -288,14 +285,23 @@ function mostrarNotificacion(mensaje, duracion = 3000) {
   }, duracion);
 }
 
-// ===================== INTERNET ARCHIVE =====================
+// ===================== INTERNET ARCHIVE CON CACHÉ =====================
 export async function buscarInternetArchive(query) {
+  // ⭐ NUEVO: Intentar obtener del caché primero
+  const cachedResults = getCachedResults(query);
+  
+  if (cachedResults) {
+    // ✅ Resultados encontrados en caché
+    renderResultadosIA(cachedResults, true);
+    return;
+  }
+  
+  // ❌ No hay caché, realizar búsqueda completa
   progressEl.textContent = '🌐 Buscando en Internet Archive...';
 
   const palabras = query.trim().split(/\s+/);
   const combinaciones = [];
   
-  // Generar todas las combinaciones de palabras
   for (let i = 0; i < palabras.length; i++) {
     for (let j = i; j < palabras.length; j++) {
       combinaciones.push(palabras.slice(i, j + 1).join(' '));
@@ -306,7 +312,6 @@ export async function buscarInternetArchive(query) {
   const todosResultados = [];
   let count = 0;
 
-  // Buscar cada combinación en cada formato
   for (const combo of combinaciones) {
     count++;
     progressEl.textContent = `🔍 Buscando combinaciones (${count}/${combinaciones.length})...`;
@@ -326,7 +331,6 @@ export async function buscarInternetArchive(query) {
     todosResultados.push(...[].concat(...resultadosPorFormato));
   }
 
-  // Eliminar duplicados y ordenar por relevancia
   const contador = {};
   todosResultados.forEach(item => contador[item.identifier] = (contador[item.identifier] || 0) + 1);
   
@@ -338,26 +342,64 @@ export async function buscarInternetArchive(query) {
   );
   
   resultadosUnicos.sort((a, b) => contador[b.identifier] - contador[a.identifier]);
-  
-  // Limitar a 50 resultados para mejor performance
   const resultadosLimitados = resultadosUnicos.slice(0, 50);
   
   progressEl.textContent = '';
 
-  if (!resultadosLimitados.length) { 
+  // ⭐ NUEVO: Guardar en caché antes de renderizar
+  if (resultadosLimitados.length > 0) {
+    setCachedResults(query, resultadosLimitados);
+  }
+
+  renderResultadosIA(resultadosLimitados, false);
+}
+
+// ⭐ NUEVA FUNCIÓN: Renderizar resultados de IA (con o sin caché)
+function renderResultadosIA(resultados, fromCache = false) {
+  if (!resultados.length) { 
     resultsContainer.innerHTML += '<p class="no-results">❌ No se encontraron resultados en Internet Archive.</p>'; 
     return; 
   }
 
   const h = document.createElement('h3');
-  h.textContent = `🌍 Internet Archive (${resultadosLimitados.length} resultados)`;
+  const cacheIndicator = fromCache ? '📦 (Caché)' : '🌍';
+  h.textContent = `${cacheIndicator} Internet Archive (${resultados.length} resultados)`;
   h.style.marginTop = '30px';
+  h.style.display = 'flex';
+  h.style.alignItems = 'center';
+  h.style.gap = '10px';
+  
+  // Agregar botón de refrescar si viene de caché
+  if (fromCache) {
+    const refreshBtn = document.createElement('button');
+    refreshBtn.innerHTML = '🔄';
+    refreshBtn.title = 'Actualizar resultados';
+    refreshBtn.style.cssText = `
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.3s;
+    `;
+    refreshBtn.onmouseover = () => refreshBtn.style.background = 'rgba(255,255,255,0.2)';
+    refreshBtn.onmouseout = () => refreshBtn.style.background = 'rgba(255,255,255,0.1)';
+    refreshBtn.onclick = () => {
+      const { invalidateCache } = window.TidolCache;
+      invalidateCache(input.value.trim());
+      handleSearch();
+    };
+    h.appendChild(refreshBtn);
+  }
+  
   resultsContainer.appendChild(h);
 
   const grid = document.createElement('div');
   grid.className = 'result-grid';
 
-  resultadosLimitados.forEach(item => {
+  resultados.forEach(item => {
     const ext = item.format ? item.format.join(', ') : 'Desconocido';
     const identifier = item.identifier;
     const card = createCard(
@@ -365,7 +407,7 @@ export async function buscarInternetArchive(query) {
       item.creator || 'Autor desconocido',
       ext,
       `https://archive.org/services/img/${identifier}`,
-      null, // onClick se maneja internamente en createCard para IA
+      null,
       identifier,
       'ia'
     );
@@ -375,8 +417,11 @@ export async function buscarInternetArchive(query) {
 
   resultsContainer.appendChild(grid);
   
-  // Mostrar notificación de resultados
-  mostrarNotificacion(`✓ ${resultadosLimitados.length} álbumes encontrados`, 2000);
+  const mensaje = fromCache 
+    ? `⚡ ${resultados.length} álbumes (desde caché)`
+    : `✓ ${resultados.length} álbumes encontrados`;
+  
+  mostrarNotificacion(mensaje, 2000);
 }
 
 // ============================================
@@ -410,7 +455,7 @@ export async function fetchSimilarTracksFromIA(track) {
         
         const audioFiles = Object.values(metaData.files || {})
           .filter(f => f.name.match(/\.(mp3|flac|wav|m4a|ogg)$/i))
-          .slice(0, 2); // 2 tracks por álbum
+          .slice(0, 2);
         
         audioFiles.forEach(file => {
           tracks.push({
