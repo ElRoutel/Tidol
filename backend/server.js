@@ -238,48 +238,9 @@ app.post("/login", loginLimiter, async (req, res) => {
 // ----------------------
 // Servir frontend y uploads
 // ----------------------
-app.use(express.static(path.join(__dirname, "../frontend/public")));
-app.use("/protected", express.static(path.join(__dirname, "../frontend/protected")));
+
 app.use("/uploads", express.static(UPLOADS_DIR));
 
-// Archivos restringidos según rol
-app.get("/index_dev.html", (req, res) => {
-  res.sendFile(path.join(__dirname, "../frontend/protected/index_dev.html"));
-});
-
-// ----------------------
-// Páginas protegidas por rol
-// ----------------------
-app.get("/user-page", (req, res) => {
-  res.sendFile(path.join(__dirname, "../frontend/public/index.html"));
-});
-
-app.get("/admin-page", (req, res) => {
-  res.sendFile(path.join(__dirname, "../frontend/protected/index_dev.html"));
-});
-
-logStatus("Middleware de autenticación", true, "Listo para proteger rutas");
-// Ruta absoluta hacia la carpeta pública
-const publicDir = path.join(__dirname, "../frontend/public");
-const jsDir = path.join(publicDir, "js");
-
-// Verifica existencia de carpeta y archivos
-if (fs.existsSync(jsDir)) {
-  console.log("\n📁 Archivos disponibles en /public/js: \n");
-  fs.readdirSync(jsDir).forEach(file => {
-    console.log("   -", file);
-  });
-} else {
-  console.warn("⚠️  No se encontró la carpeta /frontend/public/js");
-}
-
-// Middleware temporal para depurar accesos a archivos estáticos
-app.use((req, res, next) => {
-  if (req.path.startsWith("/js/")) {
-    console.log(`🛰️  Petición estática: ${req.path}`);
-  }
-  next();
-});
 
 // ----------------------
 // Multer: Subida de canciones y portadas

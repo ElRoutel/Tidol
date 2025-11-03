@@ -1,0 +1,32 @@
+/* src/App.css o src/index.css */
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: #000;
+  color: white;
+}
+
+.app-layout {
+  display: grid;
+  grid-template-columns: 200px 1fr; /* Columna 1: Sidebar, Columna 2: Contenido */
+  grid-template-rows: 1fr auto; /* Fila 1: Contenido, Fila 2: Reproductor */
+  grid-template-areas:
+    "sidebar main"
+    "player player";
+  height: 100vh;
+}
+
+.main-content {
+  grid-area: main;
+  overflow-y: auto; /* Permite scroll solo en el área principal */
+  padding: 1.5rem;
+  padding-bottom: 120px; /* Espacio para el reproductor */
+}
+
+nav[style] { /* Sidebar */
+  grid-area: sidebar;
+}
+
+footer[style] { /* PlayerBar */
+  grid-area: player;
+}
