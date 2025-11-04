@@ -1,75 +1,82 @@
 // src/context/AuthContext.jsx
-import React, { createContext, useState, useContext } from 'react';
-import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import api from '../api/axiosConfig'; // ¡Correcto!
 
-// 1. Define la URL de tu API
-const API_URL = 'http://localhost:3000';
-
-// 2. Crea el Contexto
 const AuthContext = createContext();
 
-// 3. Crea el "Proveedor" (el componente que manejará la lógica)
 export function AuthProvider({ children }) {
-  // Guarda el token y el usuario en el estado de React
-  // Intenta leer el token guardado en el navegador (para "Recordar sesión")
-  const [token, setToken] = useState(localStorage.getItem('token') || null);
-  const [user, setUser] = useState(null); // Aquí guardaremos { username, role }
-  const [loading, setLoading] = useState(false);
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Hook para redirigir al usuario
-  const navigate = useNavigate();
+  useEffect(() => {
+    const validateToken = async () => {
+      if (token) {
+        try {
+          // ***** CORRECCIÓN AQUÍ *****
+          // La ruta es /api/auth/validate
+          const res = await api.get('/api/auth/validate');
+          setUser(res.data);
+        } catch (err) {
+          localStorage.removeItem('token');
+          setToken(null);
+          setUser(null);
+        }
+      }
+      setLoading(false);
+    };
+    validateToken();
+  }, [token]);
 
-  // 4. Función de Login
   const login = async (username, password) => {
     setLoading(true);
     setError(null);
     try {
-      // Llama a tu endpoint /login del backend
-      const response = await axios.post(`${API_URL}/login`, { username, password });
-
-      const { token, role, redirectPage } = response.data;
-
-      // 5. ¡Éxito! Guarda todo
-      setToken(token);
-      setUser({ username, role });
-      localStorage.setItem('token', token); // Guarda el token en el navegador
-
-      // Redirige a la página que dijo el backend (o a la home)
-      navigate(redirectPage || '/');
+      // ***** CORRECCIÓN AQUÍ *****
+      // La ruta es /api/auth/login
+      const res = await api.post('/api/auth/login', { username, password });
       
-    } catch (err) {
-      console.error("Error en login:", err.response?.data?.message || err.message);
-      setError(err.response?.data?.message || "Error al iniciar sesión");
-    } finally {
+      const { token, username: userName, role, redirectPage } = res.data;
+      
+      setToken(token);
+      setUser({ username: userName, role });
+      localStorage.setItem('token', token);
+      
       setLoading(false);
+      return { success: true, redirectPage: redirectPage };
+
+    } catch (err) {
+      const message = err.response?.data?.message || "Error al iniciar sesión";
+      setError(message);
+      setLoading(false);
+      return { success: false, error: message };
     }
   };
 
-  // 6. Función de Logout
   const logout = () => {
     setToken(null);
     setUser(null);
     localStorage.removeItem('token');
-    navigate('/login');
   };
 
-  // 7. Expone las funciones y variables al resto de la app
   const value = {
     token,
     user,
     loading,
     error,
+    isAuthenticated: !!user,
     login,
-    logout,
-    isAuthenticated: !!token // Un booleano simple para saber si está logueado
+    logout
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-// 8. Un "hook" personalizado para usar el contexto fácilmente
 export function useAuth() {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth debe usarse dentro de un AuthProvider');
+  }
+  return context;
 }

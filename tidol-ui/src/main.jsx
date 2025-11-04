@@ -1,17 +1,22 @@
-// tidol-frontend/src/main.jsx
+// src/main.jsx
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import App from './App.jsx'
-import './index.css' // O './App.css'
+import { BrowserRouter } from 'react-router-dom'
 
-import { BrowserRouter } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext.jsx'; // <-- Esta es la importación que daba error
+// 1. Importa AMBOS cerebros
+import { AuthProvider } from './context/AuthContext'
+import { PlayerProvider } from './context/PlayerContext' // <--- ASEGÚRATE DE IMPORTARLO
+
+import App from './App'
+import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <App />
+        <PlayerProvider> {/* <--- 2. ENVUELVE LA APP CON EL PLAYER */}
+          <App />
+        </PlayerProvider>
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>,

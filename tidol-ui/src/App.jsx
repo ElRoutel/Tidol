@@ -1,57 +1,69 @@
-// tidol-frontend/src/App.jsx
-import React from 'react';
-import { Routes, Route, Outlet } from 'react-router-dom';
-import { useAuth } from './context/AuthContext'; // Importa el hook
-
+// src/App.jsx
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
 import PlayerBar from './components/PlayerBar';
-import ProtectedRoute from './components/ProtectedRoute'; // Importa el protector
-
 import HomePage from './pages/HomePage';
-import SearchPage from './pages/SearchPage';
-import LoginPage from './pages/LoginPage'; // Importa la página de login
+import { SearchPage } from './pages/SearchPage';
+import { UploadPage } from './pages/UploadPage';
+import AlbumPage from './pages/AlbumPage';
+import LoginPage from './pages/LoginPage';
+import InternetArchivePage from './pages/InternetArchivePage'; // <-- ¡ESTA ES LA LÍNEA AÑADIDA!
 
-import './App.css'; 
+// Componente para rutas protegidas
+function ProtectedRoute({ children }) {
+  const { isAuthenticated, loading } = useAuth();
 
-// 1. El "Cascarón" (Layout) no cambia
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <h2>Cargando...</h2>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+}
+// Layout principal con Sidebar y PlayerBar
 function AppLayout() {
-  const { logout } = useAuth(); // Sacamos logout para el botón
-  return (
-    <div className="app-layout">
-      <Sidebar />
-      <main className="main-content">
-        <button onClick={logout} style={{float: 'right'}}>Cerrar Sesión</button>
-        <Outlet />
-      </main>
-      <PlayerBar />
-    </div>
-  );
+  return (
+    <div className="app-layout">
+      <Sidebar />
+      <main className="main-content">
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/search" element={<SearchPage />} />
+          <Route path="/upload" element={<UploadPage />} />
+          <Route path="/album/:id" element={<AlbumPage />} />
+          {/* Esta ruta ahora funcionará porque el componente está importado */}
+          <Route path="/ia-album/:identifier" element={<InternetArchivePage />} />
+        </Routes>
+      </main>
+      <PlayerBar />
+    </div>
+  );
 }
 
-// 2. El Router principal ahora distingue rutas públicas/privadas
+// App principal
 export default function App() {
-  return (
-    <Routes>
-      {/* Ruta Pública: El Login */}
-      <Route path="/login" element={<LoginPage />} />
+  return (
+    <Routes>
+      {/* Ruta pública: Login */}
+      <Route path="/login" element={<LoginPage />} />
 
-      {/* Rutas Privadas: (Toda la app) */}
-      <Route 
-        path="/*" // Cualquier otra ruta (/, /search, /album/1...)
-        element={
-          <ProtectedRoute>
-            {/* Si el usuario está autenticado, muestra el cascarón */}
-            <Routes>
-              <Route element={<AppLayout />}>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/search" element={<SearchPage />} />
-                {/* <Route path="/album/:id" element={<AlbumPage />} /> */}
-                {/* <Route path="/artist/:id" element={<ArtistPage />} /> */}
-              </Route>
-            </Routes>
-          </ProtectedRoute>
-        } 
-      />
-    </Routes>
-  );
+      {/* Rutas protegidas: Toda la app */}
+      <Route
+        path="/*"
+        element={
+          <ProtectedRoute>
+            <AppLayout />
+          </ProtectedRoute>
+        }
+      />
+    </Routes>
+  );
 }
