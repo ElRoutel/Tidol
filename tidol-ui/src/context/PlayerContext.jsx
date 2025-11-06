@@ -47,7 +47,7 @@ export function PlayerProvider({ children }) {
     try {
       const playedIds = Array.from(playedHistory).join(',');
       const res = await api.get(
-        `/api/recommendations/${songToUse.id}?played=${playedIds}`
+        `/api/music/recommendations/${songToUse.id}?played=${playedIds}`
       );
       
       if (res.data && res.data.length > 0) {
