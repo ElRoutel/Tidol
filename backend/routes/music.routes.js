@@ -8,7 +8,8 @@ import {
     getArtists, 
     getArtistDetails, 
     search, 
-    searchArchive 
+    searchArchive, 
+    getHomeRecommendations
 } from "../controllers/music.controller.js";
 import { authMiddleware } from "../middleware/auth.middleware.js";
 
@@ -23,5 +24,6 @@ router.get("/artists", authMiddleware, getArtists);
 router.get("/artists/:id", authMiddleware, getArtistDetails);
 router.get("/search", authMiddleware, search);
 router.get("/searchArchive", searchArchive);
+router.get("/home-recommendations", authMiddleware, getHomeRecommendations);
 
 export default router;

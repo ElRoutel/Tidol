@@ -300,6 +300,24 @@ export const searchArchive = async (req, res) => {
     }
 };
 
+export const getHomeRecommendations = async (req, res) => {
+    try {
+        const recommendations = await db.all(`
+            SELECT c.id, c.titulo, c.archivo AS url, c.portada, c.duracion,
+                   a.nombre AS artista, al.titulo AS album
+            FROM canciones c
+            LEFT JOIN artistas a ON c.artista_id = a.id
+            LEFT JOIN albumes al ON c.album_id = al.id
+            ORDER BY RANDOM()
+            LIMIT 10
+        `);
+        res.json(recommendations);
+    } catch (err) {
+        console.error("Error getting home recommendations:", err.message);
+        res.status(500).json({ error: "Error getting home recommendations" });
+    }
+};
+
 // --- NUEVA FUNCIÓN PARA GESTIONAR EL LÍMITE DEL CACHÉ ---
 async function pruneCache() {
     try {

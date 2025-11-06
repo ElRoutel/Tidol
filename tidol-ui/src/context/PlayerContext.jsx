@@ -135,6 +135,10 @@ export function PlayerProvider({ children }) {
         .catch(e => console.warn("Autoplay bloqueado", e));
       
       addToHistory(currentSong.id);
+
+      // Notificar al backend para el historial persistente
+      api.post('/api/history/add', { songId: currentSong.id })
+        .catch(err => console.error("Error al guardar historial en DB:", err));
     }
   }, [currentSong, addToHistory]);
 

@@ -14,6 +14,7 @@ import chalkAnimation from "chalk-animation";
 import authRoutes from "./routes/auth.routes.js";
 import musicRoutes from "./routes/music.routes.js";
 import uploadRoutes from "./routes/upload.routes.js";
+import historyRoutes from "./routes/history.routes.js";
 
 async function showAnimatedBanner() {
   console.clear();
@@ -38,7 +39,7 @@ async function showAnimatedBanner() {
   console.clear();
   console.log(gradient.pastel.multiline(banner));
   const startAnim = chalkAnimation.rainbow("💻 Iniciando servidor Routel Music API...");
-  await new Promise(res => setTimeout(res, 2000));
+  await new Promise(res => setTimeout(res, 1000));
   startAnim.stop();
   console.clear();
   console.log(gradient.pastel.multiline(banner));
@@ -72,6 +73,7 @@ app.use("/uploads", express.static(UPLOADS_DIR));
 app.use("/api/auth", authRoutes);
 app.use("/api/music", musicRoutes);
 app.use("/api/uploads", uploadRoutes);
+app.use("/api/history", historyRoutes);
 
 // --- Arranque del Servidor ---
 (async () => {
@@ -89,6 +91,18 @@ app.use("/api/uploads", uploadRoutes);
       )
     `);
     logStatus("Caché de Búsqueda", true, "Tabla 'ia_cache' lista.");
+
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS homeRecomendations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        song_id INTEGER NOT NULL,
+        played_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (song_id) REFERENCES canciones (id) ON DELETE CASCADE,
+        UNIQUE(user_id, song_id)
+      )
+    `);
+    logStatus("Historial", true, "Tabla 'homeRecomendations' lista.");
     // ----------------------------
   } catch (err) {
     logStatus("Conexión a DB", false, err.message);
