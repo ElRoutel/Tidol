@@ -15,7 +15,7 @@ function logStatus(name, success, info = "") {
 
 export const getRecommendations = async (req, res) => {
     const { songId } = req.params;
-    const playedIds = req.query.played ? req.query.played.split(',') : [];
+    const { played: playedIds = [] } = req.body;
 
     try {
         const current = await db.get("SELECT * FROM canciones WHERE id = ?", [songId]);

@@ -14,7 +14,7 @@ import { authMiddleware } from "../middleware/auth.middleware.js";
 
 const router = Router();
 
-router.get("/recommendations/:songId", authMiddleware, getRecommendations);
+router.post("/recommendations/:songId", authMiddleware, getRecommendations);
 router.get("/songs", getSongs);
 router.get("/albums", authMiddleware, getAlbums);
 router.get("/albums/:id", authMiddleware, getAlbumDetails);
