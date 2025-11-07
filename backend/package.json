@@ -4,6 +4,7 @@
   "main": "server.js",
   "type": "module",
   "dependencies": {
+    "@tailwindcss/postcss": "^4.1.16",
     "axios": "^1.13.1",
     "bcrypt": "^5.1.1",
     "cheerio": "^1.1.2",
@@ -14,7 +15,13 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "music-metadata": "^7.14.0",
+    "react-icons": "^5.5.0",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.16"
   }
 }

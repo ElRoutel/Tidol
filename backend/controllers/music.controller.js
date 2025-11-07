@@ -13,6 +13,192 @@ function logStatus(name, success, info = "") {
     console.log(`${icon} ${name} ${info}`);
 }
 
+// =================================================================================
+// NUEVA FUNCIÓN DE BÚSQUEDA UNIFICADA
+// =================================================================================
+export const searchAll = async (req, res) => {
+    const { q } = req.query;
+    if (!q || q.trim() === "") {
+        return res.status(400).json({ error: "Consulta vacía" });
+    }
+
+    logStatus("Búsqueda Unificada", true, `Iniciando para: "${q}"`);
+
+    try {
+        // Ejecutamos ambas búsquedas en paralelo para máxima eficiencia
+        const [localResults, archiveResults] = await Promise.all([
+            _searchLocal(q),
+            _searchArchive(q)
+        ]);
+
+        // Combinamos los resultados en un solo objeto
+        res.json({
+            ...localResults, // Contiene canciones, albums, artists
+            archive: archiveResults
+        });
+
+    } catch (err) {
+        logStatus("Búsqueda Unificada", false, err.message);
+        res.status(500).json({ error: "Ocurrió un error durante la búsqueda." });
+    }
+};
+
+
+// =================================================================================
+// LÓGICA DE BÚSQUEDA INTERNA (Refactorizada para ser reutilizable)
+// =================================================================================
+
+// Búsqueda en la base de datos local
+async function _searchLocal(query) {
+    const searchTerm = `%${query.trim()}%`;
+    try {
+        const [canciones, albums, artists] = await Promise.all([
+            db.all(`
+                SELECT c.id, c.titulo, c.archivo AS url, c.portada, c.duracion,
+                       a.nombre AS artista, al.titulo AS album, c.album_id AS albumId
+                FROM canciones c
+                LEFT JOIN artistas a ON c.artista_id = a.id
+                LEFT JOIN albumes al ON c.album_id = al.id
+                WHERE c.titulo LIKE ? OR a.nombre LIKE ? OR al.titulo LIKE ?
+                ORDER BY c.titulo ASC
+                LIMIT 50
+            `, [searchTerm, searchTerm, searchTerm]),
+            db.all(`
+                SELECT al.id, al.titulo, al.portada, ar.nombre AS autor
+                FROM albumes al
+                LEFT JOIN artistas ar ON al.artista_id = ar.id
+                WHERE al.titulo LIKE ? OR ar.nombre LIKE ?
+                ORDER BY al.titulo ASC
+                LIMIT 20
+            `, [searchTerm, searchTerm]),
+            db.all(`
+                SELECT id, nombre, COALESCE(imagen, '/img/default-artist.png') AS imagen
+                FROM artistas
+                WHERE nombre LIKE ?
+                ORDER BY nombre ASC
+                LIMIT 20
+            `, [searchTerm])
+        ]);
+        logStatus("Sub-búsqueda Local", true, `Éxito para "${query}"`);
+        return { canciones, albums, artists };
+    } catch (err) {
+        logStatus("Sub-búsqueda Local", false, `Error para "${query}": ${err.message}`);
+        throw new Error("Error en la búsqueda local."); // Propagamos el error
+    }
+}
+
+// Búsqueda en Internet Archive (con caché)
+async function _searchArchive(query) {
+    const queryKey = query.trim().toLowerCase();
+    const now = Date.now();
+    const expirationTime = now - (CACHE_EXPIRATION_HOURS * 60 * 60 * 1000);
+
+    try {
+        const cached = await db.get(
+            "SELECT results FROM ia_cache WHERE query = ? AND timestamp > ?",
+            [queryKey, expirationTime]
+        );
+
+        if (cached) {
+            logStatus("Caché IA (Sub-búsqueda)", true, `HIT: "${queryKey}"`);
+            return JSON.parse(cached.results);
+        }
+
+        logStatus("Caché IA (Sub-búsqueda)", false, `MISS: "${queryKey}"`);
+        
+        const palabras = query.trim().split(/\s+/);
+        const combinaciones = [];
+        for (let i = 0; i < palabras.length; i++) {
+            for (let j = i; j < palabras.length; j++) {
+                combinaciones.push(palabras.slice(i, j + 1).join(' '));
+            }
+        }
+        const formatos = ['mp3', 'flac', 'wav', 'm4a'];
+        const allPromises = [];
+
+        for (const combo of combinaciones) {
+            const keywords = `"${combo}"`;
+            for (const f of formatos) {
+                const url = `https://archive.org/advancedsearch.php?q=(title:${keywords} OR creator:${keywords}) AND mediatype:audio AND format:${f}&fl[]=identifier,title,creator,format&sort[]=downloads+desc&rows=30&page=1&output=json`;
+                allPromises.push(
+                    axios.get(url)
+                        .then(response => response.data.response?.docs || [])
+                        .catch(err => { return []; })
+                );
+            }
+        }
+
+        const resultadosPorFormato = await Promise.all(allPromises);
+        const flatResults = [].concat(...resultadosPorFormato);
+        const contador = {};
+        flatResults.forEach(item => contador[item.identifier] = (contador[item.identifier] || 0) + 1);
+        const resultadosUnicos = Object.values(
+            flatResults.reduce((acc, item) => {
+                if (!acc[item.identifier]) acc[item.identifier] = item;
+                return acc;
+            }, {})
+        );
+        resultadosUnicos.sort((a, b) => contador[b.identifier] - contador[a.identifier]);
+        const resultadosLimitados = resultadosUnicos.slice(0, 50);
+
+        const finalResults = resultadosLimitados.map(item => ({
+            identifier: item.identifier,
+            title: item.title || 'Sin título',
+            artist: item.creator || 'Autor desconocido',
+            format: item.format ? item.format.join(', ') : 'Audio',
+            thumbnail: `https://archive.org/services/img/${item.identifier}`
+        }));
+
+        await db.run(
+            "REPLACE INTO ia_cache (query, results, timestamp) VALUES (?, ?, ?)",
+            [queryKey, JSON.stringify(finalResults), now]
+        );
+        
+        await pruneCache();
+
+        logStatus("Sub-búsqueda IA", true, `Éxito para "${query}", ${finalResults.length} resultados.`);
+        return finalResults;
+
+    } catch (err) {
+        logStatus("Sub-búsqueda IA", false, `Error para "${query}": ${err.message}`);
+        throw new Error("Error al buscar en Internet Archive."); // Propagamos el error
+    }
+}
+
+
+// =================================================================================
+// ANTIGUOS CONTROLADORES (Ahora delegan a la nueva lógica)
+// =================================================================================
+
+export const search = async (req, res) => {
+    const { q } = req.query;
+    if (!q || q.trim() === "") return res.status(400).json({ error: "Consulta vacía" });
+
+    try {
+        const results = await _searchLocal(q);
+        res.json(results);
+    } catch (err) {
+        res.status(500).json({ error: "Error en la búsqueda" });
+    }
+};
+
+export const searchArchive = async (req, res) => {
+    const { q } = req.query;
+    if (!q) return res.status(400).json({ error: "Falta el parámetro q" });
+
+    try {
+        const results = await _searchArchive(q);
+        res.json(results);
+    } catch (err) {
+        res.status(500).json({ error: "Error al buscar en Internet Archive" });
+    }
+};
+
+
+// =================================================================================
+// OTRAS FUNCIONES DEL CONTROLADOR (Sin cambios)
+// =================================================================================
+
 export const getRecommendations = async (req, res) => {
     const { songId } = req.params;
     const { played: playedIds = [] } = req.body;
@@ -162,141 +348,6 @@ export const getArtistDetails = async (req, res) => {
     } catch (err) {
         logStatus("   Detalle artista   ", false, err.message);
         res.status(500).json({ error: "Error al obtener el artista" });
-    }
-};
-
-export const search = async (req, res) => {
-    const { q } = req.query;
-    if (!q || q.trim() === "") return res.status(400).json({ error: "Consulta vacía" });
-
-    const query = `%${q.trim()}%`;
-
-    try {
-        const canciones = await db.all(`
-            SELECT c.id, c.titulo, c.archivo AS url, c.portada, c.duracion,
-                   a.nombre AS artista, al.titulo AS album, c.album_id AS albumId
-            FROM canciones c
-            LEFT JOIN artistas a ON c.artista_id = a.id
-            LEFT JOIN albumes al ON c.album_id = al.id
-            WHERE c.titulo LIKE ? OR a.nombre LIKE ? OR al.titulo LIKE ?
-            ORDER BY c.titulo ASC
-            LIMIT 50
-        `, [query, query, query]);
-
-        const albums = await db.all(`
-            SELECT al.id, al.titulo, al.portada, ar.nombre AS autor
-            FROM albumes al
-            LEFT JOIN artistas ar ON al.artista_id = ar.id
-            WHERE al.titulo LIKE ? OR ar.nombre LIKE ?
-            ORDER BY al.titulo ASC
-            LIMIT 20
-        `, [query, query]);
-
-        const artists = await db.all(`
-            SELECT id, nombre, COALESCE(imagen, '/img/default-artist.png') AS imagen
-            FROM artistas
-            WHERE nombre LIKE ?
-            ORDER BY nombre ASC
-            LIMIT 20
-        `, [query]);
-
-        logStatus("Búsqueda", true, `Query: "${q}"`);
-        res.json({ canciones, albums, artists });
-    } catch (err) {
-        logStatus("Búsqueda", false, err.message);
-        res.status(500).json({ error: "Error en la búsqueda" });
-    }
-};
-
-// --- FUNCIÓN 'searchArchive' ADAPTADA CON CACHÉ ---
-export const searchArchive = async (req, res) => {
-    const q = req.query.q;
-    if (!q) return res.status(400).json({ error: "Falta el parámetro q" });
-
-    const queryKey = q.trim().toLowerCase();
-    const now = Date.now();
-    const expirationTime = now - (CACHE_EXPIRATION_HOURS * 60 * 60 * 1000);
-
-    try {
-        // 1. INTENTAR LEER DEL CACHÉ
-        const cached = await db.get(
-            "SELECT results FROM ia_cache WHERE query = ? AND timestamp > ?", 
-            [queryKey, expirationTime]
-        );
-
-        if (cached) {
-            logStatus("Caché IA (Servidor)", true, `HIT: "${queryKey}"`);
-            // ¡Encontrado! Devuelve los resultados guardados
-            return res.json(JSON.parse(cached.results));
-        }
-
-        // 2. CACHE MISS: Hacer la búsqueda real
-        logStatus("Caché IA (Servidor)", false, `MISS: "${queryKey}"`);
-
-        // (Tu algoritmo de búsqueda "inteligente" va aquí)
-        const palabras = q.trim().split(/\s+/);
-        const combinaciones = [];
-        for (let i = 0; i < palabras.length; i++) {
-            for (let j = i; j < palabras.length; j++) {
-                combinaciones.push(palabras.slice(i, j + 1).join(' '));
-            }
-        }
-        const formatos = ['mp3', 'flac', 'wav', 'm4a'];
-        const allPromises = [];
-        console.log(`🔍 Buscando ${combinaciones.length * formatos.length} combinaciones...`);
-
-        for (const combo of combinaciones) {
-            const keywords = `"${combo}"`;
-            for (const f of formatos) {
-                const url = `https://archive.org/advancedsearch.php?q=(title:${keywords} OR creator:${keywords}) AND mediatype:audio AND format:${f}&fl[]=identifier,title,creator,format&sort[]=downloads+desc&rows=30&page=1&output=json`;
-                allPromises.push(
-                    axios.get(url) // axios ya está importado
-                        .then(response => response.data.response?.docs || [])
-                        .catch(err => {
-                            console.warn(`Error en sub-búsqueda ${combo} (${f}):`, err.message);
-                            return []; 
-                        })
-                );
-            }
-        }
-
-        const resultadosPorFormato = await Promise.all(allPromises);
-        const flatResults = [].concat(...resultadosPorFormato);
-        const contador = {};
-        flatResults.forEach(item => contador[item.identifier] = (contador[item.identifier] || 0) + 1);
-        const resultadosUnicos = Object.values(
-            flatResults.reduce((acc, item) => { 
-                if (!acc[item.identifier]) acc[item.identifier] = item; 
-                return acc; 
-            }, {})
-        );
-        resultadosUnicos.sort((a, b) => contador[b.identifier] - contador[a.identifier]);
-        const resultadosLimitados = resultadosUnicos.slice(0, 50);
-
-        const finalResults = resultadosLimitados.map(item => ({
-            identifier: item.identifier,
-            title: item.title || 'Sin título',
-            artist: item.creator || 'Autor desconocido',
-            format: item.format ? item.format.join(', ') : 'Audio',
-            thumbnail: `https://archive.org/services/img/${item.identifier}`
-        }));
-
-        // 3. GUARDAR LOS NUEVOS RESULTADOS EN EL CACHÉ
-        await db.run(
-            "REPLACE INTO ia_cache (query, results, timestamp) VALUES (?, ?, ?)",
-            [queryKey, JSON.stringify(finalResults), now]
-        );
-        
-        // 4. LIMPIAR EL CACHÉ (para mantener el límite de 500)
-        await pruneCache();
-
-        logStatus("Búsqueda IA", true, `Query: "${q}", Resultados: ${finalResults.length} (Guardado en caché)`);
-        
-        return res.json(finalResults);
-
-    } catch (err) {
-        logStatus("Búsqueda IA", false, err.message);
-        return res.status(500).json({ error: "Error al buscar en Internet Archive" });
     }
 };
 
