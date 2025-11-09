@@ -1,62 +1,115 @@
-// backend/controllers/history.controller.js
+//backend/controllers/history.controller.js
 import db from '../models/db.js';
 
 /**
- * Añade una canción al historial de un usuario o actualiza su fecha de reproducción.
+ * Añade una canción al historial de un usuario (local o de IA).
  */
 export const addToHistory = async (req, res) => {
-  const { userId } = req; // ID del usuario autenticado (del authMiddleware)
-  const { songId } = req.body;
+  const { userId } = req;
+  const { songId } = req.body; // 'songId' puede ser un ID local o un identifier de IA
 
   if (!songId) {
     return res.status(400).json({ error: 'Falta el ID de la canción (songId).' });
   }
 
   try {
-    // Gracias al UNIQUE(user_id, song_id), esta consulta inserta una nueva fila
-    // o, si ya existe, simplemente actualiza la columna 'played_at'.
-    const query = `
-      INSERT INTO homeRecomendations (user_id, song_id, played_at)
-      VALUES (?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(user_id, song_id) DO UPDATE SET
-        played_at = CURRENT_TIMESTAMP;
-    `;
+    // -----------------------------------------------------------------
+    // LÓGICA DE "ENRUTAMIENTO"
+    // 1. Verificamos si la canción existe en nuestra tabla 'canciones'
+    const checkQuery = 'SELECT id FROM canciones WHERE id = ?';
+    const song = await db.get(checkQuery, [songId]);
+
+    let query;
+    let params;
+
+    if (song) {
+      // -----------------------------------------------------------------
+      // CASO 1: Es una canción local. Usamos la tabla 'homeRecomendations'.
+      query = `
+        INSERT INTO homeRecomendations (user_id, song_id, played_at)
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(user_id, song_id) DO UPDATE SET
+          played_at = CURRENT_TIMESTAMP;
+      `;
+      params = [userId, songId];
+      
+    } else {
+      // -----------------------------------------------------------------
+      // CASO 2: No es local. Asumimos que es de IA y usamos 'ia_history'.
+      // El 'songId' se guarda como 'ia_identifier'.
+      query = `
+        INSERT INTO ia_history (user_id, ia_identifier, played_at)
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(user_id, ia_identifier) DO UPDATE SET
+          played_at = CURRENT_TIMESTAMP;
+      `;
+      params = [userId, songId];
+    }
     
-    await db.run(query, [userId, songId]);
+    // 4. Ejecutamos la consulta decidida
+    await db.run(query, params);
     
     res.status(201).json({ message: 'Historial actualizado.' });
+    // -----------------------------------------------------------------
 
   } catch (err) {
+    // Si la ID de IA tampoco tuviera un formato válido, 
+    // el 'UNIQUE constraint' podría fallar, pero es muy raro.
     console.error('❌ Error al actualizar el historial:', err.message);
     res.status(500).json({ error: 'Error interno del servidor.' });
   }
 };
 
+
 /**
- * Obtiene el historial de canciones únicas de un usuario.
+ * Obtiene el historial combinado (local y de IA) de un usuario.
  */
 export const getHistory = async (req, res) => {
-  const { userId } = req; // ID del usuario autenticado
+  const { userId } = req;
 
   try {
-    // Esta consulta obtiene las 20 canciones únicas más recientes del historial del usuario,
-    // con toda la información necesaria para mostrarlas.
+    // -----------------------------------------------------------------
+    // ¡NUEVA CONSULTA CON UNION!
+    // Esta consulta combina los resultados de ambas tablas.
     const query = `
+      -- 1. Obtenemos las canciones LOCALES
       SELECT
-          c.id, c.titulo, c.archivo AS url, c.portada, c.duracion,
-          a.nombre AS artista,
-          al.titulo AS album
+        c.id, c.titulo, c.archivo AS url, c.portada, c.duracion,
+        a.nombre AS artista,
+        al.titulo AS album,
+        hr.played_at,
+        'local' as type -- Añadimos un campo 'type' para distinguirlas
       FROM homeRecomendations hr
       JOIN canciones c ON hr.song_id = c.id
       LEFT JOIN artistas a ON c.artista_id = a.id
       LEFT JOIN albumes al ON c.album_id = al.id
       WHERE hr.user_id = ?
-      GROUP BY hr.song_id
-      ORDER BY MAX(hr.played_at) DESC
+
+      UNION ALL
+
+      -- 2. Obtenemos las canciones de INTERNET ARCHIVE
+      SELECT
+        ia.ia_identifier AS id,
+        ia.ia_identifier AS titulo, -- Solo tenemos el ID, el frontend tendrá que interpretarlo
+        NULL AS url,                 -- No tenemos la URL directa del archivo aquí
+        -- Construimos la URL de la portada como en el frontend
+        'https://archive.org/services/get-item-image.php?identifier=' || ia.ia_identifier AS portada,
+        NULL AS duracion,
+        'Internet Archive' AS artista, -- Ponemos un valor genérico
+        'Internet Archive' AS album,   -- Ponemos un valor genérico
+        ia.played_at,
+        'ia' as type -- Añadimos el tipo 'ia'
+      FROM ia_history ia
+      WHERE ia.user_id = ?
+
+      -- 3. Ordenamos la lista COMBINADA por fecha y la limitamos
+      ORDER BY played_at DESC
       LIMIT 20;
     `;
-
-    const history = await db.all(query, [userId]);
+    // -----------------------------------------------------------------
+    
+    // Pasamos el userId dos veces, uno para cada parte del UNION
+    const history = await db.all(query, [userId, userId]);
     
     res.json(history);
 

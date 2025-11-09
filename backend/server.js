@@ -1,4 +1,3 @@
-// backend/server.js
 import dotenv from "dotenv";
 dotenv.config();
 import express from "express";
@@ -16,6 +15,8 @@ import musicRoutes from "./routes/music.routes.js";
 import uploadRoutes from "./routes/upload.routes.js";
 import historyRoutes from "./routes/history.routes.js";
 
+
+
 async function showAnimatedBanner() {
   console.clear();
 
@@ -28,7 +29,6 @@ async function showAnimatedBanner() {
      ░███     ░███  ░███    ███ ░░███     ███  ░███      █
      █████    █████ ██████████   ░░░███████░   ███████████
     ░░░░░    ░░░░░ ░░░░░░░░░░      ░░░░░░░    ░░░░░░░░░░░ 
-   
     𝗥𝗼𝘂𝘁𝗲𝗹 𝗠𝘂𝘀𝗶𝗰 𝗔𝗣𝗜 - v1.0.0
    Release 12/2024 - Developed by Routel
 `;
@@ -74,6 +74,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/music", musicRoutes);
 app.use("/api/uploads", uploadRoutes);
 app.use("/api/history", historyRoutes);
+// -------------------------
 
 // --- Arranque del Servidor ---
 (async () => {
@@ -82,7 +83,7 @@ app.use("/api/history", historyRoutes);
     await db.get("SELECT 1");
     logStatus("Conexión a DB", true);
 
-   // ----- ¡AÑADE ESTE BLOQUE! -----
+   // -TABLA DE HISTORIAL Y CACHÉ DE BÚSQUEDA- 
     await db.run(`
       CREATE TABLE IF NOT EXISTS ia_cache (
         query TEXT PRIMARY KEY,
@@ -109,6 +110,36 @@ app.use("/api/history", historyRoutes);
     logStatus("Caché de Búsqueda", false, err.message);
   }
 
+  // --- TABLA DE INTERNET ARCHIVE (BORRAR Y RECREAR) ---
+  // ¡ADVERTENCIA! Esto borrará el historial de IA cada vez que reinicies el servidor.
+  // Perfecto para desarrollo, pero cámbialo a "CREATE IF NOT EXISTS" para producción.
+  try {
+    await db.run(`DROP TABLE IF EXISTS ia_history;`);
+    logStatus("Historial de IA", true, "Tabla 'ia_history' borrada (DROP).");
+
+    // 2. Volvemos a crear la tabla con las NUEVAS columnas necesarias
+    await db.run(`
+      CREATE TABLE ia_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        ia_identifier TEXT NOT NULL, 
+        
+        -- Nuevas columnas para guardar los metadatos
+        titulo TEXT,
+        artista TEXT,
+        url TEXT,
+        portada TEXT,
+        
+        played_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, ia_identifier)
+      )
+    `);
+    logStatus("Historial de IA", true, "Tabla 'ia_history' recreada (CREATE).");
+  } catch (err) {
+    logStatus("Historial de IA", false, `Error al recrear: ${err.message}`);
+  }
+  // ----------------------------
+  
   // 3. Iniciar el servidor
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`\n Servidor corriendo en http://localhost:${PORT} o http://192.168.1.70:${PORT}\n`);

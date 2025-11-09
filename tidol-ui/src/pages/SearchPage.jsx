@@ -35,7 +35,7 @@ export function SearchPage() {
     setResults({ canciones: [], albums: [], artists: [], archive: [] });
 
     try {
-      const localRes = await api.get(`/api/music/search?q=${query}`);
+      const localRes = await api.get(`/music/search?q=${query}`);
       setResults(prev => ({ ...prev, ...localRes.data }));
     } catch (err) {
       console.error('Error en la búsqueda local:', err);
@@ -44,7 +44,7 @@ export function SearchPage() {
     }
 
     try {
-      const archiveRes = await api.get(`/api/music/searchArchive?q=${query}`);
+      const archiveRes = await api.get(`/music/searchArchive?q=${query}`);
       setResults(prev => ({ ...prev, archive: archiveRes.data || [] }));
     } catch (err) {
       console.error('Error en la búsqueda de IA:', err);

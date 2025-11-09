@@ -8,21 +8,21 @@ function logStatus(name, success, info = "") {
 }
 
 export const validateToken = (req, res) => {
-    const token = req.headers["x-token"];
+    const authHeader = req.headers["authorization"];
     const SECRET = process.env.JWT_SECRET;
-    console.log("/api/validate token recibido:"); // 🔹 log para debug
 
-    if (!token) return res.status(401).json({ message: "No autorizado" });
+    if (!authHeader) return res.status(401).json({ message: "No autorizado" });
+
+    const token = authHeader.split(" ")[1]; // Leer el Bearer
 
     try {
         const payload = jwt.verify(token, SECRET);
-        console.log("👽 Payload verificado:"); // 🔹 log para debug
         res.json({ username: payload.username, role: payload.role });
     } catch (err) {
-        console.error("Error verificando token:", err.message); // 🔹 log para debug
         res.status(401).json({ message: "Token inválido" });
     }
 };
+
 
 export const registerUser = async (req, res) => {
     const { username, password, role } = req.body; // role opcional
@@ -73,20 +73,19 @@ export const loginUser = async (req, res) => {
 };
 
 export const getUserInfo = (req, res) => {
-    const authHeader = req.headers["authorization"] || req.headers["x-token"];
+    const authHeader = req.headers["authorization"];
     const SECRET = process.env.JWT_SECRET;
+
     if (!authHeader) return res.status(401).json({ message: "No autorizado" });
 
-    const token = authHeader.startsWith("Bearer ")
-        ? authHeader.split(" ")[1]
-        : authHeader;
+    const token = authHeader.split(" ")[1];
 
     try {
         const payload = jwt.verify(token, SECRET);
 
         db.get(
-            "SELECT id, nombre, role, profile_img FROM usuarios WHERE nombre = ?",
-            [payload.username],
+            "SELECT id, nombre AS username, role, profile_img FROM usuarios WHERE id = ?",
+            [payload.id],
             (err, user) => {
                 if (err) return res.status(500).json({ message: "Error de base de datos" });
                 if (!user) return res.status(404).json({ message: "Usuario no encontrado" });
@@ -97,3 +96,4 @@ export const getUserInfo = (req, res) => {
         res.status(401).json({ message: "Token inválido" });
     }
 };
+

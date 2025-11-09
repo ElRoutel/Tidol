@@ -1,38 +1,30 @@
-// src/MobileNav.jsx
 import React from 'react';
-// Importamos los mismos iconos
-import { IoHomeSharp, IoSearch, IoLibrary, IoCloudUpload } from "react-icons/io5";
+import { NavLink } from 'react-router-dom';
+import { IoHome, IoSearch, IoLibrary, IoCloudUpload } from 'react-icons/io5';
 
-// Un sub-componente diferente, optimizado para móvil (solo icono)
-function MobileNavLink({ icon, label }) {
+const MobileNav = () => {
   return (
-    <a 
-      href="#" 
-      className="flex flex-col items-center gap-1 text-neutral-400 
-                 hover:text-white transition-colors duration-200"
-    >
-      {React.createElement(icon, { size: "24" })}
-      <span className="text-xs">{label}</span>
-    </a>
-  );
-}
-
-function MobileNav() {
-  return (
-    // LA MAGIA DE TAILWIND:
-    // md:hidden: Oculto en pantallas medianas (md) y superiores. Visible en móvil.
-    // bg-neutral-900: Un fondo oscuro, ligeramente diferente al negro puro
-    <nav className="md:hidden bg-neutral-900 text-white p-4
-                    flex justify-around items-center
-                    border-t border-neutral-700">
-      
-      <MobileNavLink icon={IoHomeSharp} label="Inicio" />
-      <MobileNavLink icon={IoSearch} label="Buscar" />
-      <MobileNavLink icon={IoLibrary} label="Biblioteca" />
-      <MobileNavLink icon={IoCloudUpload} label="Subir" />
-      
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-surface border-t border-gray-800 z-50">
+      <div className="flex justify-around items-center h-16">
+        <NavLink to="/" className="flex flex-col items-center justify-center text-text-subdued hover:text-text">
+          <IoHome size={24} />
+          <span className="text-xs">Inicio</span>
+        </NavLink>
+        <NavLink to="/search" className="flex flex-col items-center justify-center text-text-subdued hover:text-text">
+          <IoSearch size={24} />
+          <span className="text-xs">Buscar</span>
+        </NavLink>
+        <NavLink to="/library" className="flex flex-col items-center justify-center text-text-subdued hover:text-text">
+          <IoLibrary size={24} />
+          <span className="text-xs">Biblioteca</span>
+        </NavLink>
+        <NavLink to="/upload" className="flex flex-col items-center justify-center text-text-subdued hover:text-text">
+          <IoCloudUpload size={24} />
+          <span className="text-xs">Subir</span>
+        </NavLink>
+      </div>
     </nav>
   );
-}
+};
 
 export default MobileNav;

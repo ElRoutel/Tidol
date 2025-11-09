@@ -1,10 +1,10 @@
-// backend/controllers/music.controller.js (CORREGIDO Y VERIFICADO)
+// backend/controllers/music.controller.js
 import db from "../models/db.js";
 import axios from "axios";
-import * as cheerio from "cheerio"; // Nota: 'cheerio' no se usa en este código.
+import * as cheerio from "cheerio"; // Nota: se deja importado por si alguna otra parte lo necesita
 
 // --- CONFIGURACIÓN DEL CACHÉ ---
-const CACHE_LIMIT = 500; // Tu límite de 500 búsquedas
+const CACHE_LIMIT = 500; // Límite de 500 búsquedas
 const CACHE_EXPIRATION_HOURS = 24; // Las búsquedas expiran en 24h
 // ---------------------------------
 
@@ -87,7 +87,7 @@ async function _searchLocal(query) {
     }
 }
 
-// Búsqueda en Internet Archive (con caché)
+// Búsqueda en Internet Archive (con caché) - AHORA devuelve url reproducible
 async function _searchArchive(query) {
     const queryKey = query.trim().toLowerCase();
     const now = Date.now();
@@ -138,26 +138,62 @@ async function _searchArchive(query) {
                 return acc;
             }, {})
         );
-        resultadosUnicos.sort((a, b) => contador[b.identifier] - contador[a.identifier]);
+        resultadosUnicos.sort((a, b) => (contador[b.identifier] || 0) - (contador[a.identifier] || 0));
         const resultadosLimitados = resultadosUnicos.slice(0, 50);
 
-        const finalResults = resultadosLimitados.map(item => ({
-            identifier: item.identifier,
-            title: item.title || 'Sin título',
-            artist: item.creator || 'Autor desconocido',
-            format: item.format ? item.format.join(', ') : 'Audio',
-            thumbnail: `https://archive.org/services/img/${item.identifier}`
+        // Para cada resultado obtenemos metadata para localizar un archivo de audio reproducible
+        const enriched = await Promise.all(resultadosLimitados.map(async item => {
+            try {
+                const metaRes = await axios.get(`https://archive.org/metadata/${item.identifier}`);
+                const files = metaRes.data?.files || [];
+
+                // Buscar el mejor candidato de archivo de audio
+                let audioFile = files.find(f => f.name && /(\.mp3$|\.flac$|\.wav$|\.m4a$)/i.test(f.name));
+                if (!audioFile) {
+                    // fallback por formato textual
+                    audioFile = files.find(f => f.format && /(mp3|flac|wav|m4a)/i.test(f.format));
+                }
+                // Aún si no hay audio, intentamos formar una URL de detalle para que el frontend pueda mostrar la ficha
+                const filename = audioFile ? audioFile.name : (item.identifier + '.mp3');
+                const url = audioFile ? `https://archive.org/download/${item.identifier}/${encodeURIComponent(filename)}` : `https://archive.org/details/${item.identifier}`;
+
+                const duration = audioFile && audioFile.length ? parseFloat(audioFile.length) : null;
+
+                return {
+                    identifier: item.identifier,
+                    title: item.title || 'Sin título',
+                    artist: item.creator || 'Autor desconocido',
+                    format: item.format ? (Array.isArray(item.format) ? item.format.join(', ') : item.format) : 'audio',
+                    thumbnail: `https://archive.org/services/img/${item.identifier}`,
+                    url,
+                    filename: audioFile ? audioFile.name : null,
+                    duration
+                };
+            } catch (err) {
+                // En caso de fallo con metadata, devolvemos info mínima para que el frontend pueda mostrar algo
+                return {
+                    identifier: item.identifier,
+                    title: item.title || 'Sin título',
+                    artist: item.creator || 'Autor desconocido',
+                    format: item.format ? (Array.isArray(item.format) ? item.format.join(', ') : item.format) : 'audio',
+                    thumbnail: `https://archive.org/services/img/${item.identifier}`,
+                    url: `https://archive.org/details/${item.identifier}`,
+                    filename: null,
+                    duration: null
+                };
+            }
         }));
 
+        // Guardamos en caché la versión enriquecida (contiene url reproducible cuando fue posible)
         await db.run(
             "REPLACE INTO ia_cache (query, results, timestamp) VALUES (?, ?, ?)",
-            [queryKey, JSON.stringify(finalResults), now]
+            [queryKey, JSON.stringify(enriched), now]
         );
         
         await pruneCache();
 
-        logStatus("Sub-búsqueda IA", true, `Éxito para "${query}", ${finalResults.length} resultados.`);
-        return finalResults;
+        logStatus("Sub-búsqueda IA", true, `Éxito para "${query}", ${enriched.length} resultados.`);
+        return enriched;
 
     } catch (err) {
         logStatus("Sub-búsqueda IA", false, `Error para "${query}": ${err.message}`);
@@ -220,7 +256,7 @@ export const getRecommendations = async (req, res) => {
             AND c.id NOT IN (${placeholders})
             ORDER BY RANDOM()
             LIMIT 10
-        `, [current.artista_id, current.album_id, songId, ...playedIds]); // (Typo 'albtumId' corregido a 'albumId')
+        `, [current.artista_id, current.album_id, songId, ...playedIds]);
 
         res.json(candidates);
     } catch (err) {

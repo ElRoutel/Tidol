@@ -14,6 +14,7 @@ import { UploadPage } from './pages/UploadPage';
 import AlbumPage from './pages/AlbumPage';
 import LoginPage from './pages/LoginPage';
 import InternetArchivePage from './pages/InternetArchivePage';
+import ProfilePage from './pages/ProfilePage'; // Importa la nueva página
 
 // --- TU LÓGICA DE AUTENTICACIÓN (Sin cambios) ---
 function ProtectedRoute({ children }) {
@@ -56,6 +57,7 @@ function AppLayout() {
           <Route path="/upload" element={<UploadPage />} />
           <Route path="/album/:id" element={<AlbumPage />} />
           <Route path="/ia-album/:identifier" element={<InternetArchivePage />} />
+          <Route path="/profile" element={<ProfilePage />} /> 
           {/* Puedes añadir más rutas aquí, como /playlist/:id, etc. */}
         </Routes>
         

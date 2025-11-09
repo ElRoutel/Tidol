@@ -25,10 +25,10 @@ export default function AlbumPage() {
         // El interceptor de Axios se encarga del token.
         // El proxy de Vite se encarga de la URL base.
 
-        const albumRes = await api.get(`/api/music/albums/${id}`);
+        const albumRes = await api.get(`/music/albums/${id}`);
         setAlbum(albumRes.data);
 
-        const songsRes = await api.get(`/api/music/albums/${id}/canciones`);
+        const songsRes = await api.get(`/music/albums/${id}/songs`);
         setSongs(songsRes.data);
 
         // Si hay un songId en la URL, reproducir esa canción
@@ -167,7 +167,7 @@ export default function AlbumPage() {
           width: 200px;
           height: 200px;
           border-radius: 8px;
-          box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+          box-shadow: 0 8px 12px rgba(0,0,0,0.5);
         }
 
         .album-info h1 {
@@ -299,8 +299,14 @@ export default function AlbumPage() {
             font-size: 32px;
           }
 
+          .songs-section {
+            padding: 0 16px; /* Add side padding for the section on mobile */
+          }
+
           .song-card {
             grid-template-columns: 30px 40px 1fr 40px;
+            padding-left: 0; /* Remove side padding from individual cards */
+            padding-right: 0;
           }
 
           .song-quality,

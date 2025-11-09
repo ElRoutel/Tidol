@@ -2,12 +2,17 @@ import jwt from "jsonwebtoken";
 
 export const authMiddleware = (req, res, next) => {
   const SECRET = process.env.JWT_SECRET;
-  const token = req.headers["x-token"];
-  if (!token) return res.status(401).json({ message: "No autorizado" });
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ message: "No autorizado" });
+  }
+
+  const token = authHeader.split(" ")[1];
 
   try {
     const payload = jwt.verify(token, SECRET);
-    req.userId = payload.id; // <-- Adjuntamos el ID del usuario a la petición
+    req.userId = payload.id;
     next();
   } catch (err) {
     console.error("Token inválido:", err.message);
@@ -18,14 +23,19 @@ export const authMiddleware = (req, res, next) => {
 export const authRole = (allowedRoles) => {
   return (req, res, next) => {
     const SECRET = process.env.JWT_SECRET;
-    const token = req.headers["x-token"];
-    if (!token)
+
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({ message: "401 No autorizado, falta token" });
+    }
+
+    const token = authHeader.split(" ")[1];
 
     try {
       const payload = jwt.verify(token, SECRET);
-      if (!payload || !payload.role)
+      if (!payload?.role) {
         return res.status(401).json({ message: "Token inválido o corrupto" });
+      }
 
       if (!allowedRoles.includes(payload.role)) {
         console.log(`🚫 Acceso denegado: ${payload.username} (${payload.role})`);

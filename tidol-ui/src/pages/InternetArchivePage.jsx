@@ -1,15 +1,13 @@
 // src/pages/InternetArchivePage.jsx
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
-import axios from 'axios'; // Usamos axios normal para APIs EXTERNAS
+import axios from 'axios';
 
-// --- NUEVO: Ranking de Calidad ---
-// (Menor número = Mejor calidad)
 const qualityRank = {
   'FLAC': 1,
   'WAV': 2,
-  'M4A': 3, // (ALAC suele estar en .m4a)
+  'M4A': 3,
   'MP3': 4,
   'OGG': 5,
   'unknown': 100
@@ -22,17 +20,16 @@ export default function InternetArchivePage() {
 
   const [album, setAlbum] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   
-  // --- NUEVOS ESTADOS para el filtrado ---
-  const [allFiles, setAllFiles] = useState([]); // Guarda todos los archivos de audio
-  const [groupedTracks, setGroupedTracks] = useState([]); // Guarda las canciones agrupadas
-  const [filteredTracks, setFilteredTracks] = useState([]); // Lo que se va a renderizar
-  const [availableFormats, setAvailableFormats] = useState([]); // Para el dropdown
-  const [formatFilter, setFormatFilter] = useState('best'); // 'best' es el default
+  const [allFiles, setAllFiles] = useState([]);
+  const [groupedTracks, setGroupedTracks] = useState([]);
+  const [filteredTracks, setFilteredTracks] = useState([]);
+  const [availableFormats, setAvailableFormats] = useState([]);
+  const [formatFilter, setFormatFilter] = useState('best');
 
-  const { playSongList, currentSong } = usePlayer(); // Traemos 'currentSong' para la UI
+  const { playSongList, currentSong } = usePlayer();
 
-  // --- EFECTO 1: Cargar datos de la API (Solo una vez) ---
   useEffect(() => {
     const fetchAlbumData = async () => {
       try {
@@ -40,131 +37,161 @@ export default function InternetArchivePage() {
         const metaRes = await axios.get(`https://archive.org/metadata/${identifier}`);
         const metaData = metaRes.data;
 
+        if (!metaData || !metaData.metadata) {
+          throw new Error('No se encontraron metadatos para este item.');
+        }
+
         const albumInfo = {
-          title: metaData.metadata?.title || identifier,
-          artist: metaData.metadata?.creator || 'Autor desconocido',
-          cover: `https://archive.org/services/img/${identifier}`
+          titulo: metaData.metadata?.title || identifier,
+          autor: metaData.metadata?.creator || 'Autor desconocido',
+          portada: `https://archive.org/services/img/${identifier}`
         };
         setAlbum(albumInfo);
 
-        // 1. Obtener todos los archivos de audio
         const audioFiles = Object.values(metaData.files || {})
           .filter(f => f.name.match(/\.(mp3|flac|wav|m4a|ogg)$/i))
           .map(f => {
             const format = (f.format || 'unknown').replace('Audio', '').trim().toUpperCase();
             return {
-              titulo: f.name.split('/').pop().replace(/\.[^/.]+$/, '').replace(/^\d+\.\s*/, ''), // Limpia el nombre y la extensión
+              titulo: f.name.split('/').pop().replace(/\.[^/.]+$/, '').replace(/^\d+\.\s*/, ''),
               format: format,
               formatRank: qualityRank[format] || 100,
               url: `https://archive.org/download/${identifier}/${encodeURIComponent(f.name)}`,
-              artista: albumInfo.artist,
-              album: albumInfo.title,
+              artista: albumInfo.autor,
+              album: albumInfo.titulo,
               id: `${identifier}_${f.name}`,
-              portada: albumInfo.cover
+              portada: albumInfo.portada,
+              duracion: parseFloat(f.length) || 0,
             };
           });
         
-        // 2. Guardar todos los archivos
+        if (audioFiles.length === 0) {
+          setError('No se encontraron archivos de audio en este item.');
+        }
+
         setAllFiles(audioFiles);
 
-        // 3. Obtener formatos únicos para el dropdown
         const formats = [...new Set(audioFiles.map(f => f.format))];
-        // Ordena los formatos por calidad para el dropdown
         formats.sort((a, b) => (qualityRank[a] || 100) - (qualityRank[b] || 100));
         setAvailableFormats(formats);
 
       } catch (err) {
         console.error("Error cargando IA Album:", err);
+        setError(err.message || 'No se pudo cargar el álbum de Internet Archive.');
       } finally {
         setLoading(false);
       }
     };
     fetchAlbumData();
-  }, [identifier]); // Solo depende del 'identifier'
+  }, [identifier]);
 
-  // --- EFECTO 2: Agrupar y Filtrar Canciones ---
-  // Se ejecuta cuando los archivos cargan (allFiles) o cuando el filtro cambia (formatFilter)
   useEffect(() => {
     if (allFiles.length === 0) return;
 
-    // 1. Agrupar archivos por 'titulo'
     const grouped = allFiles.reduce((acc, file) => {
       if (!acc[file.titulo]) {
         acc[file.titulo] = {
           title: file.titulo,
           artist: file.artista,
-          formats: [], // Un array para todos los formatos disponibles
+          formats: [],
         };
       }
       acc[file.titulo].formats.push(file);
       return acc;
     }, {});
 
-    // 2. Ordenar formatos y encontrar el mejor
     const finalGroupedTracks = Object.values(grouped).map(track => {
-      // Ordena los formatos de esta canción por calidad
       track.formats.sort((a, b) => a.formatRank - b.formatRank);
       return {
         ...track,
-        best: track.formats[0] // El formato de "mejor" calidad es el primero
+        best: track.formats[0]
       };
     });
-    setGroupedTracks(finalGroupedTracks); // Guarda las canciones agrupadas
+    setGroupedTracks(finalGroupedTracks);
 
-    // 3. Filtrar la lista para mostrar
     let tracksToShow = [];
     if (formatFilter === 'best') {
-      // Si es 'best', mostramos el mejor formato de cada canción
       tracksToShow = finalGroupedTracks.map(track => track.best);
     } else {
-      // Si es 'FLAC', 'MP3', etc., filtramos
       tracksToShow = finalGroupedTracks
         .map(track => track.formats.find(f => f.format === formatFilter))
-        .filter(Boolean); // Elimina canciones que no tengan ese formato
+        .filter(Boolean);
     }
 
     setFilteredTracks(tracksToShow);
 
-    // 4. Lógica de Autoplay (ahora usa la lista filtrada)
     if (shouldAutoplay && tracksToShow.length > 0) {
       playSongList(tracksToShow, 0);
     }
   }, [allFiles, formatFilter, shouldAutoplay, playSongList]);
 
+  const handleSongClick = (song) => {
+    const index = filteredTracks.findIndex(t => t.id === song.id);
+    if (index !== -1) {
+      playSongList(filteredTracks, index);
+    }
+  };
 
-  if (loading) return <div>Cargando álbum de Internet Archive...</div>;
-  if (!album) return <div>No se encontró el álbum.</div>;
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '50px', color: 'white' }}>
+        <h2>Cargando álbum de Internet Archive...</h2>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ textAlign: 'center', padding: '50px', color: '#ff5555' }}>
+        <h2>{error}</h2>
+      </div>
+    );
+  }
 
   return (
     <div className="album-page">
-      {/* Banner del Álbum (sin cambios) */}
-      <section className="album-container" style={{display: 'flex', gap: '24px', alignItems: 'center'}}>
-        <img src={album.cover} alt={album.title} style={{width: 200, height: 200, borderRadius: '8px'}} />
-        <div>
-          <h2 style={{fontSize: '2rem'}}>{album.title}</h2>
-          <p style={{fontSize: '1.2rem', color: '#b3b3b3'}}>{album.artist}</p>
-          <button 
-            onClick={() => playSongList(filteredTracks, 0)}
-            style={{background: 'var(--primary)', border: 'none', color: 'white', padding: '12px 24px', borderRadius: '24px', cursor: 'pointer', marginTop: '16px', fontWeight: '600'}}
-          >
-            Reproducir (Filtro: {formatFilter})
-          </button>
+      {/* Banner del álbum */}
+      <div
+        className="album-header"
+        style={{
+          backgroundImage: `url(${album?.portada || '/default_cover.png'})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center'
+        }}
+      >
+        <div className="album-overlay">
+          <img
+            src={album?.portada || '/default_cover.png'}
+            alt={album?.titulo}
+            className="album-cover-large"
+          />
+          <div className="album-info">
+            <h1>{album?.titulo}</h1>
+            <p className="album-artist">{album?.autor || 'Desconocido'}</p>
+            <p className="album-meta">
+              {groupedTracks.length} canciones
+            </p>
+            <button 
+              onClick={() => playSongList(filteredTracks, 0)}
+              className="play-button-main"
+            >
+              Reproducir
+            </button>
+          </div>
         </div>
-      </section>
+      </div>
 
-      {/* Panel de Canciones (con filtro) */}
-      <section className="panel" style={{marginTop: '32px'}}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h2>Canciones ({filteredTracks.length})</h2>
-          
-          {/* --- NUEVO: Selector de Filtro --- */}
+      {/* Lista de canciones y filtro */}
+      <div className="songs-section">
+        <div className="section-header">
+          <h2>Canciones</h2>
           <div>
-            <label htmlFor="format-filter" style={{marginRight: '8px', fontSize: '14px', color: '#b3b3b3'}}>Calidad:</label>
+            <label htmlFor="format-filter">Calidad:</label>
             <select 
               id="format-filter"
               value={formatFilter}
               onChange={(e) => setFormatFilter(e.target.value)}
-              style={{background: '#282828', color: 'white', border: 'none', borderRadius: '4px', padding: '8px'}}
+              className="quality-filter"
             >
               <option value="best">Mejor Calidad</option>
               {availableFormats.map(format => (
@@ -173,78 +200,290 @@ export default function InternetArchivePage() {
             </select>
           </div>
         </div>
-        
-        {/* --- MODIFICADO: Renderiza 'groupedTracks' en lugar de 'tracks' --- */}
-        <div className="songs-wrapper">
+
+        <div className="songs-grid">
           {groupedTracks.map((track, index) => {
-            // Busca la canción que coincide con el filtro actual
             const songToShow = (formatFilter === 'best') 
               ? track.best 
               : track.formats.find(f => f.format === formatFilter);
 
-            // Si la canción no existe en este formato, la mostramos 'deshabilitada'
             if (!songToShow) {
               return (
-                <div 
-                  key={track.title} 
-                  className="track-row-disabled"
-                  style={{display: 'flex', alignItems: 'center', gap: '16px', padding: '8px', opacity: 0.3}}
-                >
-                  <div className="track-play">
-                    <span className="track-number" style={{color: '#888'}}>{index + 1}</span>
+                <div key={track.title} className="song-card disabled">
+                  <div className="song-number">{index + 1}</div>
+                  <div className="song-info">
+                    <div className="song-title">{track.title}</div>
+                    <div className="song-artist">{track.artist}</div>
                   </div>
-                  <div className="track-info">
-                    <h3 style={{fontSize: '16px', color: '#888'}}>{track.title}</h3>
-                  </div>
-                  <div className="song-quality">{formatFilter} no disponible</div>
+                  <div className="song-quality-unavailable">{formatFilter} no disponible</div>
                 </div>
               );
             }
 
-            // Si la canción SÍ existe, la mostramos normal
             const isPlaying = currentSong?.id === songToShow.id;
-            // Necesitamos encontrar el índice de esta canción en la *lista filtrada* para el playSongList
-            const filteredIndex = filteredTracks.findIndex(t => t.id === songToShow.id);
 
             return (
-              <div 
-                key={songToShow.id} 
-                className={`track-row ${isPlaying ? 'playing' : ''}`}
-                onClick={() => playSongList(filteredTracks, filteredIndex)}
-                style={{display: 'flex', alignItems: 'center', gap: '16px', padding: '8px', borderRadius: '4px', cursor: 'pointer'}}
-                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-light)'}
-                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              <div
+                key={songToShow.id}
+                className={`song-card ${isPlaying ? 'playing' : ''}`}
+                onClick={() => handleSongClick(songToShow)}
               >
-                <div className="track-play">
-                  <span className="track-number" style={{color: '#b3b3b3'}}>{index + 1}</span>
+                <div className="song-number">{index + 1}</div>
+                <img
+                  src={songToShow.portada}
+                  alt={songToShow.titulo}
+                  className="song-thumb"
+                />
+                <div className="song-info">
+                  <div className="song-title">{songToShow.titulo}</div>
+                  <div className="song-artist">{songToShow.artista}</div>
                 </div>
-                <div className="track-info">
-                  <h3 style={{fontSize: '16px', color: isPlaying ? 'var(--primary)' : 'white'}}>
-                    {songToShow.titulo}
-                  </h3>
+                <div className="song-quality">{songToShow.format}</div>
+                <div className="song-duration">
+                  {Math.floor(songToShow.duracion / 60)}:{Math.floor(songToShow.duracion % 60).toString().padStart(2, '0')}
                 </div>
-                {/* Muestra todos los formatos disponibles como "tags" */}
-                <div className="song-formats-available" style={{display: 'flex', gap: '4px'}}>
-                  {track.formats.map(f => (
-                    <span 
-                      key={f.format} 
-                      style={{
-                        fontSize: '10px', 
-                        background: f.format === songToShow.format ? 'var(--primary)' : '#404040', 
-                        color: 'white', 
-                        padding: '2px 4px', 
-                        borderRadius: '3px'
-                      }}
-                    >
-                      {f.format}
-                    </span>
-                  ))}
-                </div>
+                <button className="play-btn-small">
+                  {isPlaying ? '⏸' : '▶'}
+                </button>
               </div>
             );
           })}
         </div>
-      </section>
+      </div>
+
+      {/* Estilos unificados de AlbumPage */}
+      <style>{`
+        .album-page {
+          padding-bottom: 100px;
+          color: white;
+        }
+
+        .album-header {
+          position: relative;
+          height: 340px;
+          border-radius: 12px;
+          overflow: hidden;
+          margin-bottom: 30px;
+        }
+
+        .album-overlay {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(to bottom, rgba(0,0,0,0.3), rgba(0,0,0,0.8));
+          display: flex;
+          align-items: flex-end;
+          padding: 30px;
+          gap: 24px;
+        }
+
+        .album-cover-large {
+          width: 200px;
+          height: 200px;
+          border-radius: 8px;
+          box-shadow: 0 8px 12px rgba(0,0,0,0.5);
+        }
+
+        .album-info h1 {
+          font-size: 48px;
+          margin: 0 0 8px 0;
+          color: white;
+        }
+
+        .album-artist {
+          font-size: 18px;
+          color: #b3b3b3;
+          margin: 0 0 16px 0;
+        }
+
+        .album-meta {
+          font-size: 14px;
+          color: #b3b3b3;
+          margin-bottom: 20px;
+        }
+
+        .play-button-main {
+          background: #1db954;
+          border: none;
+          color: white;
+          padding: 14px 32px;
+          border-radius: 30px;
+          cursor: pointer;
+          font-size: 16px;
+          font-weight: 600;
+          transition: all 0.2s;
+        }
+        .play-button-main:hover {
+          transform: scale(1.05);
+          background: #1ed760;
+        }
+
+        .songs-section {
+          padding: 0 16px;
+        }
+
+        .section-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 20px;
+        }
+        .section-header h2 {
+          margin: 0;
+        }
+        .section-header label {
+          margin-right: 8px;
+          font-size: 14px;
+          color: #b3b3b3;
+        }
+
+        .quality-filter {
+          background: #282828;
+          color: white;
+          border: 1px solid #404040;
+          border-radius: 4px;
+          padding: 8px 12px;
+          font-size: 14px;
+        }
+
+        .songs-grid {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .song-card {
+          display: grid;
+          grid-template-columns: 40px 50px 1fr 100px 60px 40px;
+          align-items: center;
+          gap: 12px;
+          padding: 8px 12px;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+        .song-card:hover {
+          background: rgba(255, 255, 255, 0.1);
+        }
+        .song-card.playing {
+          background: rgba(29, 185, 84, 0.2);
+          color: #1db954;
+        }
+        .song-card.playing .song-title, .song-card.playing .song-artist {
+          color: #1db954;
+        }
+        .song-card.disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+        .song-card.disabled:hover {
+          background: transparent;
+        }
+
+        .song-number {
+          text-align: center;
+          color: #b3b3b3;
+          font-size: 14px;
+        }
+
+        .song-thumb {
+          width: 50px;
+          height: 50px;
+          border-radius: 4px;
+          object-fit: cover;
+        }
+
+        .song-info {
+          overflow: hidden;
+        }
+
+        .song-title {
+          font-size: 16px;
+          font-weight: 500;
+          color: white;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .song-artist {
+          font-size: 14px;
+          color: #b3b3b3;
+        }
+
+        .song-quality, .song-quality-unavailable {
+          font-size: 12px;
+          color: #888;
+          text-align: right;
+        }
+        .song-quality-unavailable {
+          grid-column: span 3;
+          text-align: right;
+          padding-right: 10px;
+        }
+
+        .song-duration {
+          text-align: right;
+          color: #b3b3b3;
+          font-size: 14px;
+        }
+
+        .play-btn-small {
+          background: none;
+          border: none;
+          color: white;
+          font-size: 24px;
+          cursor: pointer;
+          opacity: 0;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .song-card:hover .play-btn-small,
+        .song-card.playing .play-btn-small {
+          opacity: 1;
+        }
+        .song-card.playing .play-btn-small {
+          color: #1db954;
+        }
+
+        @media (max-width: 768px) {
+          .album-header {
+            height: auto;
+            padding-bottom: 20px;
+            background-image: none !important; /* No background image on mobile */
+          }
+          .album-overlay {
+            position: static; /* Remove absolute positioning */
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            background: none;
+            padding: 16px;
+          }
+          .album-cover-large {
+            width: 180px;
+            height: 180px;
+            margin-bottom: 16px;
+          }
+          .album-info h1 {
+            font-size: 28px;
+          }
+          .album-artist {
+            font-size: 16px;
+          }
+          .play-button-main {
+            padding: 12px 28px;
+            font-size: 14px;
+          }
+          .song-card {
+            grid-template-columns: 30px 40px 1fr 40px;
+          }
+          .song-quality, .song-duration {
+            display: none;
+          }
+        }
+      `}</style>
     </div>
   );
 }

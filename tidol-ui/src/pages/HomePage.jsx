@@ -1,7 +1,7 @@
 import React from 'react';
 import { usePlayer } from '../context/PlayerContext';
 
-import Shelf from '../components/Shelf';
+import Shelf from '../components/HomeShelf';
 import AlbumCard from '../components/AlbumCard';
 import Card from '../components/Card';
 
@@ -14,10 +14,10 @@ export default function HomePage() {
   };
 
   return (
-    <div className="p-6 bg-gradient-to-b from-emerald-800 to-background">
+    <div className="p-6 bg-gradient-to-b from-zinc-900 to-background">
       <Shelf
         title="Escuchado Recientemente"
-        endpoint="/api/history"
+        endpoint="/history"
         renderItem={(song, index, songList) => (
           <div key={song.id} onClick={() => handlePlaySong(song, index, songList)} className="w-48 flex-shrink-0">
             <Card
@@ -31,7 +31,7 @@ export default function HomePage() {
 
       <Shelf
         title="Recomendaciones para ti"
-        endpoint="/api/music/home-recommendations"
+        endpoint="/music/home-recommendations"
         renderItem={(song, index, songList) => (
           <div key={song.id} onClick={() => handlePlaySong(song, index, songList)} className="w-48 flex-shrink-0">
             <Card
@@ -45,7 +45,7 @@ export default function HomePage() {
 
       <Shelf
         title="Álbumes Populares"
-        endpoint="/api/music/albums"
+        endpoint="/music/albums"
         renderItem={(album) => (
           <AlbumCard key={album.id} album={album} />
         )}

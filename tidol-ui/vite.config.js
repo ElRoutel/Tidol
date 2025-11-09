@@ -1,17 +1,18 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+// BORRA ESTA LÍNEA: import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
-  plugins: [react()],
+  // DEJA SOLO 'react()'
+  plugins: [react()], 
+  
   server: {
     port: 5173,
     proxy: {
-      // Si pides /api/albums...
       '/api': {
-        target: 'http://localhost:3000', // ...Vite lo redirige a http://localhost:3000/api/albums
+        target: 'http://localhost:3000', 
         changeOrigin: true,
       },
-      // Lo mismo para tus archivos de música e imágenes
       '/uploads': {
         target: 'http://localhost:3000',
         changeOrigin: true,

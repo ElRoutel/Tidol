@@ -1,17 +1,17 @@
-// src/components/Sidebar.jsx
 import { NavLink } from 'react-router-dom';
+import { useEffect, useState } from "react";
+import api from '../api/axiosConfig'; // Importar axios
 
-// 1. Importamos los iconos que necesitamos de react-icons
+// Iconos
 import { 
   IoHomeSharp, 
   IoSearch, 
   IoLibrary, 
-  IoCloudUploadOutline, // Un icono ligeramente diferente para "Subir"
-  IoAdd,             // Icono para "Crear Playlist"
-  IoArrowForward     // Icono para la sección de biblioteca
+  IoCloudUploadOutline,
+  IoAdd
 } from "react-icons/io5";
 
-// El logo de tu app. ¡Puedes cambiarlo por un SVG o una imagen!
+// ✅ Logo
 function Logo() {
   return (
     <NavLink to="/" className="flex items-center gap-2 px-2 mb-4">
@@ -21,11 +21,10 @@ function Logo() {
   );
 }
 
-// Componente para los enlaces de navegación principales
+// ✅ Navegación principal
 function MainNav() {
   const activeLinkStyle = {
-    color: '#FFFFFF', // Blanco para el texto
-    // No necesitamos fondo aquí, el hover se encarga
+    color: '#FFFFFF'
   };
 
   return (
@@ -38,6 +37,7 @@ function MainNav() {
         <IoHomeSharp size={28} />
         <span>Inicio</span>
       </NavLink>
+
       <NavLink 
         to="/search" 
         className="flex items-center gap-4 px-2 py-2 text-text-subdued hover:text-text font-bold transition-colors"
@@ -46,7 +46,8 @@ function MainNav() {
         <IoSearch size={28} />
         <span>Buscar</span>
       </NavLink>
-       <NavLink 
+
+      <NavLink 
         to="/upload" 
         className="flex items-center gap-4 px-2 py-2 text-text-subdued hover:text-text font-bold transition-colors"
         style={({ isActive }) => isActive ? activeLinkStyle : undefined}
@@ -58,7 +59,7 @@ function MainNav() {
   );
 }
 
-// Componente para la sección de la biblioteca del usuario
+// ✅ Biblioteca del usuario
 function UserLibrary() {
   return (
     <div className="flex flex-col mt-4">
@@ -71,8 +72,7 @@ function UserLibrary() {
           <IoAdd size={24} />
         </button>
       </div>
-      
-      {/* Aquí podrías mapear y listar las playlists del usuario */}
+
       <div className="mt-4 space-y-2 px-2 overflow-y-auto">
         <p className="text-sm text-text-subdued">Crea tu primera playlist</p>
         <p className="text-xs text-text-subdued">¡Es fácil! Te ayudaremos.</p>
@@ -84,22 +84,58 @@ function UserLibrary() {
   );
 }
 
-
+// ✅ Sidebar con perfil dinámico
 export default function Sidebar() {
+  const [username, setUsername] = useState("Cargando…");
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setUsername("Invitado");
+      return;
+    }
+
+    // Usar la instancia de axios
+    api.get("/auth/validate")
+      .then(res => {
+        if (res.data && res.data.username) {
+          setUsername(res.data.username);
+        } else {
+          setUsername("Invitado 🤨");
+        }
+      })
+      .catch(() => {
+        setUsername("Error de autenticación");
+        // Opcional: desloguear si el token es inválido
+      });
+  }, []);
+
   return (
-    // Contenedor principal de la barra lateral
-    // hidden en móvil, flex en escritorio (md:)
     <aside className="hidden md:flex flex-col gap-y-2 bg-background p-2">
       
-      {/* Primer bloque: Logo y Navegación Principal */}
       <div className="bg-surface rounded-lg p-4">
         <Logo />
         <MainNav />
       </div>
 
-      {/* Segundo bloque: Biblioteca del Usuario */}
       <div className="bg-surface rounded-lg p-2 flex-grow">
         <UserLibrary />
+      </div>
+
+      {/* ✅ Perfil con nombre real */}
+      <div className="bg-surface rounded-lg p-4 flex items-center gap-3 cursor-pointer hover:bg-surface hover:text-text transition-colors">
+        
+        <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center font-bold text-black">
+          { username.charAt(0).toUpperCase() }
+        </div>
+
+        <NavLink 
+          to="/profile"
+          className="flex flex-col leading-tight text-text-subdued hover:text-text transition-colors w-full"
+        >
+          <span className="font-semibold">{ username }</span>
+          <span className="text-xs">Ver detalles</span>
+        </NavLink>
       </div>
 
     </aside>

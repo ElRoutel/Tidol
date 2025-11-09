@@ -326,6 +326,7 @@ export default function PlayerBar() {
         /* Responsive */
         @media (max-width: 768px) {
           .player-container {
+            bottom: 64px; /* Altura de la barra de navegación móvil */
             padding: 8px 12px;
             gap: 12px;
           }
