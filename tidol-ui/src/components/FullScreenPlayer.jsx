@@ -1,5 +1,6 @@
 
 import React, { useContext } from 'react';
+import './FullScreenPlayer.css';
 import { usePlayer } from '../context/PlayerContext';
 import { useSwipeable } from 'react-swipeable';
 import {
@@ -40,7 +41,7 @@ const FullScreenPlayer = () => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-90 backdrop-blur-xl z-50 flex flex-col text-white p-4">
+    <div className="fixed top-0 left-0 right-0 bottom-[60px] bg-black bg-opacity-90 backdrop-blur-xl z-50 flex flex-col text-white p-4">
       {/* Botón para cerrar */}
       <div className="absolute top-4 left-4">
         <button onClick={closeFullScreenPlayer} className="text-white/70 hover:text-white">

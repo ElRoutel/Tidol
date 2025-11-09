@@ -18,6 +18,7 @@ export function PlayerProvider({ children }) {
   const [playlist, setPlaylist] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [playedHistory, setPlayedHistory] = useState([]);
+  const [originalQueue, setOriginalQueue] = useState([]);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -27,7 +28,11 @@ export function PlayerProvider({ children }) {
   const [progress, setProgress] = useState(0);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
+
+  // --- NUEVO: Fullscreen ---
   const [isFullScreenPlayerOpen, setFullScreenPlayerOpen] = useState(false);
+  const toggleFullScreenPlayer = () => setFullScreenPlayerOpen(prev => !prev);
+  const closeFullScreenPlayer = () => setFullScreenPlayerOpen(false);
 
   const audioRef = useRef(new Audio());
 
@@ -37,6 +42,7 @@ export function PlayerProvider({ children }) {
 
   const playSongList = useCallback((songs, startIndex = 0) => {
     if (!songs || songs.length === 0) return;
+    setOriginalQueue(songs); // Store the full list of songs
     const mainSong = songs[startIndex];
     setCurrentSong(mainSong);
     setPlaylist(songs.slice(startIndex + 1));
@@ -44,12 +50,10 @@ export function PlayerProvider({ children }) {
     addToHistory(mainSong.id);
   }, [addToHistory]);
 
-  // --- Ahora las recomendaciones provienen EXCLUSIVAMENTE de Internet Archive ---
   const fetchRecommendations = useCallback(async (songToUse) => {
     if (!songToUse) return;
     setIsLoading(true);
     try {
-      // Construimos una query razonable a partir del objeto de canción (varios campos posibles)
       const candidate =
         songToUse.title ||
         songToUse.titulo ||
@@ -69,7 +73,6 @@ export function PlayerProvider({ children }) {
       const results = res.data || [];
 
       if (Array.isArray(results) && results.length > 0) {
-        // Mapear a la forma que nuestro player espera
         const songs = results.map((item, idx) => ({
           id: item.identifier || item.id || `ia_${idx}_${Math.random().toString(36).slice(2,8)}`,
           url: item.url || item.file || item.playbackUrl || (`https://archive.org/download/${item.identifier}/${item.filename || ''}`),
@@ -77,13 +80,10 @@ export function PlayerProvider({ children }) {
           artista: item.artist || item.creator || item.artista || 'Internet Archive',
           portada: item.thumbnail || item.thumbnail_url || item.image || (`https://archive.org/services/img/${item.identifier}`),
           duracion: item.duration || 0
-        })).filter(s => s.url); // filtramos cualquier entrada sin URL reproducible
+        })).filter(s => s.url);
 
-        if (songs.length > 0) {
-          playSongList(songs, 0);
-        } else {
-          setIsPlaying(false);
-        }
+        if (songs.length > 0) playSongList(songs, 0);
+        else setIsPlaying(false);
       } else {
         setIsPlaying(false);
       }
@@ -96,27 +96,45 @@ export function PlayerProvider({ children }) {
   }, [playSongList]);
 
   const nextSong = useCallback(async () => {
-    if (playlist.length > 0) {
-      setCurrentSong(playlist[0]);
-      setPlaylist(prev => prev.slice(1));
-      setCurrentIndex(prev => prev + 1);
+    if (originalQueue.length > 0 && currentIndex < originalQueue.length - 1) {
+      const nextIndex = currentIndex + 1;
+      const nextSongData = originalQueue[nextIndex];
+      setCurrentSong(nextSongData);
+      setCurrentIndex(nextIndex);
+      addToHistory(nextSongData.id);
     } else {
-      // Cuando no hay playlist, pedimos más canciones a Internet Archive usando la canción actual como semilla
+      // If no more songs in the original queue, fetch recommendations based on the last played song
       await fetchRecommendations(currentSong);
     }
-  }, [playlist, currentSong, fetchRecommendations]);
+  }, [originalQueue, currentIndex, currentSong, fetchRecommendations, addToHistory]);
 
+  // --- VERSIÓN MEJORADA DE previousSong ---
   const previousSong = useCallback(() => {
+    // Si llevamos más de 3 segundos, reiniciar la canción actual
     if (audioRef.current.currentTime > 3) {
       audioRef.current.currentTime = 0;
       return;
     }
+
+    // Si hay historial previo
     if (currentIndex > 0) {
-      const prevSongId = playedHistory[currentIndex - 1];
-      const prevSong = playlist.find(s => s.id === prevSongId);
-      if (prevSong) setCurrentSong(prevSong);
+      const prevIndex = currentIndex - 1;
+      const prevSongId = playedHistory[prevIndex];
+      
+      // Buscar la canción en el historial completo (playlist + currentSong)
+      const prevSong = [...playlist, currentSong].find(s => s?.id === prevSongId);
+      
+      if (prevSong) {
+        setCurrentSong(prevSong);
+        setCurrentIndex(prevIndex);
+        
+        // Reconstruir la playlist: agregar la canción actual al inicio
+        // y filtrar la canción anterior si estaba en la playlist
+        const newPlaylist = [currentSong, ...playlist].filter(s => s?.id !== prevSongId);
+        setPlaylist(newPlaylist);
+      }
     }
-  }, [currentIndex, playedHistory, playlist]);
+  }, [currentIndex, playedHistory, playlist, currentSong]);
 
   const togglePlayPause = useCallback(() => {
     if (!currentSong) return;
@@ -132,14 +150,20 @@ export function PlayerProvider({ children }) {
     const audio = audioRef.current;
     audio.volume = newVolume;
     audio.muted = newVolume === 0;
+    setVolume(newVolume);
+    setIsMuted(newVolume === 0);
   }, []);
 
   const toggleMute = useCallback(() => {
     const audio = audioRef.current;
     audio.muted = !audio.muted;
-    if (!audio.muted && audio.volume === 0) audio.volume = 0.5;
+    if (!audio.muted && audio.volume === 0) {
+      audio.volume = 0.5;
+    }
+    setIsMuted(audio.muted);
   }, []);
 
+  // Efecto para cargar y reproducir la canción actual
   useEffect(() => {
     if (!currentSong) return;
     const audio = audioRef.current;
@@ -147,16 +171,17 @@ export function PlayerProvider({ children }) {
 
     audio.play()
       .then(() => setIsPlaying(true))
-      .catch(() => { /* autoplay bloqueado o error, se ignora */ });
+      .catch((err) => {
+        console.error("Error al reproducir:", err);
+        setIsPlaying(false);
+      });
 
-    addToHistory(currentSong.id);
-
-    // historial local (si existe backend)
+    // Guardar en historial de la base de datos
     api.post('/history/add', { songId: currentSong.id })
       .catch(err => console.error("DB Historial error:", err));
+  }, [currentSong]);
 
-  }, [currentSong, addToHistory]);
-
+  // Efecto para los event listeners del audio
   useEffect(() => {
     const audio = audioRef.current;
 
@@ -191,7 +216,6 @@ export function PlayerProvider({ children }) {
       audio.removeEventListener("pause", onPause);
       audio.removeEventListener("volumechange", onVolumeChange);
     };
-
   }, [nextSong]);
 
   return (
@@ -214,8 +238,13 @@ export function PlayerProvider({ children }) {
         previousSong,
         changeVolume,
         toggleMute,
-        seek
-      }}>
+        seek,
+        // --- FULLSCREEN ---
+        isFullScreenPlayerOpen,
+        toggleFullScreenPlayer,
+        closeFullScreenPlayer
+      }}
+    >
       {children}
     </PlayerContext.Provider>
   );

@@ -1,0 +1,14 @@
+/* Animación para que el mini-player se desplace suavemente */
+.player-container {
+  transition: transform 0.4s ease, opacity 0.4s ease;
+}
+
+.player-hidden {
+  transform: translateY(120px); /* baja fuera de la pantalla */
+  opacity: 0;
+}
+
+.player-visible {
+  transform: translateY(0);
+  opacity: 1;
+}

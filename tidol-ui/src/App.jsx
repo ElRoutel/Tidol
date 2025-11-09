@@ -15,6 +15,8 @@ import AlbumPage from './pages/AlbumPage';
 import LoginPage from './pages/LoginPage';
 import InternetArchivePage from './pages/InternetArchivePage';
 import ProfilePage from './pages/ProfilePage'; // Importa la nueva página
+import LibraryPage from './pages/LibraryPage';
+
 
 // --- TU LÓGICA DE AUTENTICACIÓN (Sin cambios) ---
 function ProtectedRoute({ children }) {
@@ -58,6 +60,7 @@ function AppLayout() {
           <Route path="/album/:id" element={<AlbumPage />} />
           <Route path="/ia-album/:identifier" element={<InternetArchivePage />} />
           <Route path="/profile" element={<ProfilePage />} /> 
+          <Route path="/library" element={<LibraryPage />} />
           {/* Puedes añadir más rutas aquí, como /playlist/:id, etc. */}
         </Routes>
         
@@ -65,7 +68,7 @@ function AppLayout() {
 
       {/* 3. REPRODUCTOR (Fijo abajo) */}
       {/* Usamos un <footer> como "contenedor" para posicionar tu PlayerBar */}
-      <footer className="h-24 bg-surface text-text
+      <footer className="h-10 from-zinc-900 text-text
                          border-t border-interactive-bg
                          md:col-span-2">
         {/* Tu componente PlayerBar va adentro, asegúrate que use "w-full" (ancho completo) */}
