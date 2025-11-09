@@ -1,6 +1,7 @@
 // backend/controllers/music.controller.js
 import db from "../models/db.js";
 import axios from "axios";
+import { fetchWithProxy } from "../services/iaProxy.service.js";
 import * as cheerio from "cheerio"; // Nota: se deja importado por si alguna otra parte lo necesita
 
 // --- CONFIGURACIÓN DEL CACHÉ ---
@@ -121,8 +122,8 @@ async function _searchArchive(query) {
             for (const f of formatos) {
                 const url = `https://archive.org/advancedsearch.php?q=(title:${keywords} OR creator:${keywords}) AND mediatype:audio AND format:${f}&fl[]=identifier,title,creator,format&sort[]=downloads+desc&rows=30&page=1&output=json`;
                 allPromises.push(
-                    axios.get(url)
-                        .then(response => response.data.response?.docs || [])
+                    fetchWithProxy(url)
+                        .then(data => data.response?.docs || [])
                         .catch(err => { return []; })
                 );
             }
@@ -144,8 +145,8 @@ async function _searchArchive(query) {
         // Para cada resultado obtenemos metadata para localizar un archivo de audio reproducible
         const enriched = await Promise.all(resultadosLimitados.map(async item => {
             try {
-                const metaRes = await axios.get(`https://archive.org/metadata/${item.identifier}`);
-                const files = metaRes.data?.files || [];
+                const metaRes = await fetchWithProxy(`https://archive.org/metadata/${item.identifier}`);
+                const files = metaRes?.files || [];
 
                 // Buscar el mejor candidato de archivo de audio
                 let audioFile = files.find(f => f.name && /(\.mp3$|\.flac$|\.wav$|\.m4a$)/i.test(f.name));
@@ -159,14 +160,31 @@ async function _searchArchive(query) {
 
                 const duration = audioFile && audioFile.length ? parseFloat(audioFile.length) : null;
 
+                // Lógica para encontrar la mejor portada
+                let coverUrl = `https://archive.org/services/img/${item.identifier}`; // Fallback por defecto
+
+                const imageFiles = files.filter(f => f.name && /\.(jpg|jpeg|png|gif)$/i.test(f.name));
+                
+                // Priorizar archivos con nombres comunes de portada
+                const preferredCoverNames = ['cover.jpg', 'folder.jpg', 'album.jpg', 'front.jpg'];
+                let bestCoverFile = imageFiles.find(f => preferredCoverNames.includes(f.name.toLowerCase()));
+
+                // Si no se encuentra un nombre preferido, tomar la primera imagen disponible
+                if (!bestCoverFile && imageFiles.length > 0) {
+                    bestCoverFile = imageFiles[0];
+                }
+
+                if (bestCoverFile) {
+                    coverUrl = `https://archive.org/download/${item.identifier}/${encodeURIComponent(bestCoverFile.name)}`;
+                }
+
                 return {
+                    id: `ia_${item.identifier}`, // Mapeo a id con prefijo
                     identifier: item.identifier,
-                    title: item.title || 'Sin título',
-                    artist: item.creator || 'Autor desconocido',
-                    format: item.format ? (Array.isArray(item.format) ? item.format.join(', ') : item.format) : 'audio',
-                    thumbnail: `https://archive.org/services/img/${item.identifier}`,
+                    titulo: item.title || 'Sin título', // Mapeo a titulo
+                    artista: item.creator || 'Autor desconocido', // Mapeo a artista
                     url,
-                    filename: audioFile ? audioFile.name : null,
+                    portada: coverUrl, // Usar la URL de portada de mayor calidad
                     duration
                 };
             } catch (err) {

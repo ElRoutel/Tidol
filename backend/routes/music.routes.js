@@ -37,6 +37,7 @@ router.get("/artists/:id", authMiddleware, getArtistDetails);
 // Búsquedas individuales
 router.get("/search", authMiddleware, search);
 router.get("/searchArchive", searchArchive);
+router.get("/proxy/searchArchive", searchArchive);
 
 // Home
 router.get("/home-recommendations", authMiddleware, getHomeRecommendations);
