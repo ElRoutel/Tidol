@@ -1,6 +1,6 @@
 // src/components/MobileHeader.jsx
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const MobileHeader = () => {
@@ -11,10 +11,38 @@ const MobileHeader = () => {
     return <div className="h-16 md:hidden"></div>; // Placeholder para mantener el layout
   }
 
+  const activeLinkStyle = {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  };
+
   return (
-    <header className="md:hidden flex justify-between items-center p-4 bg-background sticky top-0 z-40">
-      {/* Espacio a la izquierda, podrías poner un logo si quisieras */}
-      <div></div>
+    <header className="md:hidden flex justify-between items-center px-4 h-16 bg-background/80 backdrop-blur-md sticky top-0 z-40">
+      {/* Secciones de navegación a la izquierda */}
+     {/*Descomentrar cuando este listo todo 
+        ( <nav className="flex items-center gap-4">
+        <NavLink
+          to="/"
+          className="text-text-subdued text-lg"
+          style={({ isActive }) => (isActive ? activeLinkStyle : undefined)}
+        >
+          Todo
+        </NavLink>
+        <NavLink
+          to="/AllMusic"
+          className="text-text-subdued text-lg"
+          style={({ isActive }) => (isActive ? activeLinkStyle : undefined)}
+        >
+          Música
+        </NavLink>
+        <NavLink
+          to="/podcasts"
+          className="text-text-subdued text-lg"
+          style={({ isActive }) => (isActive ? activeLinkStyle : undefined)}
+        >
+          Podcasts
+        </NavLink>
+      </nav>/*}
 
       {/* Icono de perfil a la derecha */}
       <Link to="/profile" className="w-10 h-10 rounded-full bg-primary flex items-center justify-center font-bold text-black text-lg">
