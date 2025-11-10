@@ -1,39 +1,22 @@
 // src/pages/ProfilePage.jsx
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext"; // 1. Importar el hook de autenticación
 
 function ProfilePage() {
-  const [user, setUser] = useState(null);
+  const { user, logout } = useAuth(); // 2. Usar el contexto para obtener el usuario y la función de logout
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      return navigate("/login");
-    }
-
-    fetch("/api/auth/me", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          throw new Error("No autorizado");
-        }
-        const data = await res.json();
-        setUser(data);
-      })
-      .catch(() => {
-        localStorage.removeItem("token");
-        navigate("/login");
-      });
-  }, [navigate]);
+  const handleLogout = () => {
+    logout(); // Llama a la función del contexto
+    navigate("/login"); // Redirige al login
+  };
 
   if (!user) {
     return (
       <div className="p-8 text-text">
-        <p>Cargando perfil...</p>
+        {/* El componente ProtectedRoute ya muestra "Cargando..." */}
+        <p>No se pudo cargar el perfil del usuario.</p>
       </div>
     );
   }
@@ -41,14 +24,15 @@ function ProfilePage() {
   return (
     <div className="p-8">
       <h1 className="text-3xl font-bold text-text">Bienvenido, {user.username}</h1>
-      <p className="text-text-subdued">Correo: {user.email}</p>
-      <p className="text-text-subdued">Usuario ID: {user.id}</p>
-
+      {/* El ID del usuario ya no se obtiene en el frontend, se puede añadir al endpoint /validate si se necesita */}
+      <p className="text-text-subdued">Tipo de cuenta: {user.role || 'Usuario'}</p>
+      <div>
+        <p>
+          Cambiar foto de perfil y otros ajustes próximamente.
+        </p>
+      </div>
       <button
-        onClick={() => {
-          localStorage.removeItem("token");
-          navigate("/login");
-        }}
+        onClick={handleLogout}
         className="mt-6 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600"
       >
         Cerrar sesión

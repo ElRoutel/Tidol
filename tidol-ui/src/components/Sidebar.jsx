@@ -89,14 +89,14 @@ function UserLibrary() {
         <span>Favoritos</span>
       </NavLink>
 
-      {/* ✅ NUEVA SECCIÓN */}
-      <NavLink 
+      {/* ✅ NUEVA SECCIÓN descomentar cuando este lista la seccion*/}
+      {/*<NavLink 
         to="/books"
         className="flex items-center gap-4 px-2 py-2 text-text-subdued hover:text-text font-bold transition-colors"
       >
         <IoBookOutline size={28} />
         <span>Biblioteca</span>
-      </NavLink>
+      </NavLink>*/}
 
       {/* Playlists creadas por usuario */}
       <div className="flex justify-between items-center px-2 py-2 mt-4">

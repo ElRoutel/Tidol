@@ -188,7 +188,7 @@ export default function LibraryPage() {
             <div className="library-empty">
               <p className="library-empty-title">No tienes playlists 📝</p>
               <p className="library-empty-text">
-                Crea tu primera playlist para comenzar.
+                Proximamente las agregaré.
               </p>
             </div>
           )}

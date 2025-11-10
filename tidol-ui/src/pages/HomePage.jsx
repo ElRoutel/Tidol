@@ -14,7 +14,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="p-6 bg-gradient-to-b from-zinc-900 to-background">
+    <div className="p-0 bg-gradient-to-b from-zinc-900 to-background">
       <Shelf
         title="Escuchado Recientemente"
         endpoint="/history"
@@ -30,7 +30,7 @@ export default function HomePage() {
       />
 
       <Shelf
-        title="Recomendaciones para ti"
+        title="Para ti"
         endpoint="/music/home-recommendations"
         renderItem={(song, index, songList) => (
           <div key={song.id} onClick={() => handlePlaySong(song, index, songList)} className="w-48 flex-shrink-0">

@@ -54,6 +54,24 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('token');
   };
 
+  const register = async (username, password) => {
+    setLoading(true);
+    setError(null);
+    try {
+      // El rol se asigna por defecto en el backend
+      await api.post('/auth/register', { username, password });
+      setLoading(false);
+      return { success: true };
+
+    } catch (err) {
+      const message = err.response?.data?.message || "Error en el registro";
+      setError(message);
+      setLoading(false);
+      return { success: false, error: message };
+    }
+  };
+
+
   return (
     <AuthContext.Provider value={{
       token,
@@ -62,7 +80,8 @@ export function AuthProvider({ children }) {
       error,
       isAuthenticated: !!user,
       login,
-      logout
+      logout,
+      register
     }}>
       {children}
     </AuthContext.Provider>

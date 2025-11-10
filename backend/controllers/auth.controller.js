@@ -72,28 +72,35 @@ export const loginUser = async (req, res) => {
     }
 };
 
-export const getUserInfo = (req, res) => {
+export const getUserInfo = async (req, res) => {
     const authHeader = req.headers["authorization"];
     const SECRET = process.env.JWT_SECRET;
 
-    if (!authHeader) return res.status(401).json({ message: "No autorizado" });
+    if (!authHeader) {
+        return res.status(401).json({ message: "No autorizado" });
+    }
 
     const token = authHeader.split(" ")[1];
 
     try {
         const payload = jwt.verify(token, SECRET);
 
-        db.get(
-            "SELECT id, nombre AS username, role, profile_img FROM usuarios WHERE id = ?",
-            [payload.id],
-            (err, user) => {
-                if (err) return res.status(500).json({ message: "Error de base de datos" });
-                if (!user) return res.status(404).json({ message: "Usuario no encontrado" });
-                res.json(user);
-            }
+        const user = await db.get(
+            "SELECT id, nombre AS username, email, role, profile_img FROM usuarios WHERE id = ?",
+            [payload.id]
         );
+
+        if (!user) {
+            return res.status(404).json({ message: "Usuario no encontrado" });
+        }
+
+        res.json(user);
     } catch (err) {
-        res.status(401).json({ message: "Token inválido" });
+        if (err.name === "JsonWebTokenError") {
+            return res.status(401).json({ message: "Token inválido" });
+        }
+        console.error("Error fetching user info:", err);
+        res.status(500).json({ message: "Error en el servidor" });
     }
 };
 

@@ -1,6 +1,6 @@
 // src/pages/LoginPage.jsx
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginPage() {
@@ -95,6 +95,13 @@ export default function LoginPage() {
             {error}
           </p>
         )}
+
+        <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '14px', color: '#b3b3b3' }}>
+          ¿No tienes una cuenta?{' '}
+          <Link to="/register" style={{ color: 'white', textDecoration: 'underline', fontWeight: 'bold' }}>
+            Regístrate
+          </Link>
+        </div>
       </form>
     </div>
   );

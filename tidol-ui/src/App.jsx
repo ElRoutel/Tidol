@@ -7,6 +7,7 @@ import { useState } from 'react';
 import Sidebar from './components/Sidebar';
 import PlayerBar from './components/PlayerBar';
 import MobileNav from './components/MobileNav';
+import MobileHeader from './components/MobileHeader'; // 1. Importar el nuevo componente
 import ContextMenu from './components/ContextMenu';
 
 // PÁGINAS
@@ -16,6 +17,7 @@ import { UploadPage } from './pages/UploadPage';
 import AlbumPage from './pages/AlbumPage';
 import LoginPage from './pages/LoginPage';
 import InternetArchivePage from './pages/InternetArchivePage';
+import RegisterPage from './pages/RegisterPage'; // Importar página de registro
 import ProfilePage from './pages/ProfilePage';
 import LibraryPage from './pages/LibraryPage';
 
@@ -53,15 +55,18 @@ function AppLayout() {
 
   return (
     <div className="h-screen bg-background text-text grid
-                    grid-rows-[1fr_auto_auto]
+                    grid-rows-[auto_1fr_auto_auto]
                     md:grid-rows-[1fr_auto]
                     md:grid-cols-[250px_1fr] relative">
 
       {/* Sidebar */}
       <Sidebar />
 
+      {/* Header para móvil (nuevo) */}
+      <MobileHeader />
+
       {/* Contenido principal */}
-      <main className="overflow-y-auto md:col-start-2 md:row-start-1 bg-background">
+      <main className="overflow-y-auto row-start-2 md:col-start-2 md:row-start-1 bg-background">
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/search" element={<SearchPage />} />
@@ -94,6 +99,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route
         path="/*"
         element={
