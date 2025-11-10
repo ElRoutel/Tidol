@@ -14,8 +14,7 @@ import authRoutes from "./routes/auth.routes.js";
 import musicRoutes from "./routes/music.routes.js";
 import uploadRoutes from "./routes/upload.routes.js";
 import historyRoutes from "./routes/history.routes.js";
-
-
+import playlistsRoutes from "./routes/playlists.js";
 
 async function showAnimatedBanner() {
   console.clear();
@@ -74,16 +73,17 @@ app.use("/api/auth", authRoutes);
 app.use("/api/music", musicRoutes);
 app.use("/api/uploads", uploadRoutes);
 app.use("/api/history", historyRoutes);
+app.use("/api/playlists", playlistsRoutes);
 // -------------------------
 
 // --- Arranque del Servidor ---
 (async () => {
   try {
-    // 1. Conectar a la DB
+    // Conectar a la DB
     await db.get("SELECT 1");
     logStatus("Conexión a DB", true);
 
-   // -TABLA DE HISTORIAL Y CACHÉ DE BÚSQUEDA- 
+    // --- TABLA IA_CACHE ---
     await db.run(`
       CREATE TABLE IF NOT EXISTS ia_cache (
         query TEXT PRIMARY KEY,
@@ -93,6 +93,7 @@ app.use("/api/history", historyRoutes);
     `);
     logStatus("Caché de Búsqueda", true, "Tabla 'ia_cache' lista.");
 
+    // --- TABLA HOME RECOMMENDATIONS ---
     await db.run(`
       CREATE TABLE IF NOT EXISTS homeRecomendations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -104,43 +105,57 @@ app.use("/api/history", historyRoutes);
       )
     `);
     logStatus("Historial", true, "Tabla 'homeRecomendations' lista.");
-    // ----------------------------
-  } catch (err) {
-    logStatus("Conexión a DB", false, err.message);
-    logStatus("Caché de Búsqueda", false, err.message);
-  }
 
-  // --- TABLA DE INTERNET ARCHIVE (BORRAR Y RECREAR) ---
-  // ¡ADVERTENCIA! Esto borrará el historial de IA cada vez que reinicies el servidor.
-  // Perfecto para desarrollo, pero cámbialo a "CREATE IF NOT EXISTS" para producción.
-  try {
- 
-
-    // 2. Volvemos a crear la tabla con las NUEVAS columnas necesarias
+    // --- TABLA IA_HISTORY ---
     await db.run(`
-      CREATE TABLE ia_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+      CREATE TABLE IF NOT EXISTS ia_history (
         user_id INTEGER NOT NULL,
-        ia_identifier TEXT NOT NULL, 
-        
-        -- Nuevas columnas para guardar los metadatos
+        ia_identifier TEXT NOT NULL,
         titulo TEXT,
         artista TEXT,
         url TEXT,
         portada TEXT,
-        
         played_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, ia_identifier)
+        PRIMARY KEY (user_id, ia_identifier),
+        FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE ON UPDATE CASCADE
       )
     `);
-    logStatus("Historial de IA", true, "Tabla 'ia_history' recreada (CREATE).");
+    logStatus("Historial de IA", true, "Tabla 'ia_history' lista.");
+
+    // --- TABLA DE LETRAS (lyrics) ---
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS lyrics (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        song_id INTEGER NOT NULL,
+        time_ms INTEGER NOT NULL,
+        line TEXT NOT NULL,
+        FOREIGN KEY (song_id) REFERENCES canciones(id) ON DELETE CASCADE
+      )
+    `);
+    await db.run(`
+      CREATE INDEX IF NOT EXISTS idx_lyrics_song_id_time
+      ON lyrics(song_id, time_ms)
+    `);
+    logStatus("Tabla de Letras", true, "Tabla 'lyrics' lista y lista para sincronización.");
+
   } catch (err) {
-    logStatus("Historial de IA", false, `Error al recrear: ${err.message}`);
+    logStatus("Conexión a DB / Creación de tablas", false, err.message);
   }
-  // ----------------------------
-  
-  // 3. Iniciar el servidor
+// --- TABLA LIKES ---
+await db.run(`
+  CREATE TABLE IF NOT EXISTS likes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    song_id INTEGER NOT NULL,
+    liked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+    FOREIGN KEY (song_id) REFERENCES canciones(id) ON DELETE CASCADE,
+    UNIQUE(user_id, song_id)
+  )
+`);
+logStatus("Likes", true, "Tabla 'likes' lista.");
+  // --- Iniciar el servidor ---
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`\n Servidor corriendo en http://localhost:${PORT} o http://192.168.1.70:${PORT}\n`);
+    console.log(`\nServidor corriendo en http://localhost:${PORT} o http://192.168.1.70:${PORT}\n`);
   });
 })();

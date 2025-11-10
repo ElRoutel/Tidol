@@ -1,45 +1,57 @@
 import { Router } from "express";
 import { 
-    searchAll,
-    getRecommendations, 
-    getSongs, 
-    getAlbums, 
-    getAlbumDetails, 
-    getAlbumSongs, 
-    getArtists, 
-    getArtistDetails, 
-    search, 
-    searchArchive, 
-    getHomeRecommendations
+  searchAll,
+  getRecommendations, 
+  getSongs, 
+  getAlbums, 
+  getAlbumDetails, 
+  getAlbumSongs, 
+  getArtists, 
+  getArtistDetails, 
+  search, 
+  searchArchive, 
+  getHomeRecommendations,
+  getLyricsBySong,
+  toggleLike,          // <-- Nuevo
+  getUserLikes,        // <-- Nuevo
+  checkIfLiked         // <-- Nuevo
 } from "../controllers/music.controller.js";
 import { authMiddleware } from "../middleware/auth.middleware.js";
 
 const router = Router();
 
-// Búsqueda unificada (Local + Internet Archive)
+// --- Búsqueda unificada (Local + Internet Archive) ---
 router.get("/searchAll", searchAll);
 
-// Recomendaciones
+// --- Recomendaciones ---
 router.post("/recommendations/:songId(*)", authMiddleware, getRecommendations);
 
-// Música local
+// --- Música local ---
 router.get("/songs", getSongs);
 
-// Álbumes
+// --- Letras ---
+router.get("/songs/:id/lyrics", getLyricsBySong);
+
+// --- Álbumes ---
 router.get("/albums", authMiddleware, getAlbums);
 router.get("/albums/:id", authMiddleware, getAlbumDetails);
 router.get("/albums/:id/songs", authMiddleware, getAlbumSongs);
 
-// Artistas
+// --- Artistas ---
 router.get("/artists", authMiddleware, getArtists);
 router.get("/artists/:id", authMiddleware, getArtistDetails);
 
-// Búsquedas individuales
+// --- Búsquedas individuales ---
 router.get("/search", authMiddleware, search);
 router.get("/searchArchive", searchArchive);
 router.get("/proxy/searchArchive", searchArchive);
 
-// Home
+// --- Home ---
 router.get("/home-recommendations", authMiddleware, getHomeRecommendations);
+
+// --- Likes --- ✅
+router.post("/songs/:id/like", authMiddleware, toggleLike);         // Like / Unlike una canción
+router.post("/songs/:id/isLiked", authMiddleware, checkIfLiked);     // Ver si el usuario ya dio like
+router.get("/songs/likes", authMiddleware, getUserLikes);                 // Obtener todas las canciones que el usuario ha dado like
 
 export default router;

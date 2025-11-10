@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { IoHome, IoSearch, IoLibrary, IoCloudUpload } from 'react-icons/io5';
+import { IoHome, IoSearch, IoLibrary, IoCloudUpload,IoHeart } from 'react-icons/io5';
 
 const MobileNav = () => {
   return (
@@ -15,7 +15,7 @@ const MobileNav = () => {
           <span className="text-xs">Buscar</span>
         </NavLink>
         <NavLink to="/library" className="flex flex-col items-center justify-center text-text-subdued hover:text-text">
-          <IoLibrary size={24} />
+          <IoHeart size={24} />
           <span className="text-xs">Biblioteca</span>
         </NavLink>
         <NavLink to="/upload" className="flex flex-col items-center justify-center text-text-subdued hover:text-text">

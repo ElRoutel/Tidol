@@ -1,14 +1,204 @@
-/* Animación para que el mini-player se desplace suavemente */
-.player-container {
-  transition: transform 0.4s ease, opacity 0.4s ease;
+/* Animaciones personalizadas */
+@keyframes shine {
+  0% {
+    transform: translateX(-100%) translateY(-100%) rotate(30deg);
+  }
+  100% {
+    transform: translateX(100%) translateY(100%) rotate(30deg);
+  }
 }
 
-.player-hidden {
-  transform: translateY(120px); /* baja fuera de la pantalla */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes slideInFromBottom {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Efecto de brillo en la portada */
+.animate-shine {
+  animation: shine 8s infinite linear;
+}
+
+/* Estilos para el input range mejorado */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  background: white;
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: white;
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s ease;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Mostrar el thumb al hacer hover en el grupo */
+.group:hover input[type="range"]::-webkit-slider-thumb {
+  opacity: 1;
+  transform: scale(1.2);
+}
+
+.group:hover input[type="range"]::-moz-range-thumb {
+  opacity: 1;
+  transform: scale(1.2);
+}
+
+input[type="range"]:active::-webkit-slider-thumb {
+  transform: scale(1.4);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.6);
+}
+
+input[type="range"]:active::-moz-range-thumb {
+  transform: scale(1.4);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.6);
+}
+
+/* Animaciones de botones */
+button {
+  position: relative;
+  overflow: hidden;
+}
+
+button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+  transform: scale(0);
+  transition: transform 0.5s ease;
+}
+
+button:active::before {
+  transform: scale(2);
+}
+
+/* Efecto de onda en el botón de play */
+.bg-white::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(0);
+  transition: transform 0.6s ease;
+  pointer-events: none;
+}
+
+button:active .bg-white::after {
+  transform: scale(1.5);
   opacity: 0;
 }
 
-.player-visible {
-  transform: translateY(0);
-  opacity: 1;
+/* Animación de entrada suave */
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Rotación suave de la imagen al hover */
+img {
+  will-change: transform;
+}
+
+/* Transiciones suaves globales para el player */
+* {
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Mejora del backdrop blur */
+.backdrop-blur-xl {
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+}
+
+/* Animación para los iconos de control */
+svg {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  transition: filter 0.2s ease;
+}
+
+button:hover svg {
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
+}
+
+/* Efecto de resplandor en el botón principal */
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.3),
+                0 0 40px rgba(255, 255, 255, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(255, 255, 255, 0.5),
+                0 0 60px rgba(255, 255, 255, 0.2);
+  }
+}
+
+.bg-white.shadow-lg {
+  animation: glow 2s ease-in-out infinite;
+}
+
+/* Scroll suave para toda la página */
+html {
+  scroll-behavior: smooth;
 }

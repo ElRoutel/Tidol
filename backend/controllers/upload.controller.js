@@ -4,6 +4,7 @@ import fs from "fs";
 import mm from "music-metadata";
 import db from "../models/db.js";
 import { fileURLToPath } from "url";
+import readline from "readline";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,8 +13,9 @@ const UPLOADS_DIR = path.join(__dirname, "..", "uploads");
 const MUSIC_DIR = path.join(UPLOADS_DIR, "musica");
 const COVER_DIR = path.join(UPLOADS_DIR, "covers");
 const ARTIST_IMAGES_DIR = path.join(UPLOADS_DIR, "artists");
+const LYRICS_DIR = path.join(UPLOADS_DIR, "lyrics");
 
-[UPLOADS_DIR, MUSIC_DIR, COVER_DIR, ARTIST_IMAGES_DIR].forEach((d) => {
+[UPLOADS_DIR, MUSIC_DIR, COVER_DIR, ARTIST_IMAGES_DIR, LYRICS_DIR].forEach((d) => {
     try {
         if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
     } catch (err) {
@@ -30,6 +32,7 @@ const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         if (file.fieldname === "song") cb(null, MUSIC_DIR);
         else if (file.fieldname === "coverFile") cb(null, COVER_DIR);
+        else if (file.fieldname === "lyrics") cb(null, LYRICS_DIR);
         else cb(new Error("Campo inesperado"), null);
     },
     filename: (req, file, cb) => {
@@ -40,6 +43,71 @@ const storage = multer.diskStorage({
 
 export const upload = multer({ storage });
 
+export const uploadArtistImage = [
+    multer({
+        storage: multer.diskStorage({
+            destination: (req, file, cb) => cb(null, ARTIST_IMAGES_DIR),
+            filename: (req, file, cb) => {
+                const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
+                cb(null, `artist-${req.params.id}-${unique}${path.extname(file.originalname)}`);
+            }
+        })
+    }).single('artistImage'),
+    async (req, res) => {
+        try {
+            const artistId = req.params.id;
+            if (!req.file) {
+                return res.status(400).json({ error: "No se subió ninguna imagen." });
+            }
+
+            const imageUrl = `/uploads/artists/${req.file.filename}`;
+            const artist = await db.get("SELECT * FROM artistas WHERE id = ?", [artistId]);
+
+            if (!artist) {
+                return res.status(404).json({ error: "Artista no encontrado." });
+            }
+
+            await db.run("UPDATE artistas SET imagen_url = ? WHERE id = ?", [imageUrl, artistId]);
+
+            logStatus("Subida de imagen de artista", true, `Artista ID: ${artistId}`);
+            res.json({ success: true, message: "Imagen de artista subida correctamente.", imageUrl });
+
+        } catch (err) {
+            logStatus("Subida de imagen de artista", false, err.message);
+            res.status(500).json({ error: "Error interno al subir la imagen." });
+        }
+    }
+];
+
+// Función para importar LRC a DB
+export async function importLyricsToDB(songId, filePath) {
+    if (!fs.existsSync(filePath)) return;
+
+    // Borrar letras previas si existen
+    await db.run("DELETE FROM lyrics WHERE song_id = ?", [songId]);
+
+    const rl = readline.createInterface({
+        input: fs.createReadStream(filePath),
+        crlfDelay: Infinity,
+    });
+
+    const insertStmt = await db.prepare("INSERT INTO lyrics(song_id, time_ms, line) VALUES (?, ?, ?)");
+
+    for await (const line of rl) {
+        const match = line.match(/\[(\d+):(\d+\.\d+)\](.*)/);
+        if (!match) continue;
+        const minutes = parseInt(match[1], 10);
+        const seconds = parseFloat(match[2]);
+        const text = match[3].trim();
+        const timeMs = Math.round((minutes * 60 + seconds) * 1000);
+
+        await insertStmt.run(songId, timeMs, text);
+    }
+
+    await insertStmt.finalize();
+}
+
+// Función principal de subida
 export const uploadMusic = async (req, res) => {
     try {
         if (!req.files || !req.files.song || req.files.song.length === 0) {
@@ -53,7 +121,8 @@ export const uploadMusic = async (req, res) => {
 
         const canciones = [];
 
-        for (const file of req.files.song) {
+        for (let i = 0; i < req.files.song.length; i++) {
+            const file = req.files.song[i];
             const meta = await mm.parseFile(file.path).catch(() => null);
             const common = meta?.common || {};
             const format = meta?.format || {};
@@ -91,6 +160,13 @@ export const uploadMusic = async (req, res) => {
                 ]
             );
 
+            // Importar letras si existe archivo .lrc correspondiente
+            if (req.files.lyrics && req.files.lyrics[i]) {
+                const lyricsFile = req.files.lyrics[i];
+                await importLyricsToDB(resultSong.lastID, lyricsFile.path);
+                logStatus("Letras importadas", true, `Canción ID: ${resultSong.lastID}`);
+            }
+
             canciones.push({
                 id: resultSong.lastID,
                 titulo,
@@ -106,41 +182,9 @@ export const uploadMusic = async (req, res) => {
         }
 
         logStatus("Subida de canciones", true, `Álbum: ${albumName}, Canciones: ${canciones.length}`);
-        res.json({ success: true, message: "Canción(es) subida(s) correctamente", album: albumName, cover: uploadedCover, canciones });
+        res.json({ success: true, message: "Canción(es) y letras subidas correctamente", album: albumName, cover: uploadedCover, canciones });
     } catch (err) {
         logStatus("Subida de canciones", false, err.message);
         res.status(500).json({ error: "Error interno al subir canción" });
     }
 };
-
-const uploadArtist = multer({
-    storage: multer.diskStorage({
-        destination: (req, file, cb) => cb(null, ARTIST_IMAGES_DIR),
-        filename: (req, file, cb) => {
-            const ext = path.extname(file.originalname);
-            cb(null, `artist-${req.params.id}-${Date.now()}${ext}`);
-        },
-    }),
-    fileFilter: (req, file, cb) => {
-        if (!file.mimetype.startsWith("image/")) return cb(new Error("Solo imágenes"));
-        cb(null, true);
-    },
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
-});
-
-export const uploadArtistImage = [uploadArtist.single("image"), async (req, res) => {
-    const { id } = req.params;
-    try {
-        if (!req.file) return res.status(400).json({ error: "No se subió ninguna imagen" });
-
-        const imagePath = `/uploads/artists/${req.file.filename}`;
-
-        await db.run("UPDATE artistas SET imagen = ? WHERE id = ?", [imagePath, id]);
-
-        logStatus("Foto de artista", true, `ID: ${id}, Archivo: ${req.file.filename}`);
-        res.json({ message: "Imagen actualizada", path: imagePath });
-    } catch (err) {
-        logStatus("Foto de artista", false, err.message);
-        res.status(500).json({ error: "Error subiendo la imagen" });
-    }
-}];

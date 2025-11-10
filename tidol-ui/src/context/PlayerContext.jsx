@@ -1,4 +1,3 @@
-// src/context/PlayerContext.jsx
 import React, {
   createContext,
   useContext,
@@ -32,21 +31,120 @@ export function PlayerProvider({ children }) {
   const toggleFullScreenPlayer = () => setFullScreenPlayerOpen(prev => !prev);
   const closeFullScreenPlayer = () => setFullScreenPlayerOpen(false);
 
+  // Guardamos liked songs como Set para consultas rápidas
+  const [likedSongs, setLikedSongs] = useState(new Set());
+  const prevLikeRef = useRef(null); // usado para revert en caso de error
+
   const audioRef = useRef(new Audio());
 
   const addToHistory = useCallback((songId) => {
     setPlayedHistory(prev => prev.includes(songId) ? prev : [...prev, songId]);
   }, []);
 
+  // Cargar canciones con likes al inicio (maneja diferentes shapes de respuesta)
+  // PlayerContext.jsx - useEffect para cargar likes
+useEffect(() => {
+  const fetchLikedSongs = async () => {
+    try {
+      const res = await api.get('/music/songs/likes'); // ✅ CORRECTO
+      const data = res.data;
+      const arr = Array.isArray(data) ? data : (Array.isArray(data?.likes) ? data.likes : []);
+      const likedIds = new Set(arr.map(song => song.songId || song.id || song.id_cancion || null).filter(Boolean));
+      setLikedSongs(likedIds);
+    } catch (err) {
+      console.error("Error al cargar likes:", err);
+    }
+  };
+  fetchLikedSongs();
+}, []);
+
+  // Toggle like/unlike (optimistic UI). Intenta rutas alternativas para compatibilidad.
+  const toggleLike = useCallback(async (songId) => {
+    if (!songId) return;
+
+    // Actualización optimista y guardamos estado previo para revert
+    setLikedSongs(prev => {
+      const newSet = new Set(prev);
+      const wasLiked = newSet.has(songId);
+      if (wasLiked) newSet.delete(songId);
+      else newSet.add(songId);
+
+      // Guardamos para posible revert
+      prevLikeRef.current = { songId, wasLiked };
+      return newSet;
+    });
+
+    const token = localStorage.getItem('token');
+
+    // Intentaremos varias rutas (seguridad ante distintas implementaciones)
+    const endpoints = [
+      `/music/songs/${songId}/like`,
+      `/music/like/${songId}`,
+      `/music/songs/${songId}/toggle-like`,
+      `/songs/${songId}/like`, // por si el proxy mapea distinto
+    ];
+
+    let success = false;
+    for (const ep of endpoints) {
+      try {
+        await api.post(ep, null, { headers: { Authorization: `Bearer ${token}` } });
+        success = true;
+        break;
+      } catch (err) {
+        // No rompemos: probamos siguiente endpoint
+        // Sólo logeamos en detalle en el último intento
+        // console.warn(`Try endpoint ${ep} failed`, err.message);
+      }
+    }
+
+    if (!success) {
+      // Revertir UI si falló todo
+      const prev = prevLikeRef.current;
+      if (prev && prev.songId === songId) {
+        setLikedSongs(curr => {
+          const newSet = new Set(curr);
+          if (prev.wasLiked) newSet.add(songId);
+          else newSet.delete(songId);
+          return newSet;
+        });
+      }
+      console.error("No se pudo actualizar el like en el servidor para songId:", songId);
+    } else {
+      // Si tuvo éxito, actualizamos currentSong.isLiked si aplica
+      setCurrentSong(cs => {
+        if (!cs) return cs;
+        if (cs.id === songId) return { ...cs, isLiked: !prevLikeRef.current?.wasLiked };
+        return cs;
+      });
+      prevLikeRef.current = null;
+    }
+  }, []);
+
+  // Verificar si una canción está en favoritos
+  const isSongLiked = useCallback((songId) => {
+    return likedSongs.has(songId);
+  }, [likedSongs]);
+
+  // Cuando cambian likedSongs, sincronizamos el currentSong.isLiked
+  useEffect(() => {
+    if (!currentSong) return;
+    const liked = likedSongs.has(currentSong.id);
+    if (currentSong.isLiked !== liked) {
+      setCurrentSong(prev => prev ? { ...prev, isLiked: liked } : prev);
+    }
+  }, [likedSongs, currentSong]);
+
+  // Reproduce una lista a partir de un índice
   const playSongList = useCallback((songs, startIndex = 0) => {
     if (!songs || songs.length === 0) return;
     setOriginalQueue(songs);
     const mainSong = songs[startIndex];
-    setCurrentSong(mainSong);
+    // Añadimos isLiked según el set actual
+    setCurrentSong({ ...mainSong, isLiked: likedSongs.has(mainSong.id) });
     setPlaylist(songs.slice(startIndex + 1));
     setCurrentIndex(startIndex);
     addToHistory(mainSong.id);
-  }, [addToHistory]);
+  }, [addToHistory, likedSongs]);
 
   const fetchRecommendations = useCallback(async (songToUse) => {
     if (!songToUse) return;
@@ -72,13 +170,12 @@ export function PlayerProvider({ children }) {
 
       if (Array.isArray(results) && results.length > 0) {
         const songs = results.map((item, idx) => {
-          // Portada de alta calidad
           let highResCover = null;
           if (item.files && Array.isArray(item.files)) {
             const coverFile = item.files.find(f => f.format?.includes("JPEG") || f.format?.includes("PNG"));
             if (coverFile) {
               const subdomain = item.server?.replace(/^https?:\/\//,'') || 'archive.org';
-              highResCover = `https://${subdomain}/0/items/${item.identifier}/${coverFile.name}?cnt=0`;
+              highResCover = `https://archive.org/0/items/${item.identifier}/${coverFile.name}?cnt=0`;
             }
           }
 
@@ -106,38 +203,46 @@ export function PlayerProvider({ children }) {
   }, [playSongList]);
 
   const nextSong = useCallback(async () => {
+    // Si hay más en la cola original
     if (originalQueue.length > 0 && currentIndex < originalQueue.length - 1) {
       const nextIndex = currentIndex + 1;
       const nextSongData = originalQueue[nextIndex];
-      setCurrentSong(nextSongData);
+      setCurrentSong({ ...nextSongData, isLiked: likedSongs.has(nextSongData.id) });
       setCurrentIndex(nextIndex);
       addToHistory(nextSongData.id);
     } else {
       await fetchRecommendations(currentSong);
     }
-  }, [originalQueue, currentIndex, currentSong, fetchRecommendations, addToHistory]);
+  }, [originalQueue, currentIndex, currentSong, fetchRecommendations, addToHistory, likedSongs]);
 
   const previousSong = useCallback(() => {
+    if (!audioRef.current) return;
+
+    // Si la canción lleva más de 3 segundos, reiníciala
     if (audioRef.current.currentTime > 3) {
       audioRef.current.currentTime = 0;
       return;
     }
+
+    // Verifica si hay una canción anterior en la cola original
     if (currentIndex > 0) {
       const prevIndex = currentIndex - 1;
-      const prevSongId = playedHistory[prevIndex];
-      const prevSong = [...playlist, currentSong].find(s => s?.id === prevSongId);
-      if (prevSong) {
-        setCurrentSong(prevSong);
+      const prevSongData = originalQueue[prevIndex];
+
+      if (prevSongData) {
+        setCurrentSong({ ...prevSongData, isLiked: likedSongs.has(prevSongData.id) });
         setCurrentIndex(prevIndex);
-        const newPlaylist = [currentSong, ...playlist].filter(s => s?.id !== prevSongId);
-        setPlaylist(newPlaylist);
       }
     }
-  }, [currentIndex, playedHistory, playlist, currentSong]);
+  }, [currentIndex, originalQueue, likedSongs]);
 
   const togglePlayPause = useCallback(() => {
     if (!currentSong) return;
-    isPlaying ? audioRef.current.pause() : audioRef.current.play();
+    if (isPlaying) audioRef.current.pause();
+    else audioRef.current.play()
+      .catch(err => {
+        console.error("Play error:", err);
+      });
   }, [currentSong, isPlaying]);
 
   const seek = useCallback((newTime) => {
@@ -160,6 +265,7 @@ export function PlayerProvider({ children }) {
     setIsMuted(audio.muted);
   }, []);
 
+  // Cuando cambia la canción, actualizamos audio.src y enviamos historial
   useEffect(() => {
     if (!currentSong) return;
     const audio = audioRef.current;
@@ -178,16 +284,16 @@ export function PlayerProvider({ children }) {
       artista: currentSong.artista,
       url: currentSong.url,
       portada: currentSong.portada,
-    })
-      .catch(err => console.error("DB Historial error:", err));
+    }).catch(err => console.error("DB Historial error:", err));
   }, [currentSong]);
 
+  // Eventos del audio
   useEffect(() => {
     const audio = audioRef.current;
 
     const onTimeUpdate = () => {
-      const t = audio.currentTime;
-      const d = audio.duration;
+      const t = audio.currentTime || 0;
+      const d = audio.duration || 0;
       setCurrentTime(t);
       if (d > 0) {
         setDuration(d);
@@ -241,7 +347,10 @@ export function PlayerProvider({ children }) {
         seek,
         isFullScreenPlayerOpen,
         toggleFullScreenPlayer,
-        closeFullScreenPlayer
+        closeFullScreenPlayer,
+        toggleLike,
+        isSongLiked,
+        likedSongs
       }}
     >
       {children}

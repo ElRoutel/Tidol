@@ -1,4 +1,3 @@
-// src/pages/UploadPage.jsx
 import React, { useState } from 'react';
 import api from '../api/axiosConfig'; 
 import { useAuth } from '../context/AuthContext';
@@ -6,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 export function UploadPage() {
   const [songFiles, setSongFiles] = useState(null);
   const [coverFile, setCoverFile] = useState(null);
+  const [lyricsFiles, setLyricsFiles] = useState(null); // Nuevo estado para letras
   const [albumName, setAlbumName] = useState('');
   const [status, setStatus] = useState('');
   const [uploadedSongs, setUploadedSongs] = useState([]);
@@ -29,13 +29,17 @@ export function UploadPage() {
     if (coverFile) formData.append("coverFile", coverFile);
     if (albumName) formData.append("albumName", albumName);
 
+    // Adjuntar archivos de letras si existen
+    if (lyricsFiles) {
+      for (let i = 0; i < lyricsFiles.length; i++) {
+        formData.append("lyrics", lyricsFiles[i]);
+      }
+    }
+
     try {
-      // ----- ¡RUTA CORREGIDA! -----
       const res = await api.post("/api/uploads/musica", formData, {
-      // ------------------------------
         headers: {
           'Content-Type': 'multipart/form-data',
-          // 'x-token' ya no es necesario aquí, el interceptor 'api' lo añade
         }
       });
 
@@ -47,6 +51,7 @@ export function UploadPage() {
         setAlbumName('');
         setSongFiles(null);
         setCoverFile(null);
+        setLyricsFiles(null); // Limpiar letras
         e.target.reset(); 
         setUploadedSongs(data.canciones || []);
       }
@@ -58,8 +63,7 @@ export function UploadPage() {
 
   return (
     <section id="uploadSection">
-      <h2>Subir Canciones/Álbumes</h2>
-      {/* ... (Tu JSX para el formulario es perfecto y no necesita cambios) ... */}
+      <h2>Subir Canciones/Álbumes con Letras</h2>
       <form id="uploadForm" onSubmit={handleSubmit}>
         <input 
           type="file" 
@@ -76,6 +80,14 @@ export function UploadPage() {
           name="coverFile" 
           accept="image/*" 
           onChange={(e) => setCoverFile(e.target.files[0])}
+        />
+        <input 
+          type="file" 
+          id="lyricsFiles" 
+          name="lyrics" 
+          multiple 
+          accept=".lrc" 
+          onChange={(e) => setLyricsFiles(e.target.files)}
         />
         <input 
           type="text" 

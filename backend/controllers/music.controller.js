@@ -446,3 +446,96 @@ async function pruneCache() {
         console.error("❌ Error limpiando el caché:", err.message);
     }
 }
+// ===================== NUEVO CONTROLADOR: LETRAS =====================
+export const getLyricsBySong = async (req, res) => {
+    const songId = req.params.id; // id de la canción
+
+    try {
+        const lyrics = await db.all(
+            "SELECT time_ms, line FROM lyrics WHERE song_id = ? ORDER BY time_ms ASC",
+            [songId]
+        );
+
+        if (!lyrics || lyrics.length === 0) {
+            return res.status(404).json({ success: false, error: "No hay letras para esta canción." });
+        }
+
+        logStatus("Letras cargadas", true, `Canción ID: ${songId}, Líneas: ${lyrics.length}`);
+        res.json({ success: true, lyrics });
+    } catch (err) {
+        logStatus("Letras cargadas", false, `Error: ${err.message}`);
+        res.status(500).json({ success: false, error: "Error al obtener las letras." });
+    }
+};
+
+
+// --- Dar o quitar like ---
+export const toggleLike = async (req, res) => {
+    const userId = req.userId;
+    const songId = req.params.id;
+
+  try {
+    const existing = await db.get(
+      `SELECT id FROM likes WHERE user_id = ? AND song_id = ?`,
+      [userId, songId]
+    );
+
+    if (existing) {
+      await db.run(`DELETE FROM likes WHERE id = ?`, [existing.id]);
+      return res.json({ liked: false });
+    } else {
+      await db.run(`INSERT INTO likes (user_id, song_id) VALUES (?, ?)`, [userId, songId]);
+      return res.json({ liked: true });
+    }
+  } catch (err) {
+    console.error("Error al alternar like:", err);
+    res.status(500).json({ error: "Error al actualizar el like" });
+  }
+};
+
+// --- Verificar si ya tiene like ---
+export const checkIfLiked = async (req, res) => {
+  const userId = req.userId;
+  const songId = req.params.id;
+
+  try {
+    const like = await db.get(
+      `SELECT id FROM likes WHERE user_id = ? AND song_id = ?`,
+      [userId, songId]
+    );
+    res.json({ liked: !!like });
+  } catch (err) {
+    console.error("Error al verificar like:", err);
+    res.status(500).json({ error: "Error al verificar like" });
+  }
+};
+
+// --- Obtener todas las canciones con like ---
+export const getUserLikes = async (req, res) => {
+  const userId = req.userId;
+
+  try {
+    const likes = await db.all(`
+      SELECT 
+        c.id, 
+        c.titulo, 
+        a.nombre AS artista, 
+        c.portada, 
+        c.archivo AS url,
+        c.duracion,
+        al.titulo AS album,
+        c.album_id AS albumId
+      FROM likes l
+      JOIN canciones c ON c.id = l.song_id
+      JOIN artistas a ON c.artista_id = a.id
+      LEFT JOIN albumes al ON c.album_id = al.id
+      WHERE l.user_id = ?
+      ORDER BY l.liked_at DESC
+    `, [userId]);
+
+    res.json(likes);
+  } catch (err) {
+    console.error("Error al obtener likes:", err);
+    res.status(500).json({ error: "Error al obtener canciones con like" });
+  }
+};

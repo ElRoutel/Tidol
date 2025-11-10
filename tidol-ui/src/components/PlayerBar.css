@@ -22,7 +22,7 @@
   align-items: center;
   gap: 15px;
   flex: 0 0 300px;
-  min-width: 0;
+  min-width: 0; /* Importante para truncar texto */
 }
 
 .player-cover {
@@ -244,7 +244,28 @@
   border: none;
 }
 
+/* ==================== THIN PROGRESS BAR (YT STYLE) ==================== */
+.progress-line-container {
+  position: absolute;
+  top: 0; /* Se alinea arriba */
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.2);
+  /* Oculto por defecto, se muestra en media query */
+  display: none; 
+}
+
+.progress-line-bar {
+  height: 100%;
+  background: #1db954; /* Color de acento */
+  width: 0%; /* Se actualiza con 'style' */
+  transition: width 0.1s linear;
+}
+
+
 /* ==================== FULLSCREEN PLAYER ==================== */
+/* ... (Todo tu CSS de FullScreen sin cambios) ... */
 .fullscreen-player {
   position: fixed;
   top: 0;
@@ -530,40 +551,105 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-/* ==================== RESPONSIVE ==================== */
+/* ==================== RESPONSIVE (MODIFICADO) ==================== */
 @media (max-width: 768px) {
+
+  /* ================================================
+    AQUÍ ESTÁ LA LÍNEA QUE SOLUCIONA EL PROBLEMA:
+    Esto fuerza a que los controles centrales de escritorio
+    (la barra de progreso y botones) se oculten en móvil.
+    ================================================
+  */
+  .player-center {
+    display: none;
+  }
+  
   .player-container {
-    height: 80px;
-    padding: 0 15px;
-    bottom: 60px;
+    height: 64px; /* Barra más pequeña */
+    padding: 0 12px; /* Menos padding */
+    bottom: 64px; /* Ajuste para el BottomNav (asumiendo h-16 = 64px) */
+    padding-top: 2px; /* Espacio para la barra de progreso fina */
+  }
+  
+  .progress-line-container {
+    display: block; /* Mostrar la barra de progreso fina */
+  }
+  .player-container {
+    height: 64px; /* Barra más pequeña */
+    padding: 0 12px; /* Menos padding */
+    bottom: 64px; /* Ajuste para el BottomNav (asumiendo h-16 = 64px) */
+    padding-top: 2px; /* Espacio para la barra de progreso fina */
+  }
+  
+  .progress-line-container {
+    display: block; /* Mostrar la barra de progreso fina */
   }
 
   .player-left {
-    flex: 0 0 auto;
+    flex: 1; /* ¡Importante! Permite que crezca */
+    min-width: 0; /* ¡Importante! Permite que se encoja y trunque el texto */
+    gap: 12px;
   }
 
   .player-cover {
-    width: 50px;
-    height: 50px;
+    width: 44px; /* Portada más pequeña */
+    height: 44px;
+    border-radius: 4px; /* Bordes más sutiles */
+  }
+  
+  .track-info {
+    gap: 0; /* Información de texto más junta */
+  }
+  
+  .track-title {
+    font-size: 14px;
+  }
+  
+  .track-artist {
+    font-size: 12px;
   }
 
+  /* Ocultos por clases 'hidden' en JSX, pero por si acaso */
   .track-album,
   .track-quality {
     display: none;
   }
-
-  .player-center {
-    max-width: 400px;
-  }
-
+  
+  /* El player-center se oculta con 'hidden md:flex' en el JSX */
+  
   .player-right {
-    flex: 0 0 auto;
+    flex: 0 0 auto; /* No crecer */
+    justify-content: flex-end; /* Alinear a la derecha */
   }
 
-  .volume-slider {
-    width: 60px;
+  /* Los controles de volumen se ocultan con 'hidden md:flex' en el JSX */
+  .player-right .volume-btn,
+  .player-right .volume-slider {
+    display: none;
+  }
+  
+  /* Estilos para los botones de control móviles */
+  .player-right .control-btn {
+    font-size: 20px;
+    width: 36px;
+    height: 36px;
   }
 
+  .play-pause-mobile {
+    width: 38px;
+    height: 38px;
+    font-size: 22px;
+    background: #fff; /* Re-aplicar estilos de play-pause */
+    color: #000;
+  }
+
+  .play-pause-mobile:hover {
+    background: #1db954; /* Re-aplicar estilos de play-pause */
+    color: #fff;
+  }
+
+
+  /* --- Ajustes FullScreen --- */
   .fullscreen-album-container {
     width: 280px;
     height: 280px;
@@ -589,16 +675,7 @@
     padding: 20px;
   }
 
-  .player-right .volume-btn,
-  .player-right .volume-slider {
-    display: none;
-  }
-
-  .player-right {
-    justify-content: center;
-  }
-
   .fullscreen-player {
-    bottom: 60px; /* Adjust for bottom navigation bar */
+    bottom: 64px; /* Ajuste para el BottomNav */
   }
 }

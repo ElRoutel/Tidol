@@ -106,7 +106,21 @@ CREATE TABLE IF NOT EXISTS playlist_canciones (
 
 
 -- =======================================
--- 7️⃣ CALIDAD DE AUDIO
+-- 7️⃣ LIKES (Tabla de Me Gusta)
+-- =======================================
+CREATE TABLE IF NOT EXISTS likes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    song_id INTEGER NOT NULL,
+    liked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, song_id),
+    FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+    FOREIGN KEY (song_id) REFERENCES canciones(id) ON DELETE CASCADE
+);
+
+
+-- =======================================
+-- 8️⃣ CALIDAD DE AUDIO
 -- =======================================
 CREATE TABLE IF NOT EXISTS calidad_audio (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -124,7 +138,7 @@ CREATE TABLE IF NOT EXISTS calidad_audio (
 CREATE INDEX IF NOT EXISTS idx_calidad_cancion_id ON calidad_audio(cancion_id);
 
 -- =======================================
--- 8️⃣ IA_HISTORY (Historial de canciones de Internet Archive)
+-- 9️⃣ IA_HISTORY (Historial de canciones de Internet Archive)
 -- =======================================
 CREATE TABLE IF NOT EXISTS ia_history (
     user_id INTEGER NOT NULL,
@@ -148,3 +162,32 @@ ALTER TABLE ia_history ADD COLUMN artista TEXT;
 ALTER TABLE ia_history ADD COLUMN url TEXT;
 ALTER TABLE ia_history ADD COLUMN portada TEXT;
 
+-- =======================================
+-- 10) CANCIONES EXTERNAS (Para Internet Archive y otros)
+-- =======================================
+CREATE TABLE IF NOT EXISTS canciones_externas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    external_id TEXT NOT NULL UNIQUE,
+    source TEXT NOT NULL DEFAULT 'internet_archive',
+    title TEXT NOT NULL,
+    artist TEXT,
+    song_url TEXT NOT NULL,
+    cover_url TEXT,
+    duration INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_canciones_externas_external_id ON canciones_externas(external_id);
+
+
+-- =======================================
+-- 11) LIKES EXTERNOS (Me Gusta para canciones externas)
+-- =======================================
+CREATE TABLE IF NOT EXISTS likes_externos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    cancion_externa_id INTEGER NOT NULL,
+    liked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, cancion_externa_id),
+    FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+    FOREIGN KEY (cancion_externa_id) REFERENCES canciones_externas(id) ON DELETE CASCADE
+);
