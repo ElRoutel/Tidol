@@ -1,6 +1,6 @@
 // src/pages/InternetArchivePage.jsx
 import React, { useState, useEffect } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
 import axios from 'axios';
 
@@ -16,6 +16,7 @@ const qualityRank = {
 export default function InternetArchivePage() {
   const { identifier } = useParams();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const shouldAutoplay = searchParams.get('autoplay') === 'true';
 
   const [album, setAlbum] = useState(null);
@@ -29,6 +30,7 @@ export default function InternetArchivePage() {
   const [formatFilter, setFormatFilter] = useState('best');
 
   const { playSongList, currentSong } = usePlayer();
+  const [bestCover, setBestCover] = useState(null); // Estado para la portada HD
 
   useEffect(() => {
     const fetchAlbumData = async () => {
@@ -44,7 +46,7 @@ export default function InternetArchivePage() {
         const albumInfo = {
           titulo: metaData.metadata?.title || identifier,
           autor: metaData.metadata?.creator || 'Autor desconocido',
-          portada: `https://archive.org/services/img/${identifier}`
+          portada: `https://archive.org/services/img/${identifier}` // Portada inicial de baja calidad
         };
         setAlbum(albumInfo);
 
@@ -52,6 +54,7 @@ export default function InternetArchivePage() {
           .filter(f => f.name.match(/\.(mp3|flac|wav|m4a|ogg)$/i))
           .map(f => {
             const format = (f.format || 'unknown').replace('Audio', '').trim().toUpperCase();
+            // ✅ AÑADIMOS EL IDENTIFIER A CADA CANCIÓN
             return {
               titulo: f.name.split('/').pop().replace(/\.[^/.]+$/, '').replace(/^\d+\.\s*/, ''),
               format: format,
@@ -61,6 +64,7 @@ export default function InternetArchivePage() {
               album: albumInfo.titulo,
               id: `${identifier}_${f.name}`,
               portada: albumInfo.portada,
+              identifier: identifier, // <-- ¡LA LÍNEA CLAVE!
               duracion: parseFloat(f.length) || 0,
             };
           });
@@ -74,6 +78,17 @@ export default function InternetArchivePage() {
         const formats = [...new Set(audioFiles.map(f => f.format))];
         formats.sort((a, b) => (qualityRank[a] || 100) - (qualityRank[b] || 100));
         setAvailableFormats(formats);
+
+        // Ahora, buscamos la mejor portada desde nuestro backend
+        try {
+          // Usamos una URL relativa para que el proxy de Vite funcione
+          const coverRes = await axios.get(`/music/getCover/${identifier}`);
+          if (coverRes.data?.portada) {
+            setBestCover(coverRes.data.portada);
+          }
+        } catch (coverErr) {
+          console.warn("No se pudo obtener la portada HD desde el backend:", coverErr.message);
+        }
 
       } catch (err) {
         console.error("Error cargando IA Album:", err);
@@ -121,6 +136,12 @@ export default function InternetArchivePage() {
     setFilteredTracks(tracksToShow);
 
     if (shouldAutoplay && tracksToShow.length > 0) {
+      // ✅ ANTES de reproducir, actualizamos la portada de las canciones
+      // con la mejor que encontramos.
+      const tracksWithBestCover = tracksToShow.map(track => ({
+        ...track,
+        portada: bestCover || track.portada
+      }));
       playSongList(tracksToShow, 0);
     }
   }, [allFiles, formatFilter, shouldAutoplay, playSongList]);
@@ -128,7 +149,13 @@ export default function InternetArchivePage() {
   const handleSongClick = (song) => {
     const index = filteredTracks.findIndex(t => t.id === song.id);
     if (index !== -1) {
-      playSongList(filteredTracks, index);
+      // ✅ Hacemos lo mismo aquí: actualizamos la portada ANTES de reproducir.
+      const tracksWithBestCover = filteredTracks.map(track => ({
+        ...track,
+        portada: bestCover || track.portada
+      }));
+
+      playSongList(tracksWithBestCover, index);
     }
   };
 
@@ -153,15 +180,16 @@ export default function InternetArchivePage() {
       {/* Banner del álbum */}
       <div
         className="album-header"
-        style={{
-          backgroundImage: `url(${album?.portada || '/default_cover.png'})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center'
+        // Usamos la mejor portada para el fondo si está disponible
+        style={{ 
+          backgroundImage: `url(${bestCover || album?.portada || '/default_cover.png'})`,
+          backgroundSize: 'cover', 
+          backgroundPosition: 'center' 
         }}
       >
         <div className="album-overlay">
           <img
-            src={album?.portada || '/default_cover.png'}
+            src={bestCover || album?.portada || '/default_cover.png'}
             alt={album?.titulo}
             className="album-cover-large"
           />

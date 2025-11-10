@@ -38,6 +38,34 @@ const FullScreenPlayer = () => {
   const [mounted, setMounted] = useState(false);
   const lyricsContainerRef = useRef(null);
 
+  // ======= NUEVO: MANEJO DE PORTADA HD =======
+  const [bestCover, setBestCover] = useState(null);
+
+  useEffect(() => {
+    // Si la canción no es de IA, no hacemos nada especial.
+    if (!currentSong?.identifier) {
+      setBestCover(null); // Resetea por si la canción anterior sí tenía
+      return;
+    }
+
+    const fetchBestCover = async () => {
+      try {
+        const res = await api.get(`/music/getCover/${currentSong.identifier}`);
+        if (res.data?.portada) {
+          setBestCover(res.data.portada);
+          console.log("✅ Portada HD desde backend:", res.data.portada);
+        }
+      } catch (err) {
+        console.error("Error al obtener portada desde el backend:", err);
+        // En caso de error, usamos la portada de baja calidad que ya tiene la canción
+        setBestCover(currentSong.portada);
+      }
+    };
+
+    fetchBestCover();
+  }, [currentSong]);
+  // ===========================================
+
   const handlers = useSwipeable({
     onSwipedLeft: () => !isAnimating && nextSong(),
     onSwipedRight: () => !isAnimating && previousSong(),
@@ -54,7 +82,12 @@ const FullScreenPlayer = () => {
   // Cargar letras - ✅ CAMBIAR A API
   useEffect(() => {
     if (!currentSong || !showLyrics) return;
-
+    
+    // ✅ Solo buscar letras si la canción NO es de Internet Archive
+    if (currentSong.identifier) {
+      setLyrics([]); // Limpiamos por si había letras de una canción anterior
+      return;
+    }
     api.get(`/music/songs/${currentSong.id}/lyrics`) // ✅ Usar api en lugar de fetch
       .then((res) => {
         if (res.data.success && res.data.lyrics) {
@@ -144,12 +177,10 @@ const FullScreenPlayer = () => {
               mounted ? 'opacity-100 scale-100 rotate-0' : 'opacity-0 scale-90 rotate-3'
             }`}>
               <img
-                src={currentSong.portada || 'https://via.placeholder.com/500'}
-                alt="Portada del álbum"
-                className="w-full h-full object-cover transition-transform duration-[20s] ease-linear hover:scale-110"
+                src={bestCover || currentSong.portada || '/default_cover.png'}
+                alt="cover"
+                className="w-full h-full object-cover transition-all duration-[20s] ease-linear hover:scale-110"
               />
-              {/* Efecto de brillo animado */}
-              <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent animate-shine" />
             </div>
 
             {/* Información de la canción */}

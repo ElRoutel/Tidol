@@ -17,7 +17,7 @@ import {
   checkIfLiked         // <-- Nuevo
 } from "../controllers/music.controller.js";
 import { authMiddleware } from "../middleware/auth.middleware.js";
-
+import { getBestCover } from '../services/coverService.js';
 const router = Router();
 
 // --- Búsqueda unificada (Local + Internet Archive) ---
@@ -53,5 +53,21 @@ router.get("/home-recommendations", authMiddleware, getHomeRecommendations);
 router.post("/songs/:id/like", authMiddleware, toggleLike);         // Like / Unlike una canción
 router.post("/songs/:id/isLiked", authMiddleware, checkIfLiked);     // Ver si el usuario ya dio like
 router.get("/songs/likes", authMiddleware, getUserLikes);                 // Obtener todas las canciones que el usuario ha dado like
+// --- Cover Art Service ---
+router.get('/getCover/:identifier', async (req, res) => {
+  const identifier = req.params.identifier;
 
+  try {
+    const coverUrl = await getBestCover(identifier);
+
+    if (!coverUrl) {
+      return res.status(404).json({ error: 'No se encontró portada' });
+    }
+
+    return res.json({ portada: coverUrl });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Error buscando portada' });
+  }
+});
 export default router;
