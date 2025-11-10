@@ -122,3 +122,29 @@ CREATE TABLE IF NOT EXISTS calidad_audio (
     FOREIGN KEY (cancion_id) REFERENCES canciones(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_calidad_cancion_id ON calidad_audio(cancion_id);
+
+-- =======================================
+-- 8️⃣ IA_HISTORY (Historial de canciones de Internet Archive)
+-- =======================================
+CREATE TABLE IF NOT EXISTS ia_history (
+    user_id INTEGER NOT NULL,
+    ia_identifier TEXT NOT NULL,
+    titulo TEXT,
+    artista TEXT,
+    url TEXT,
+    portada TEXT,
+    played_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, ia_identifier),
+    FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- Add new columns if they don't exist (for existing databases)
+-- These ALTER TABLE statements are for existing databases that might not have these columns.
+-- They will fail gracefully if the columns already exist.
+-- In a real-world scenario, you might use a proper migration system.
+-- For this exercise, we'll add them here.
+ALTER TABLE ia_history ADD COLUMN titulo TEXT;
+ALTER TABLE ia_history ADD COLUMN artista TEXT;
+ALTER TABLE ia_history ADD COLUMN url TEXT;
+ALTER TABLE ia_history ADD COLUMN portada TEXT;
+

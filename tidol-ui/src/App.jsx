@@ -1,24 +1,25 @@
 // src/App.jsx
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import { useState } from 'react';
 
-// 1. IMPORTAMOS LOS COMPONENTES DE LAYOUT
+// COMPONENTES DE LAYOUT
 import Sidebar from './components/Sidebar';
 import PlayerBar from './components/PlayerBar';
-import MobileNav from './components/MobileNav'; // <-- Importamos el nav móvil que hicimos
+import MobileNav from './components/MobileNav';
+import ContextMenu from './components/ContextMenu';
 
-// 2. IMPORTAMOS TUS PÁGINAS
+// PÁGINAS
 import HomePage from './pages/HomePage';
 import { SearchPage } from './pages/SearchPage';
 import { UploadPage } from './pages/UploadPage';
 import AlbumPage from './pages/AlbumPage';
 import LoginPage from './pages/LoginPage';
 import InternetArchivePage from './pages/InternetArchivePage';
-import ProfilePage from './pages/ProfilePage'; // Importa la nueva página
+import ProfilePage from './pages/ProfilePage';
 import LibraryPage from './pages/LibraryPage';
 
-
-// --- TU LÓGICA DE AUTENTICACIÓN (Sin cambios) ---
+// RUTA PROTEGIDA
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
 
@@ -37,59 +38,62 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
-// --- LAYOUT PRINCIPAL (¡Aquí está la fusión!) ---
+// LAYOUT PRINCIPAL
 function AppLayout() {
+  const [contextItem, setContextItem] = useState(null);
+
+  const handleContextAction = (action, data) => {
+    if (action === "setItem") return setContextItem(data);
+
+    // Aquí puedes integrar funciones de PlayerContext o navegación
+    console.log("ContextMenu Action:", action, data);
+
+    setContextItem(null);
+  };
+
   return (
-    // Usamos el layout de CSS Grid que definimos
     <div className="h-screen bg-background text-text grid
                     grid-rows-[1fr_auto_auto]
                     md:grid-rows-[1fr_auto]
-                    md:grid-cols-[250px_1fr]">
+                    md:grid-cols-[250px_1fr] relative">
 
-      {/* 1. BARRA LATERAL (Solo PC) */}
+      {/* Sidebar */}
       <Sidebar />
-      
-      {/* 2. CONTENIDO PRINCIPAL (Con tus rutas) */}
+
+      {/* Contenido principal */}
       <main className="overflow-y-auto md:col-start-2 md:row-start-1 bg-background">
-        
-        {/* Aquí es donde tus páginas se renderizarán */}
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/upload" element={<UploadPage />} />
           <Route path="/album/:id" element={<AlbumPage />} />
           <Route path="/ia-album/:identifier" element={<InternetArchivePage />} />
-          <Route path="/profile" element={<ProfilePage />} /> 
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="/library" element={<LibraryPage />} />
-          {/* Puedes añadir más rutas aquí, como /playlist/:id, etc. */}
         </Routes>
-        
       </main>
 
-      {/* 3. REPRODUCTOR (Fijo abajo) */}
-      {/* Usamos un <footer> como "contenedor" para posicionar tu PlayerBar */}
+      {/* Player fijo abajo */}
       <footer className="h-10 from-zinc-900 text-text
                          border-t border-interactive-bg
                          md:col-span-2">
-        {/* Tu componente PlayerBar va adentro, asegúrate que use "w-full" (ancho completo) */}
         <PlayerBar />
       </footer>
 
-      {/* 4. BARRA DE NAVEGACIÓN (Solo Móvil) */}
+      {/* Nav móvil */}
       <MobileNav />
 
+      {/* ContextMenu global */}
+      <ContextMenu item={contextItem} onAction={handleContextAction} />
     </div>
   );
 }
 
-// --- APP PRINCIPAL (Sin cambios) ---
+// APP PRINCIPAL
 export default function App() {
   return (
     <Routes>
-      {/* Ruta pública: Login */}
       <Route path="/login" element={<LoginPage />} />
-
-      {/* Rutas protegidas: Toda la app */}
       <Route
         path="/*"
         element={

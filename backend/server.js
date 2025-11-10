@@ -114,8 +114,7 @@ app.use("/api/history", historyRoutes);
   // ¡ADVERTENCIA! Esto borrará el historial de IA cada vez que reinicies el servidor.
   // Perfecto para desarrollo, pero cámbialo a "CREATE IF NOT EXISTS" para producción.
   try {
-    await db.run(`DROP TABLE IF EXISTS ia_history;`);
-    logStatus("Historial de IA", true, "Tabla 'ia_history' borrada (DROP).");
+ 
 
     // 2. Volvemos a crear la tabla con las NUEVAS columnas necesarias
     await db.run(`

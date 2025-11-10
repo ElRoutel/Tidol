@@ -38,6 +38,31 @@ if (!fs.existsSync(dbPath)) {
 try {
   console.log("🚀 Aplicando migraciones automáticas...");
 
+  // ========== IA CACHE ==========
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS ia_cache (
+      query TEXT PRIMARY KEY,
+      results TEXT NOT NULL,
+      timestamp INTEGER NOT NULL
+    );
+  `);
+
+  // ========== IA HISTORY ==========
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS ia_history (
+      user_id INTEGER NOT NULL,
+      ia_identifier TEXT NOT NULL,
+      titulo TEXT,
+      artista TEXT,
+      url TEXT,
+      portada TEXT,
+      duration INTEGER,
+      played_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, ia_identifier),
+      FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE ON UPDATE CASCADE
+    );
+  `);
+
   // ========== USUARIOS ==========
   // Agregar columna 'role'
   try {

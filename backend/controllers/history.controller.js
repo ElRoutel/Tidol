@@ -6,7 +6,7 @@ import db from '../models/db.js';
  */
 export const addToHistory = async (req, res) => {
   const { userId } = req;
-  const { songId } = req.body; // 'songId' puede ser un ID local o un identifier de IA
+  const { songId, titulo, artista, url, portada } = req.body; // 'songId' puede ser un ID local o un identifier de IA
 
   if (!songId) {
     return res.status(400).json({ error: 'Falta el ID de la canción (songId).' });
@@ -38,12 +38,16 @@ export const addToHistory = async (req, res) => {
       // CASO 2: No es local. Asumimos que es de IA y usamos 'ia_history'.
       // El 'songId' se guarda como 'ia_identifier'.
       query = `
-        INSERT INTO ia_history (user_id, ia_identifier, played_at)
-        VALUES (?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO ia_history (user_id, ia_identifier, titulo, artista, url, portada, played_at)
+        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(user_id, ia_identifier) DO UPDATE SET
-          played_at = CURRENT_TIMESTAMP;
+          played_at = CURRENT_TIMESTAMP,
+          titulo = EXCLUDED.titulo,
+          artista = EXCLUDED.artista,
+          url = EXCLUDED.url,
+          portada = EXCLUDED.portada;
       `;
-      params = [userId, songId];
+      params = [userId, songId, titulo, artista, url, portada];
     }
     
     // 4. Ejecutamos la consulta decidida
@@ -90,13 +94,12 @@ export const getHistory = async (req, res) => {
       -- 2. Obtenemos las canciones de INTERNET ARCHIVE
       SELECT
         ia.ia_identifier AS id,
-        ia.ia_identifier AS titulo, -- Solo tenemos el ID, el frontend tendrá que interpretarlo
-        NULL AS url,                 -- No tenemos la URL directa del archivo aquí
-        -- Construimos la URL de la portada como en el frontend
-        'https://archive.org/services/get-item-image.php?identifier=' || ia.ia_identifier AS portada,
-        NULL AS duracion,
-        'Internet Archive' AS artista, -- Ponemos un valor genérico
-        'Internet Archive' AS album,   -- Ponemos un valor genérico
+        ia.titulo,
+        ia.url,
+        ia.portada,
+        NULL AS duracion, -- No tenemos la duración para canciones de IA en esta tabla
+        ia.artista,
+        'Internet Archive' AS album,   -- Mantenemos un valor genérico para el álbum si no se almacena
         ia.played_at,
         'ia' as type -- Añadimos el tipo 'ia'
       FROM ia_history ia

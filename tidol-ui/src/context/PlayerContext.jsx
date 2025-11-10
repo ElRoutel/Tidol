@@ -172,7 +172,13 @@ export function PlayerProvider({ children }) {
         setIsPlaying(false);
       });
 
-    api.post('/history/add', { songId: currentSong.id })
+    api.post('/history/add', {
+      songId: currentSong.id,
+      titulo: currentSong.titulo,
+      artista: currentSong.artista,
+      url: currentSong.url,
+      portada: currentSong.portada,
+    })
       .catch(err => console.error("DB Historial error:", err));
   }, [currentSong]);
 
