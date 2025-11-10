@@ -1,6 +1,6 @@
 // src/pages/InternetArchivePage.jsx
 import React, { useState, useEffect } from 'react';
-import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
 import axios from 'axios';
 
@@ -16,7 +16,6 @@ const qualityRank = {
 export default function InternetArchivePage() {
   const { identifier } = useParams();
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const shouldAutoplay = searchParams.get('autoplay') === 'true';
 
   const [album, setAlbum] = useState(null);
@@ -28,9 +27,50 @@ export default function InternetArchivePage() {
   const [filteredTracks, setFilteredTracks] = useState([]);
   const [availableFormats, setAvailableFormats] = useState([]);
   const [formatFilter, setFormatFilter] = useState('best');
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
   const { playSongList, currentSong } = usePlayer();
-  const [bestCover, setBestCover] = useState(null); // Estado para la portada HD
+
+  /**
+   * Busca la mejor portada disponible en los archivos del item
+   * Prioriza archivos de imagen de alta calidad
+   */
+  const findBestCover = (files, identifier) => {
+    // Filtrar archivos de imagen
+    const imageFiles = Object.values(files)
+      .filter(f => f.name && /\.(jpg|jpeg|png|gif)$/i.test(f.name))
+      .map(f => ({
+        name: f.name,
+        size: f.size || 0,
+        url: `https://archive.org/download/${identifier}/${encodeURIComponent(f.name)}`
+      }));
+
+    if (imageFiles.length === 0) {
+      // Fallback a services/img si no hay imágenes
+      return `https://archive.org/services/img/${identifier}`;
+    }
+
+    // Priorizar por nombre (covers conocidos)
+    const preferredNames = [
+      'cover.jpg', 'cover.jpeg', 'cover.png',
+      'folder.jpg', 'folder.jpeg', 'folder.png',
+      'album.jpg', 'album.jpeg', 'album.png',
+      'front.jpg', 'front.jpeg', 'front.png',
+      'artwork.jpg', 'artwork.jpeg', 'artwork.png'
+    ];
+
+    // Buscar por nombre preferido
+    for (const prefName of preferredNames) {
+      const found = imageFiles.find(f => 
+        f.name.toLowerCase().includes(prefName.toLowerCase())
+      );
+      if (found) return found.url;
+    }
+
+    // Si no hay nombre preferido, tomar la imagen más grande
+    imageFiles.sort((a, b) => b.size - a.size);
+    return imageFiles[0].url;
+  };
 
   useEffect(() => {
     const fetchAlbumData = async () => {
@@ -43,10 +83,15 @@ export default function InternetArchivePage() {
           throw new Error('No se encontraron metadatos para este item.');
         }
 
+        // ✅ Obtener portada de máxima calidad
+        const highQualityCover = findBestCover(metaData.files || {}, identifier);
+
         const albumInfo = {
           titulo: metaData.metadata?.title || identifier,
           autor: metaData.metadata?.creator || 'Autor desconocido',
-          portada: `https://archive.org/services/img/${identifier}` // Portada inicial de baja calidad
+          portada: highQualityCover, // ✅ Portada de alta calidad
+          year: metaData.metadata?.year || metaData.metadata?.date || null,
+          description: metaData.metadata?.description || null
         };
         setAlbum(albumInfo);
 
@@ -54,7 +99,6 @@ export default function InternetArchivePage() {
           .filter(f => f.name.match(/\.(mp3|flac|wav|m4a|ogg)$/i))
           .map(f => {
             const format = (f.format || 'unknown').replace('Audio', '').trim().toUpperCase();
-            // ✅ AÑADIMOS EL IDENTIFIER A CADA CANCIÓN
             return {
               titulo: f.name.split('/').pop().replace(/\.[^/.]+$/, '').replace(/^\d+\.\s*/, ''),
               format: format,
@@ -63,8 +107,7 @@ export default function InternetArchivePage() {
               artista: albumInfo.autor,
               album: albumInfo.titulo,
               id: `${identifier}_${f.name}`,
-              portada: albumInfo.portada,
-              identifier: identifier, // <-- ¡LA LÍNEA CLAVE!
+              portada: highQualityCover, // ✅ Cada canción usa portada de alta calidad
               duracion: parseFloat(f.length) || 0,
             };
           });
@@ -78,17 +121,6 @@ export default function InternetArchivePage() {
         const formats = [...new Set(audioFiles.map(f => f.format))];
         formats.sort((a, b) => (qualityRank[a] || 100) - (qualityRank[b] || 100));
         setAvailableFormats(formats);
-
-        // Ahora, buscamos la mejor portada desde nuestro backend
-        try {
-          // Usamos una URL relativa para que el proxy de Vite funcione
-          const coverRes = await axios.get(`/music/getCover/${identifier}`);
-          if (coverRes.data?.portada) {
-            setBestCover(coverRes.data.portada);
-          }
-        } catch (coverErr) {
-          console.warn("No se pudo obtener la portada HD desde el backend:", coverErr.message);
-        }
 
       } catch (err) {
         console.error("Error cargando IA Album:", err);
@@ -136,12 +168,6 @@ export default function InternetArchivePage() {
     setFilteredTracks(tracksToShow);
 
     if (shouldAutoplay && tracksToShow.length > 0) {
-      // ✅ ANTES de reproducir, actualizamos la portada de las canciones
-      // con la mejor que encontramos.
-      const tracksWithBestCover = tracksToShow.map(track => ({
-        ...track,
-        portada: bestCover || track.portada
-      }));
       playSongList(tracksToShow, 0);
     }
   }, [allFiles, formatFilter, shouldAutoplay, playSongList]);
@@ -149,19 +175,14 @@ export default function InternetArchivePage() {
   const handleSongClick = (song) => {
     const index = filteredTracks.findIndex(t => t.id === song.id);
     if (index !== -1) {
-      // ✅ Hacemos lo mismo aquí: actualizamos la portada ANTES de reproducir.
-      const tracksWithBestCover = filteredTracks.map(track => ({
-        ...track,
-        portada: bestCover || track.portada
-      }));
-
-      playSongList(tracksWithBestCover, index);
+      playSongList(filteredTracks, index);
     }
   };
 
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '50px', color: 'white' }}>
+        <div className="loading-spinner" />
         <h2>Cargando álbum de Internet Archive...</h2>
       </div>
     );
@@ -171,39 +192,54 @@ export default function InternetArchivePage() {
     return (
       <div style={{ textAlign: 'center', padding: '50px', color: '#ff5555' }}>
         <h2>{error}</h2>
+        <p style={{ color: '#b3b3b3', marginTop: '10px' }}>
+          Intenta buscar otro contenido o verifica el identificador.
+        </p>
       </div>
     );
   }
 
   return (
     <div className="album-page">
-      {/* Banner del álbum */}
+      {/* Banner del álbum con portada de alta calidad */}
       <div
         className="album-header"
-        // Usamos la mejor portada para el fondo si está disponible
-        style={{ 
-          backgroundImage: `url(${bestCover || album?.portada || '/default_cover.png'})`,
-          backgroundSize: 'cover', 
-          backgroundPosition: 'center' 
+        style={{
+          backgroundImage: `url(${album?.portada})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center'
         }}
       >
         <div className="album-overlay">
           <img
-            src={bestCover || album?.portada || '/default_cover.png'}
+            src={album?.portada}
             alt={album?.titulo}
             className="album-cover-large"
+            loading="eager" // ✅ Carga prioritaria
           />
           <div className="album-info">
             <h1>{album?.titulo}</h1>
             <p className="album-artist">{album?.autor || 'Desconocido'}</p>
             <p className="album-meta">
               {groupedTracks.length} canciones
+              {album?.year && ` • ${album.year}`}
             </p>
+            {album?.description && (
+              <div className="description-container">
+                <div
+                  className={`album-description ${!isDescriptionExpanded ? 'collapsed' : ''}`}
+                  dangerouslySetInnerHTML={{ __html: album.description }}
+                />
+                <button onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)} className="toggle-description-btn">
+                  {isDescriptionExpanded ? 'MOSTRAR MENOS' : 'MOSTRAR MÁS'}
+                </button>
+              </div>
+            )}
             <button 
               onClick={() => playSongList(filteredTracks, 0)}
               className="play-button-main"
             >
-              Reproducir
+              ▶ Reproducir
             </button>
           </div>
         </div>
@@ -213,7 +249,7 @@ export default function InternetArchivePage() {
       <div className="songs-section">
         <div className="section-header">
           <h2>Canciones</h2>
-          <div>
+          <div className="filter-controls">
             <label htmlFor="format-filter">Calidad:</label>
             <select 
               id="format-filter"
@@ -221,9 +257,11 @@ export default function InternetArchivePage() {
               onChange={(e) => setFormatFilter(e.target.value)}
               className="quality-filter"
             >
-              <option value="best">Mejor Calidad</option>
+              <option value="best">🏆 Mejor Calidad</option>
               {availableFormats.map(format => (
-                <option key={format} value={format}>{format}</option>
+                <option key={format} value={format}>
+                  {format === 'FLAC' ? '💎' : format === 'WAV' ? '🎵' : '🎧'} {format}
+                </option>
               ))}
             </select>
           </div>
@@ -239,11 +277,18 @@ export default function InternetArchivePage() {
               return (
                 <div key={track.title} className="song-card disabled">
                   <div className="song-number">{index + 1}</div>
+                  {/* Placeholder for album art to maintain alignment */}
+                  <div />
                   <div className="song-info">
                     <div className="song-title">{track.title}</div>
                     <div className="song-artist">{track.artist}</div>
                   </div>
-                  <div className="song-quality-unavailable">{formatFilter} no disponible</div>
+                  <div 
+                    className="song-quality-unavailable"
+                    style={{ gridColumn: '4 / -1', textAlign: 'right', paddingRight: '10px' }}
+                  >
+                    {formatFilter} no disponible
+                  </div>
                 </div>
               );
             }
@@ -261,6 +306,7 @@ export default function InternetArchivePage() {
                   src={songToShow.portada}
                   alt={songToShow.titulo}
                   className="song-thumb"
+                  loading="lazy" // ✅ Lazy loading para miniaturas
                 />
                 <div className="song-info">
                   <div className="song-title">{songToShow.titulo}</div>
@@ -279,16 +325,30 @@ export default function InternetArchivePage() {
         </div>
       </div>
 
-      {/* Estilos unificados de AlbumPage */}
+      {/* Estilos mejorados */}
       <style>{`
         .album-page {
           padding-bottom: 100px;
           color: white;
         }
 
+        .loading-spinner {
+          width: 50px;
+          height: 50px;
+          border: 4px solid rgba(255,255,255,0.1);
+          border-top: 4px solid #1db954;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+          margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
         .album-header {
           position: relative;
-          height: 340px;
+          height: 400px;
           border-radius: 12px;
           overflow: hidden;
           margin-bottom: 30px;
@@ -297,56 +357,98 @@ export default function InternetArchivePage() {
         .album-overlay {
           position: absolute;
           inset: 0;
-          background: linear-gradient(to bottom, rgba(0,0,0,0.3), rgba(0,0,0,0.8));
+          background: linear-gradient(to bottom, rgba(0,0,0,0.4), rgba(0,0,0,0.9));
           display: flex;
           align-items: flex-end;
-          padding: 30px;
-          gap: 24px;
+          padding: 40px;
+          gap: 30px;
         }
 
         .album-cover-large {
-          width: 200px;
-          height: 200px;
+          width: 232px;
+          height: 232px;
           border-radius: 8px;
-          box-shadow: 0 8px 12px rgba(0,0,0,0.5);
+          box-shadow: 0 12px 24px rgba(0,0,0,0.6);
+          object-fit: cover;
         }
 
         .album-info h1 {
-          font-size: 48px;
-          margin: 0 0 8px 0;
+          font-size: 56px;
+          margin: 0 0 12px 0;
           color: white;
+          font-weight: 900;
+          text-shadow: 0 2px 8px rgba(0,0,0,0.5);
         }
 
         .album-artist {
-          font-size: 18px;
-          color: #b3b3b3;
-          margin: 0 0 16px 0;
+          font-size: 20px;
+          color: #ffffff;
+          margin: 0 0 8px 0;
+          font-weight: 600;
         }
 
         .album-meta {
           font-size: 14px;
           color: #b3b3b3;
+          margin-bottom: 12px;
+        }
+
+        .description-container {
           margin-bottom: 20px;
+        }
+
+        .album-description {
+          font-size: 14px;
+          color: #b3b3b3;
+          max-width: 600px;
+          line-height: 1.5;
+          transition: max-height 0.3s ease-in-out;
+        }
+        .album-description.collapsed {
+          max-height: 63px; /* Approx 3 lines */
+          overflow: hidden;
+          position: relative;
+          -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
+          mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
+        }
+
+        .toggle-description-btn {
+          background: none;
+          border: none;
+          color: #b3b3b3;
+          cursor: pointer;
+          font-weight: 700;
+          padding: 8px 0 0;
+          font-size: 12px;
+          letter-spacing: 0.5px;
+        }
+        .toggle-description-btn:hover {
+            color: white;
         }
 
         .play-button-main {
           background: #1db954;
           border: none;
           color: white;
-          padding: 14px 32px;
+          padding: 16px 48px;
           border-radius: 30px;
           cursor: pointer;
           font-size: 16px;
-          font-weight: 600;
+          font-weight: 700;
           transition: all 0.2s;
+          box-shadow: 0 4px 12px rgba(29,185,84,0.3);
         }
         .play-button-main:hover {
-          transform: scale(1.05);
+          transform: scale(1.06);
           background: #1ed760;
+          box-shadow: 0 6px 16px rgba(29,185,84,0.5);
+        }
+        .play-button-main:active {
+          transform: scale(1.02);
         }
 
         .songs-section {
-          padding: 0 16px;
+          padding: 0 24px;
         }
 
         .section-header {
@@ -357,20 +459,35 @@ export default function InternetArchivePage() {
         }
         .section-header h2 {
           margin: 0;
+          font-size: 24px;
+          font-weight: 700;
         }
-        .section-header label {
-          margin-right: 8px;
+
+        .filter-controls {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .filter-controls label {
           font-size: 14px;
           color: #b3b3b3;
+          font-weight: 600;
         }
 
         .quality-filter {
           background: #282828;
           color: white;
           border: 1px solid #404040;
-          border-radius: 4px;
-          padding: 8px 12px;
+          border-radius: 6px;
+          padding: 10px 16px;
           font-size: 14px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .quality-filter:hover {
+          background: #333;
+          border-color: #555;
         }
 
         .songs-grid {
@@ -384,19 +501,18 @@ export default function InternetArchivePage() {
           grid-template-columns: 40px 50px 1fr 100px 60px 40px;
           align-items: center;
           gap: 12px;
-          padding: 8px 12px;
+          padding: 10px 12px;
           border-radius: 6px;
           cursor: pointer;
-          transition: background 0.2s;
+          transition: all 0.2s;
         }
         .song-card:hover {
           background: rgba(255, 255, 255, 0.1);
         }
         .song-card.playing {
           background: rgba(29, 185, 84, 0.2);
-          color: #1db954;
         }
-        .song-card.playing .song-title, .song-card.playing .song-artist {
+        .song-card.playing .song-title {
           color: #1db954;
         }
         .song-card.disabled {
@@ -411,6 +527,7 @@ export default function InternetArchivePage() {
           text-align: center;
           color: #b3b3b3;
           font-size: 14px;
+          font-weight: 500;
         }
 
         .song-thumb {
@@ -418,6 +535,7 @@ export default function InternetArchivePage() {
           height: 50px;
           border-radius: 4px;
           object-fit: cover;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
 
         .song-info {
@@ -442,9 +560,9 @@ export default function InternetArchivePage() {
           font-size: 12px;
           color: #888;
           text-align: right;
+          font-weight: 600;
         }
         .song-quality-unavailable {
-          grid-column: span 3;
           text-align: right;
           padding-right: 10px;
         }
@@ -453,6 +571,7 @@ export default function InternetArchivePage() {
           text-align: right;
           color: #b3b3b3;
           font-size: 14px;
+          font-variant-numeric: tabular-nums;
         }
 
         .play-btn-small {
@@ -466,6 +585,8 @@ export default function InternetArchivePage() {
           display: flex;
           align-items: center;
           justify-content: center;
+          width: 32px;
+          height: 32px;
         }
         .song-card:hover .play-btn-small,
         .song-card.playing .play-btn-small {
@@ -478,34 +599,33 @@ export default function InternetArchivePage() {
         @media (max-width: 768px) {
           .album-header {
             height: auto;
-            padding-bottom: 20px;
-            background-image: none !important; /* No background image on mobile */
+            background-image: none !important;
           }
           .album-overlay {
-            position: static; /* Remove absolute positioning */
+            position: static;
             flex-direction: column;
             align-items: center;
             text-align: center;
-            background: none;
-            padding: 16px;
+            background: linear-gradient(180deg, #1a1a1a 0%, #0a0a0a 100%);
+            padding: 24px 16px;
           }
           .album-cover-large {
-            width: 180px;
-            height: 180px;
-            margin-bottom: 16px;
+            width: 200px;
+            height: 200px;
+            margin-bottom: 20px;
           }
           .album-info h1 {
-            font-size: 28px;
+            font-size: 32px;
           }
           .album-artist {
-            font-size: 16px;
+            font-size: 18px;
           }
           .play-button-main {
-            padding: 12px 28px;
+            padding: 14px 32px;
             font-size: 14px;
           }
           .song-card {
-            grid-template-columns: 30px 40px 1fr 40px;
+            grid-template-columns: 30px 45px 1fr 40px;
           }
           .song-quality, .song-duration {
             display: none;
