@@ -217,6 +217,11 @@ async function ensureColumn(table, column, typeDef) {
     `);
     logStatus("Likes", true, "Tabla 'likes' lista.");
 
+
+    app.get("/api/health", (req, res) => {
+      res.json({ status: "ok", server: "Routel Music API" });
+    });
+
     // --- Iniciar el servidor ---
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`\nServidor corriendo en http://localhost:${PORT} o http://192.168.1.70:${PORT}\n`);
