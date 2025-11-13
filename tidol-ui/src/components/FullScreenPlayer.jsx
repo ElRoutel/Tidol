@@ -4,7 +4,7 @@ import './FullScreenPlayer.css';
 import './FullScreenPlayerLyrics.css';
 import { usePlayer } from '../context/PlayerContext';
 import { useSwipeable } from 'react-swipeable';
-import api from '../api/axiosConfig'; // ✅ AGREGAR ESTA IMPORTACIÓN
+import api from '../api/axiosConfig';
 import {
   IoPlaySharp,
   IoPauseSharp,
@@ -28,8 +28,8 @@ const FullScreenPlayer = () => {
     previousSong,
     seek,
     closeFullScreenPlayer,
-    toggleLike,      // ✅ Mejor opción: usar el del context
-    isSongLiked,     // ✅ Mejor opción: usar el del context
+    toggleLike,
+    isSongLiked,
   } = usePlayer();
 
   const [showLyrics, setShowLyrics] = useState(false);
@@ -38,33 +38,35 @@ const FullScreenPlayer = () => {
   const [mounted, setMounted] = useState(false);
   const lyricsContainerRef = useRef(null);
 
-  // ======= NUEVO: MANEJO DE PORTADA HD =======
   const [bestCover, setBestCover] = useState(null);
 
   useEffect(() => {
-    // Si la canción no es de IA, no hacemos nada especial.
+    setMounted(true);
+  }, []);
+
+  // Portada HD desde backend si existe identifier
+  useEffect(() => {
+    let mounted = true;
     if (!currentSong?.identifier) {
-      setBestCover(null); // Resetea por si la canción anterior sí tenía
+      setBestCover(currentSong?.portada || null);
       return;
     }
-
     const fetchBestCover = async () => {
       try {
         const res = await api.get(`/music/getCover/${currentSong.identifier}`);
-        if (res.data?.portada) {
+        if (mounted && res.data?.portada) {
           setBestCover(res.data.portada);
-          console.log("✅ Portada HD desde backend:", res.data.portada);
+        } else if (mounted) {
+          setBestCover(currentSong.portada || null);
         }
       } catch (err) {
         console.error("Error al obtener portada desde el backend:", err);
-        // En caso de error, usamos la portada de baja calidad que ya tiene la canción
-        setBestCover(currentSong.portada);
+        if (mounted) setBestCover(currentSong.portada || null);
       }
     };
-
     fetchBestCover();
+    return () => { mounted = false; };
   }, [currentSong]);
-  // ===========================================
 
   const handlers = useSwipeable({
     onSwipedLeft: () => !isAnimating && nextSong(),
@@ -74,47 +76,61 @@ const FullScreenPlayer = () => {
     trackMouse: true,
   });
 
-  // Animación de entrada
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Cargar letras - ✅ CAMBIAR A API
+  // Cargar lyrics (si están disponibles). No hacemos fetch si no se pidió showLyrics.
   useEffect(() => {
     if (!currentSong || !showLyrics) return;
-    
-    // ✅ Solo buscar letras si la canción NO es de Internet Archive
-    if (currentSong.identifier) {
-      setLyrics([]); // Limpiamos por si había letras de una canción anterior
-      return;
-    }
-    api.get(`/music/songs/${currentSong.id}/lyrics`) // ✅ Usar api en lugar de fetch
-      .then((res) => {
-        if (res.data.success && res.data.lyrics) {
-          setLyrics(res.data.lyrics);
+
+    // si el objeto ya tiene `lyrics` o `lyricsLoaded` podríamos usarlo; si no hacemos fetch
+    let mounted = true;
+    setLyrics([]);
+
+    const fetchLyrics = async () => {
+      try {
+        // si tenemos identifier (IA) quizás las letras no existan en endpoint local, pero dejamos lógica simple:
+        const id = currentSong.id || currentSong.identifier;
+        const res = await api.get(`/music/songs/${id}/lyrics`);
+        if (!mounted) return;
+        const payload = res.data;
+        if (payload?.success && Array.isArray(payload.lyrics)) {
+          setLyrics(payload.lyrics);
+        } else if (Array.isArray(payload)) {
+          setLyrics(payload);
         } else {
           setLyrics([]);
         }
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error("Error cargando letras:", err);
-        setLyrics([]);
-      });
+        if (mounted) setLyrics([]);
+      }
+    };
+
+    fetchLyrics();
+    return () => { mounted = false; };
   }, [currentSong, showLyrics]);
 
-  const currentLineIndex = lyrics.findIndex(
-    (line, i) =>
-      currentTime * 1000 >= line.time_ms &&
-      (i === lyrics.length - 1 || currentTime * 1000 < lyrics[i + 1].time_ms)
-  );
+  // Calcular currentLineIndex de forma segura
+  const currentLineIndex = (() => {
+    if (!lyrics || lyrics.length === 0) return -1;
+    try {
+      const nowMs = (currentTime || 0) * 1000;
+      for (let i = 0; i < lyrics.length; i++) {
+        const lineTime = Number(lyrics[i].time_ms || lyrics[i].time || 0);
+        const nextLineTime = i + 1 < lyrics.length ? Number(lyrics[i + 1].time_ms || lyrics[i + 1].time || Infinity) : Infinity;
+        if (nowMs >= lineTime && nowMs < nextLineTime) return i;
+      }
+      return lyrics.length - 1;
+    } catch (e) {
+      return -1;
+    }
+  })();
 
-  // Scroll suave de letras
+  // Auto-scroll a la línea activa
   useEffect(() => {
     if (!lyricsContainerRef.current) return;
     const activeLine = lyricsContainerRef.current.querySelector('.active');
     if (activeLine) {
       const container = lyricsContainerRef.current;
-      const offset = activeLine.offsetTop - container.offsetHeight / 2 + activeLine.offsetHeight / 2;
+      const offset = Math.max(0, activeLine.offsetTop - container.clientHeight / 2 + activeLine.clientHeight / 2);
       container.scrollTo({ top: offset, behavior: 'smooth' });
     }
   }, [currentLineIndex]);
@@ -127,26 +143,24 @@ const FullScreenPlayer = () => {
   const handleToggleLyrics = () => {
     if (isAnimating) return;
     setIsAnimating(true);
-    setShowLyrics(!showLyrics);
+    setShowLyrics(prev => !prev);
     setTimeout(() => setIsAnimating(false), 400);
   };
 
   if (!currentSong) return null;
 
   const formatTime = (seconds) => {
+    if (!seconds || isNaN(seconds)) return '0:00';
     const minutes = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  // ✅ OPCIÓN 1: Usar el toggleLike del context (RECOMENDADO)
   const handleToggleLike = () => {
-    if (currentSong) {
-      toggleLike(currentSong.id);
-    }
+    if (!currentSong) return;
+    toggleLike(currentSong.id);
   };
 
-  // Obtener el estado del like desde el context
   const liked = currentSong ? isSongLiked(currentSong.id) : false;
 
   return (
@@ -154,14 +168,9 @@ const FullScreenPlayer = () => {
       {!showLyrics ? (
         <div
           {...handlers}
-          className={`fixed inset-0 bg-black bg-opacity-90 backdrop-blur-xl z-50 flex flex-col text-white p-4 pb-20 md:pb-4 transition-all duration-300 ${
-            mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full'
-          }`}
+          className={`fixed inset-0 bg-black bg-opacity-90 backdrop-blur-xl z-50 flex flex-col text-white p-4 pb-20 md:pb-4 transition-all duration-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full'}`}
         >
-          {/* Header con botón de cerrar */}
-          <div className={`absolute top-4 left-4 transition-all duration-500 delay-100 ${
-            mounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'
-          }`}>
+          <div className={`absolute top-4 left-4 transition-all duration-500 delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
             <button
               onClick={handleClose}
               className="text-white/70 hover:text-white transition-all duration-200 hover:scale-110 active:scale-95"
@@ -170,12 +179,8 @@ const FullScreenPlayer = () => {
             </button>
           </div>
 
-          {/* Contenido principal */}
           <div className="flex-grow flex flex-col items-center justify-center text-center pt-10">
-            {/* Portada del álbum */}
-            <div className={`relative w-full max-w-md aspect-square shadow-2xl shadow-black/50 rounded-lg overflow-hidden transition-all duration-700 delay-200 ${
-              mounted ? 'opacity-100 scale-100 rotate-0' : 'opacity-0 scale-90 rotate-3'
-            }`}>
+            <div className={`relative w-full max-w-md aspect-square shadow-2xl shadow-black/50 rounded-lg overflow-hidden transition-all duration-700 delay-200 ${mounted ? 'opacity-100 scale-100 rotate-0' : 'opacity-0 scale-90 rotate-3'}`}>
               <img
                 src={bestCover || currentSong.portada || '/default_cover.png'}
                 alt="cover"
@@ -183,10 +188,7 @@ const FullScreenPlayer = () => {
               />
             </div>
 
-            {/* Información de la canción */}
-            <div className={`mt-8 transition-all duration-700 delay-300 ${
-              mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-            }`}>
+            <div className={`mt-8 transition-all duration-700 delay-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
               <h2 className="text-2xl font-bold tracking-tight transition-all duration-300 hover:scale-105">
                 {currentSong.titulo || 'Canción Desconocida'}
               </h2>
@@ -203,21 +205,17 @@ const FullScreenPlayer = () => {
             </div>
           </div>
 
-          {/* Controles */}
-          <div className={`w-full max-w-md mx-auto pb-6 transition-all duration-700 delay-400 ${
-            mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`}>
-            {/* Barra de progreso */}
+          <div className={`w-full max-w-md mx-auto pb-6 transition-all duration-700 delay-400 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
             <div className="w-full group">
               <input
                 type="range"
                 min="0"
                 max={duration || 100}
-                value={currentTime}
+                value={Math.min(currentTime, duration || 100)}
                 onChange={(e) => seek(Number(e.target.value))}
                 className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer group-hover:h-2 transition-all duration-200"
                 style={{
-                  background: `linear-gradient(to right, white ${progress}%, rgba(255,255,255,0.2) ${progress}%)`,
+                  background: `linear-gradient(to right, white ${isNaN(progress) ? 0 : progress}%, rgba(255,255,255,0.2) ${isNaN(progress) ? 0 : progress}%)`,
                 }}
               />
               <div className="flex justify-between text-xs text-white/50 mt-1">
@@ -227,10 +225,10 @@ const FullScreenPlayer = () => {
             </div>
 
             <div className="flex items-center justify-center space-x-4 mt-4">
-              {/* ❤️ Botón Like */}
               <button
                 onClick={handleToggleLike}
                 className="text-white/80 hover:text-white transition-all duration-200 hover:scale-110 active:scale-95"
+                aria-label="Like"
               >
                 {liked ? <IoHeart size={30} color="red" /> : <IoHeartOutline size={30} />}
               </button>
@@ -238,6 +236,7 @@ const FullScreenPlayer = () => {
               <button
                 onClick={previousSong}
                 className="text-white/80 hover:text-white transition-all duration-200 hover:scale-110 active:scale-95"
+                aria-label="Previous"
               >
                 <IoPlaySkipBackSharp size={32} />
               </button>
@@ -245,6 +244,7 @@ const FullScreenPlayer = () => {
               <button
                 onClick={togglePlayPause}
                 className="bg-white text-black rounded-full p-4 shadow-lg hover:shadow-white/50 hover:scale-110 active:scale-95 transition-all duration-200"
+                aria-label="PlayPause"
               >
                 {isPlaying ? <IoPauseSharp size={40} /> : <IoPlaySharp size={40} />}
               </button>
@@ -252,6 +252,7 @@ const FullScreenPlayer = () => {
               <button
                 onClick={nextSong}
                 className="text-white/80 hover:text-white transition-all duration-200 hover:scale-110 active:scale-95"
+                aria-label="Next"
               >
                 <IoPlaySkipForwardSharp size={32} />
               </button>
@@ -259,6 +260,7 @@ const FullScreenPlayer = () => {
               <button
                 onClick={handleToggleLyrics}
                 className="text-white/80 hover:text-white transition-all duration-200 hover:scale-110 active:scale-95"
+                aria-label="Lyrics"
               >
                 <IoText size={28} />
               </button>
@@ -268,14 +270,9 @@ const FullScreenPlayer = () => {
       ) : (
         <div
           {...handlers}
-          className={`fixed inset-0 z-50 bg-black bg-opacity-90 backdrop-blur-xl flex flex-col text-white p-4 pb-20 md:pb-4 transition-all duration-400 ${
-            showLyrics && !isAnimating ? 'opacity-100' : 'opacity-0'
-          }`}
+          className={`fixed inset-0 z-50 bg-black bg-opacity-90 backdrop-blur-xl flex flex-col text-white p-4 pb-20 md:pb-4 transition-all duration-400 ${showLyrics && !isAnimating ? 'opacity-100' : 'opacity-0'}`}
         >
-          {/* Header de letras */}
-          <div className={`absolute top-4 left-4 transition-all duration-500 ${
-            showLyrics && !isAnimating ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'
-          }`}>
+          <div className={`absolute top-4 left-4 transition-all duration-500 ${showLyrics && !isAnimating ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'}`}>
             <button
               onClick={handleToggleLyrics}
               className="text-white/70 hover:text-white transition-all duration-200 hover:scale-110 active:scale-95"
@@ -284,12 +281,9 @@ const FullScreenPlayer = () => {
             </button>
           </div>
 
-          {/* Contenedor de letras */}
           <div
             ref={lyricsContainerRef}
-            className={`lyrics-container transition-all duration-500 delay-100 ${
-              showLyrics && !isAnimating ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-            }`}
+            className={`lyrics-container transition-all duration-500 delay-100 ${showLyrics && !isAnimating ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
           >
             {lyrics.length === 0 ? (
               <p className="text-center text-white/50 mt-10 animate-pulse">
@@ -299,12 +293,8 @@ const FullScreenPlayer = () => {
               lyrics.map((line, i) => (
                 <p
                   key={i}
-                  className={`lyric-line transition-all duration-300 ${
-                    i === currentLineIndex ? 'active' : ''
-                  }`}
-                  style={{
-                    transitionDelay: `${i * 20}ms`,
-                  }}
+                  className={`lyric-line transition-all duration-300 ${i === currentLineIndex ? 'active' : ''}`}
+                  style={{ transitionDelay: `${i * 20}ms` }}
                 >
                   {line.line}
                 </p>

@@ -76,22 +76,87 @@ app.use("/api/history", historyRoutes);
 app.use("/api/playlists", playlistsRoutes);
 // -------------------------
 
+// Helpers de migración
+async function columnExists(table, column) {
+  const rows = await db.all(`PRAGMA table_info(${table})`);
+  return Array.isArray(rows) && rows.some(c => c.name === column);
+}
+
+async function ensureColumn(table, column, typeDef) {
+  try {
+    const exists = await columnExists(table, column);
+    if (!exists) {
+      await db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${typeDef}`);
+      logStatus(`Migración columna ${table}.${column}`, true, "(añadida)");
+    } else {
+      logStatus(`Migración columna ${table}.${column}`, true, "(ya existe)");
+    }
+  } catch (e) {
+    // SQLite no soporta IF NOT EXISTS en ADD COLUMN; si ya existe, ignoramos. 
+    logStatus(`Migración columna ${table}.${column}`, true, "(ignorada si ya existía)");
+  }
+}
+
 // --- Arranque del Servidor ---
 (async () => {
   try {
     // Conectar a la DB
     await db.get("SELECT 1");
+    await db.run("PRAGMA foreign_keys = ON");
     logStatus("Conexión a DB", true);
 
-    // --- TABLA IA_CACHE ---
+    // --- TABLA IA_CACHE (+ índices) ---
     await db.run(`
       CREATE TABLE IF NOT EXISTS ia_cache (
         query TEXT PRIMARY KEY,
         results TEXT,
-        timestamp INTEGER
+        timestamp INTEGER,
+        last_access INTEGER
       )
     `);
+    // Migración si ya existía sin last_access
+    await ensureColumn("ia_cache", "last_access", "INTEGER");
+    await db.run(`CREATE INDEX IF NOT EXISTS ia_cache_timestamp_idx ON ia_cache(timestamp)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS ia_cache_last_access_idx ON ia_cache(last_access)`);
     logStatus("Caché de Búsqueda", true, "Tabla 'ia_cache' lista.");
+
+    // --- TABLA IA_CLICKS (+ índice) ---
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS ia_clicks (
+        query TEXT,
+        identifier TEXT,
+        clicks INTEGER DEFAULT 1,
+        last_clicked INTEGER,
+        PRIMARY KEY (query, identifier)
+      )
+    `);
+    await db.run(`CREATE INDEX IF NOT EXISTS ia_clicks_query_idx ON ia_clicks(query)`);
+    logStatus("IA Clicks", true, "Tabla 'ia_clicks' lista.");
+
+    // --- TABLA IA_HITS (+ índice) ---
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS ia_hits (
+        query TEXT PRIMARY KEY,
+        top_identifier TEXT,
+        confidence REAL,
+        last_update INTEGER
+      )
+    `);
+    await db.run(`CREATE INDEX IF NOT EXISTS ia_hits_last_update_idx ON ia_hits(last_update)`);
+    logStatus("IA Hits", true, "Tabla 'ia_hits' lista.");
+
+    // --- TABLA IA_COMPARATOR (+ índice) ---
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS ia_comparator (
+        term_a TEXT,
+        term_b TEXT,
+        strength REAL DEFAULT 0,
+        last_update INTEGER,
+        PRIMARY KEY (term_a, term_b)
+      )
+    `);
+    await db.run(`CREATE INDEX IF NOT EXISTS ia_comparator_a_idx ON ia_comparator(term_a)`);
+    logStatus("IA Comparator", true, "Tabla 'ia_comparator' lista.");
 
     // --- TABLA HOME RECOMMENDATIONS ---
     await db.run(`
@@ -136,26 +201,28 @@ app.use("/api/playlists", playlistsRoutes);
       CREATE INDEX IF NOT EXISTS idx_lyrics_song_id_time
       ON lyrics(song_id, time_ms)
     `);
-    logStatus("Tabla de Letras", true, "Tabla 'lyrics' lista y lista para sincronización.");
+    logStatus("Tabla de Letras", true, "Tabla 'lyrics' lista e indexada.");
 
+    // --- TABLA LIKES ---
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS likes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        song_id INTEGER NOT NULL,
+        liked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+        FOREIGN KEY (song_id) REFERENCES canciones(id) ON DELETE CASCADE,
+        UNIQUE(user_id, song_id)
+      )
+    `);
+    logStatus("Likes", true, "Tabla 'likes' lista.");
+
+    // --- Iniciar el servidor ---
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`\nServidor corriendo en http://localhost:${PORT} o http://192.168.1.70:${PORT}\n`);
+    });
   } catch (err) {
     logStatus("Conexión a DB / Creación de tablas", false, err.message);
+    process.exit(1);
   }
-// --- TABLA LIKES ---
-await db.run(`
-  CREATE TABLE IF NOT EXISTS likes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    song_id INTEGER NOT NULL,
-    liked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE,
-    FOREIGN KEY (song_id) REFERENCES canciones(id) ON DELETE CASCADE,
-    UNIQUE(user_id, song_id)
-  )
-`);
-logStatus("Likes", true, "Tabla 'likes' lista.");
-  // --- Iniciar el servidor ---
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`\nServidor corriendo en http://localhost:${PORT} o http://192.168.1.70:${PORT}\n`);
-  });
 })();

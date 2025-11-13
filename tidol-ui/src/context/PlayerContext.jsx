@@ -1,3 +1,4 @@
+// src/context/PlayerContext.jsx
 import React, {
   createContext,
   useContext,
@@ -13,10 +14,9 @@ export const usePlayer = () => useContext(PlayerContext);
 
 export function PlayerProvider({ children }) {
   const [currentSong, setCurrentSong] = useState(null);
-  const [playlist, setPlaylist] = useState([]);
+  const [originalQueue, setOriginalQueue] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [playedHistory, setPlayedHistory] = useState([]);
-  const [originalQueue, setOriginalQueue] = useState([]);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -31,74 +31,67 @@ export function PlayerProvider({ children }) {
   const toggleFullScreenPlayer = () => setFullScreenPlayerOpen(prev => !prev);
   const closeFullScreenPlayer = () => setFullScreenPlayerOpen(false);
 
-  // Guardamos liked songs como Set para consultas rápidas
+  // likedSongs como Set
   const [likedSongs, setLikedSongs] = useState(new Set());
-  const prevLikeRef = useRef(null); // usado para revert en caso de error
+  const prevLikeRef = useRef(null);
 
-  const audioRef = useRef(new Audio());
+  const audioRef = useRef(null);
+  const hasUserInteracted = useRef(false);
 
+  // ---------- helpers ----------
   const addToHistory = useCallback((songId) => {
     setPlayedHistory(prev => prev.includes(songId) ? prev : [...prev, songId]);
   }, []);
 
-  // Cargar canciones con likes al inicio (maneja diferentes shapes de respuesta)
-  // PlayerContext.jsx - useEffect para cargar likes
-useEffect(() => {
-  const fetchLikedSongs = async () => {
-    try {
-      const res = await api.get('/music/songs/likes'); // ✅ CORRECTO
-      const data = res.data;
-      const arr = Array.isArray(data) ? data : (Array.isArray(data?.likes) ? data.likes : []);
-      const likedIds = new Set(arr.map(song => song.songId || song.id || song.id_cancion || null).filter(Boolean));
-      setLikedSongs(likedIds);
-    } catch (err) {
-      console.error("Error al cargar likes:", err);
-    }
-  };
-  fetchLikedSongs();
-}, []);
+  // Cargar liked songs al inicio
+  useEffect(() => {
+    let mounted = true;
+    const fetchLikedSongs = async () => {
+      try {
+        const res = await api.get('/music/songs/likes');
+        const data = res.data;
+        const arr = Array.isArray(data) ? data : (Array.isArray(data?.likes) ? data.likes : []);
+        const likedIds = new Set(arr.map(song => song.songId || song.id || song.id_cancion || null).filter(Boolean));
+        if (mounted) setLikedSongs(likedIds);
+      } catch (err) {
+        console.error("Error al cargar likes:", err);
+      }
+    };
+    fetchLikedSongs();
+    return () => { mounted = false; };
+  }, []);
 
-  // Toggle like/unlike (optimistic UI). Intenta rutas alternativas para compatibilidad.
   const toggleLike = useCallback(async (songId) => {
     if (!songId) return;
 
-    // Actualización optimista y guardamos estado previo para revert
+    // Optimistic UI
     setLikedSongs(prev => {
       const newSet = new Set(prev);
       const wasLiked = newSet.has(songId);
       if (wasLiked) newSet.delete(songId);
       else newSet.add(songId);
-
-      // Guardamos para posible revert
       prevLikeRef.current = { songId, wasLiked };
       return newSet;
     });
 
     const token = localStorage.getItem('token');
 
-    // Intentaremos varias rutas (seguridad ante distintas implementaciones)
-    const endpoints = [
-      `/music/songs/${songId}/like`,
-      `/music/like/${songId}`,
-      `/music/songs/${songId}/toggle-like`,
-      `/songs/${songId}/like`, // por si el proxy mapea distinto
-    ];
+    try {
+      await api.post(`/music/songs/${songId}/like`, null, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
 
-    let success = false;
-    for (const ep of endpoints) {
-      try {
-        await api.post(ep, null, { headers: { Authorization: `Bearer ${token}` } });
-        success = true;
-        break;
-      } catch (err) {
-        // No rompemos: probamos siguiente endpoint
-        // Sólo logeamos en detalle en el último intento
-        // console.warn(`Try endpoint ${ep} failed`, err.message);
-      }
-    }
-
-    if (!success) {
-      // Revertir UI si falló todo
+      // sincronizar currentSong.isLiked si es la pista actual
+      setCurrentSong(cs => {
+        if (!cs) return cs;
+        if (cs.id === songId) {
+          return { ...cs, isLiked: !prevLikeRef.current?.wasLiked };
+        }
+        return cs;
+      });
+      prevLikeRef.current = null;
+    } catch (err) {
+      // rollback
       const prev = prevLikeRef.current;
       if (prev && prev.songId === songId) {
         setLikedSongs(curr => {
@@ -108,44 +101,47 @@ useEffect(() => {
           return newSet;
         });
       }
-      console.error("No se pudo actualizar el like en el servidor para songId:", songId);
-    } else {
-      // Si tuvo éxito, actualizamos currentSong.isLiked si aplica
-      setCurrentSong(cs => {
-        if (!cs) return cs;
-        if (cs.id === songId) return { ...cs, isLiked: !prevLikeRef.current?.wasLiked };
-        return cs;
-      });
-      prevLikeRef.current = null;
+      console.error("No se pudo actualizar el like en el servidor para songId:", songId, err);
     }
   }, []);
 
-  // Verificar si una canción está en favoritos
   const isSongLiked = useCallback((songId) => {
     return likedSongs.has(songId);
   }, [likedSongs]);
 
-  // Cuando cambian likedSongs, sincronizamos el currentSong.isLiked
+  // Gesto del usuario para autoplay
   useEffect(() => {
-    if (!currentSong) return;
-    const liked = likedSongs.has(currentSong.id);
-    if (currentSong.isLiked !== liked) {
-      setCurrentSong(prev => prev ? { ...prev, isLiked: liked } : prev);
-    }
-  }, [likedSongs, currentSong]);
+    const handleFirstInteraction = () => {
+      if (!hasUserInteracted.current) {
+        hasUserInteracted.current = true;
+      }
+      window.removeEventListener('click', handleFirstInteraction, true);
+    };
+    window.addEventListener('click', handleFirstInteraction, true);
+    return () => window.removeEventListener('click', handleFirstInteraction, true);
+  }, []);
 
-  // Reproduce una lista a partir de un índice
+  // Sincronizar isLiked en currentSong
+  useEffect(() => {
+    setCurrentSong(prev => {
+      if (!prev) return prev;
+      const liked = likedSongs.has(prev.id);
+      if (prev.isLiked === liked) return prev;
+      return { ...prev, isLiked: liked };
+    });
+  }, [likedSongs]);
+
+  // Reproduce una lista
   const playSongList = useCallback((songs, startIndex = 0) => {
     if (!songs || songs.length === 0) return;
     setOriginalQueue(songs);
     const mainSong = songs[startIndex];
-    // Añadimos isLiked según el set actual
-    setCurrentSong({ ...mainSong, isLiked: likedSongs.has(mainSong.id) });
-    setPlaylist(songs.slice(startIndex + 1));
     setCurrentIndex(startIndex);
+    setCurrentSong({ ...mainSong, isLiked: likedSongs.has(mainSong.id) });
     addToHistory(mainSong.id);
   }, [addToHistory, likedSongs]);
 
+  // Radio infinita
   const fetchRecommendations = useCallback(async (songToUse) => {
     if (!songToUse) return;
     setIsLoading(true);
@@ -158,27 +154,22 @@ useEffect(() => {
         songToUse.artist ||
         songToUse.identifier ||
         '';
-
       if (!candidate) {
         setIsLoading(false);
         setIsPlaying(false);
         return;
       }
-
       const res = await api.get(`/music/searchArchive?q=${encodeURIComponent(candidate)}`);
       const results = res.data || [];
-
       if (Array.isArray(results) && results.length > 0) {
         const songs = results.map((item, idx) => {
           let highResCover = null;
           if (item.files && Array.isArray(item.files)) {
             const coverFile = item.files.find(f => f.format?.includes("JPEG") || f.format?.includes("PNG"));
             if (coverFile) {
-              const subdomain = item.server?.replace(/^https?:\/\//,'') || 'archive.org';
               highResCover = `https://archive.org/0/items/${item.identifier}/${coverFile.name}?cnt=0`;
             }
           }
-
           return {
             id: item.identifier || item.id || `ia_${idx}_${Math.random().toString(36).slice(2,8)}`,
             url: item.url || item.file || item.playbackUrl || (`https://archive.org/download/${item.identifier}/${item.filename || ''}`),
@@ -188,9 +179,14 @@ useEffect(() => {
             duracion: item.duration || 0
           };
         }).filter(s => s.url);
-
-        if (songs.length > 0) playSongList(songs, 0);
-        else setIsPlaying(false);
+        if (songs.length > 0) {
+          setOriginalQueue(songs);
+          setCurrentIndex(0);
+          setCurrentSong({ ...songs[0], isLiked: likedSongs.has(songs[0].id) });
+          addToHistory(songs[0].id);
+        } else {
+          setIsPlaying(false);
+        }
       } else {
         setIsPlaying(false);
       }
@@ -200,15 +196,14 @@ useEffect(() => {
     } finally {
       setIsLoading(false);
     }
-  }, [playSongList]);
+  }, [addToHistory, likedSongs]);
 
   const nextSong = useCallback(async () => {
-    // Si hay más en la cola original
     if (originalQueue.length > 0 && currentIndex < originalQueue.length - 1) {
       const nextIndex = currentIndex + 1;
       const nextSongData = originalQueue[nextIndex];
-      setCurrentSong({ ...nextSongData, isLiked: likedSongs.has(nextSongData.id) });
       setCurrentIndex(nextIndex);
+      setCurrentSong({ ...nextSongData, isLiked: likedSongs.has(nextSongData.id) });
       addToHistory(nextSongData.id);
     } else {
       await fetchRecommendations(currentSong);
@@ -217,67 +212,90 @@ useEffect(() => {
 
   const previousSong = useCallback(() => {
     if (!audioRef.current) return;
-
-    // Si la canción lleva más de 3 segundos, reiníciala
     if (audioRef.current.currentTime > 3) {
       audioRef.current.currentTime = 0;
+      setCurrentTime(0);
       return;
     }
-
-    // Verifica si hay una canción anterior en la cola original
     if (currentIndex > 0) {
       const prevIndex = currentIndex - 1;
       const prevSongData = originalQueue[prevIndex];
-
       if (prevSongData) {
-        setCurrentSong({ ...prevSongData, isLiked: likedSongs.has(prevSongData.id) });
         setCurrentIndex(prevIndex);
+        setCurrentSong({ ...prevSongData, isLiked: likedSongs.has(prevSongData.id) });
       }
     }
   }, [currentIndex, originalQueue, likedSongs]);
 
   const togglePlayPause = useCallback(() => {
-    if (!currentSong) return;
-    if (isPlaying) audioRef.current.pause();
-    else audioRef.current.play()
-      .catch(err => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play().catch(err => {
         console.error("Play error:", err);
       });
-  }, [currentSong, isPlaying]);
+    }
+  }, [isPlaying]);
 
   const seek = useCallback((newTime) => {
+    if (!audioRef.current) return;
     audioRef.current.currentTime = newTime;
     setCurrentTime(newTime);
   }, []);
 
   const changeVolume = useCallback((newVolume) => {
     const audio = audioRef.current;
-    audio.volume = newVolume;
-    audio.muted = newVolume === 0;
-    setVolume(newVolume);
-    setIsMuted(newVolume === 0);
+    if (!audio) return;
+    audio.volume = Math.min(1, Math.max(0, newVolume));
+    audio.muted = audio.volume === 0;
+    setVolume(audio.volume);
+    setIsMuted(audio.muted);
   }, []);
 
   const toggleMute = useCallback(() => {
     const audio = audioRef.current;
+    if (!audio) return;
     audio.muted = !audio.muted;
     if (!audio.muted && audio.volume === 0) audio.volume = 0.5;
     setIsMuted(audio.muted);
+    setVolume(audio.volume);
   }, []);
 
-  // Cuando cambia la canción, actualizamos audio.src y enviamos historial
+  // Actualiza audio.src y gatea autoplay por interacción del usuario
   useEffect(() => {
     if (!currentSong) return;
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+      audioRef.current.preload = 'auto';
+      audioRef.current.crossOrigin = 'anonymous';
+    }
     const audio = audioRef.current;
-    audio.src = currentSong.url;
 
-    audio.play()
-      .then(() => setIsPlaying(true))
-      .catch((err) => {
-        console.error("Error al reproducir:", err);
-        setIsPlaying(false);
-      });
+    const previousSrc = audio.src;
+    const newSrc = currentSong.url || previousSrc;
+    if (previousSrc !== newSrc) {
+      audio.src = newSrc;
+    }
 
+    const safePlay = () => {
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          console.warn("🔇 Autoplay bloqueado. Esperando interacción del usuario.");
+          setIsPlaying(false);
+        });
+      }
+    };
+
+    audio.load();
+    if (hasUserInteracted.current) {
+      safePlay();
+    } else {
+      setIsPlaying(false);
+    }
+
+    // Historial no bloqueante
     api.post('/history/add', {
       songId: currentSong.id,
       titulo: currentSong.titulo,
@@ -285,23 +303,53 @@ useEffect(() => {
       url: currentSong.url,
       portada: currentSong.portada,
     }).catch(err => console.error("DB Historial error:", err));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSong]);
 
   // Eventos del audio
   useEffect(() => {
     const audio = audioRef.current;
+    if (!audio) return;
 
     const onTimeUpdate = () => {
       const t = audio.currentTime || 0;
       const d = audio.duration || 0;
       setCurrentTime(t);
-      if (d > 0) {
+      if (d > 0 && !isNaN(d) && isFinite(d)) {
         setDuration(d);
         setProgress((t / d) * 100);
+      } else {
+        setDuration(prev => prev || 0);
       }
     };
 
-    const onEnded = () => nextSong();
+    const onLoadedMetadata = () => {
+      const d = audio.duration || 0;
+      if (d > 0 && !isNaN(d) && isFinite(d)) {
+        setDuration(d);
+      }
+    };
+
+    const onEmptied = () => {
+      setCurrentTime(0);
+      setDuration(0);
+      setProgress(0);
+      setIsPlaying(false);
+    };
+
+    const onLoadStart = () => {
+      setIsLoading(true);
+    };
+
+    const onCanPlay = () => {
+      setIsLoading(false);
+    };
+
+    const onEnded = () => {
+      setIsPlaying(false);
+      nextSong();
+    };
+
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
     const onVolumeChange = () => {
@@ -309,18 +357,26 @@ useEffect(() => {
       setIsMuted(audio.muted);
     };
 
-    audio.addEventListener("timeupdate", onTimeUpdate);
-    audio.addEventListener("ended", onEnded);
-    audio.addEventListener("play", onPlay);
-    audio.addEventListener("pause", onPause);
-    audio.addEventListener("volumechange", onVolumeChange);
+    audio.addEventListener('timeupdate', onTimeUpdate);
+    audio.addEventListener('loadedmetadata', onLoadedMetadata);
+    audio.addEventListener('emptied', onEmptied);
+    audio.addEventListener('loadstart', onLoadStart);
+    audio.addEventListener('canplay', onCanPlay);
+    audio.addEventListener('ended', onEnded);
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('pause', onPause);
+    audio.addEventListener('volumechange', onVolumeChange);
 
     return () => {
-      audio.removeEventListener("timeupdate", onTimeUpdate);
-      audio.removeEventListener("ended", onEnded);
-      audio.removeEventListener("play", onPlay);
-      audio.removeEventListener("pause", onPause);
-      audio.removeEventListener("volumechange", onVolumeChange);
+      audio.removeEventListener('timeupdate', onTimeUpdate);
+      audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+      audio.removeEventListener('emptied', onEmptied);
+      audio.removeEventListener('loadstart', onLoadStart);
+      audio.removeEventListener('canplay', onCanPlay);
+      audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('pause', onPause);
+      audio.removeEventListener('volumechange', onVolumeChange);
     };
   }, [nextSong]);
 
@@ -336,7 +392,7 @@ useEffect(() => {
         currentTime,
         duration,
         progress,
-        hasNext: !!currentSong,
+        hasNext: originalQueue.length > 0,
         hasPrevious: currentIndex > 0 || currentTime > 3,
         playSongList,
         togglePlayPause,
