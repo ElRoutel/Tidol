@@ -23,7 +23,6 @@
 /* Reset y estilos base del contenedor principal */
 .music-upload-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, var(--bg-color) 0%, #1a1a1a 100%);
   padding: 2rem 1rem;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   color: var(--text-primary);
@@ -46,12 +45,8 @@
 .music-upload-form {
   max-width: 650px;
   margin: 0 auto 2rem;
-  background: var(--card-bg);
   padding: clamp(1.5rem, 4vw, 2.5rem);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-lg);
-  border: 1px solid var(--border-color);
-  backdrop-filter: blur(10px);
+  border-radius: 16px;
 }
 
 /* Inputs de archivo base */
@@ -137,7 +132,7 @@
   text-align: center;
   font-size: 1rem;
   font-weight: 500;
-  border-radius: var(--radius);
+  border-radius: 16px;
   transition: var(--transition);
 }
 
@@ -172,11 +167,8 @@
 
 /* Tarjeta individual de canción */
 .music-upload-song-card {
-  background: var(--card-bg);
   padding: 1.5rem;
-  border-radius: var(--radius);
-  border: 1px solid var(--border-color);
-  box-shadow: var(--shadow-md);
+  border-radius: 12px;
   transition: var(--transition);
   animation: musicUploadSlideUp 0.4s ease-out;
   display: flex;
@@ -196,9 +188,8 @@
 }
 
 .music-upload-song-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg);
-  border-color: var(--primary-color);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+  filter: brightness(1.1);
 }
 
 /* Título de la canción */

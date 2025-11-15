@@ -10,7 +10,8 @@ import {
   IoCloudUploadOutline,
   IoAdd,
   IoHeartOutline,
-  IoBookOutline
+  IoBookOutline,
+  IoDocumentTextOutline
 } from "react-icons/io5";
 
 // ✅ Logo
@@ -175,6 +176,15 @@ export default function Sidebar() {
           <span className="text-xs">Ver detalles</span>
         </NavLink>
       </div>
+
+      {/* Términos de Uso */}
+      <NavLink 
+        to="/terms"
+        className="bg-surface rounded-lg p-4 flex items-center gap-3 text-text-subdued hover:text-text hover:bg-surface-hover transition-colors"
+      >
+        <IoDocumentTextOutline size={24} />
+        <span className="font-semibold text-sm">Términos de Uso</span>
+      </NavLink>
 
     </aside>
   );

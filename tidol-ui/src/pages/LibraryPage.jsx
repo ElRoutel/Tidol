@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useSwipeable } from "react-swipeable";
 import { usePlayer } from "../context/PlayerContext";
 import api from "../api/axiosConfig";
+import '../styles/glass.css';
 import favImage from "./favImage.jpg";
 import "./Library.css";
 
@@ -123,7 +124,7 @@ export default function LibraryPage() {
       {/* Vista Favoritos */}
       {currentView === "favorites" && (
         <div className="library-view-content">
-          <div className="library-header">
+          <div className="library-header glass-card">
             <img src={favImage} alt="Favoritos" className="library-header-img" />
             <div>
               <p className="library-header-type">Playlist</p>
@@ -148,7 +149,7 @@ export default function LibraryPage() {
           )}
 
           {!loading && songs.length === 0 && (
-            <div className="library-empty">
+            <div className="library-empty glass-card">
               <p className="library-empty-title">Nada por aquí 👀</p>
               <p className="library-empty-text">
                 Marca canciones con ❤️ para que aparezcan aquí.
@@ -161,7 +162,7 @@ export default function LibraryPage() {
       {/* Vista Playlists */}
       {currentView === "playlists" && (
         <div className="library-view-content">
-          <div className="library-header">
+          <div className="library-header glass-card">
             <div className="playlists-header-icon">🎵</div>
             <div>
               <p className="library-header-type">Mis Playlists</p>
@@ -185,7 +186,7 @@ export default function LibraryPage() {
           )}
 
           {!loadingPlaylists && playlists.length === 0 && (
-            <div className="library-empty">
+            <div className="library-empty glass-card">
               <p className="library-empty-title">No tienes playlists 📝</p>
               <p className="library-empty-text">
                 Proximamente las agregaré.

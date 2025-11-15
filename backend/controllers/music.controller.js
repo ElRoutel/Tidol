@@ -844,7 +844,116 @@ export const registerIaComparator = async (req, res) => {
   }
 };
 
-// ----------------- EXPORT DEFAULT -----------------
+// ============================================
+// -----------------IA LIKES CONTROLLERS -----------------
+export const toggleIaLike = async (req, res) => {
+  const userId = req.userId;
+  const { identifier, title, artist, source } = req.body;
+
+  if (!userId) return res.status(401).json({ error: "No autorizado" });
+  if (!identifier) return res.status(400).json({ error: "Falta identifier" });
+
+  try {
+    // Verificar si canción externa existe
+    let externalSong = await db.get(
+      `SELECT id FROM canciones_externas WHERE external_id = ? AND source = ?`,
+      [identifier, source || 'internet_archive']
+    );
+
+    // Si no existe, crearla
+    if (!externalSong) {
+      await db.run(
+        `INSERT INTO canciones_externas (external_id, source, title, artist) 
+         VALUES (?, ?, ?, ?)`,
+        [identifier, source || 'internet_archive', title || '', artist || '']
+      );
+      externalSong = await db.get(
+        `SELECT id FROM canciones_externas WHERE external_id = ?`,
+        [identifier]
+      );
+    }
+
+    // Verificar si ya tiene like
+    const existing = await db.get(
+      `SELECT id FROM likes_externos WHERE user_id = ? AND cancion_externa_id = ?`,
+      [userId, externalSong.id]
+    );
+
+    if (existing) {
+      await db.run(`DELETE FROM likes_externos WHERE id = ?`, [existing.id]);
+      return res.json({ liked: false });
+    } else {
+      await db.run(
+        `INSERT INTO likes_externos (user_id, cancion_externa_id) VALUES (?, ?)`,
+        [userId, externalSong.id]
+      );
+      return res.json({ liked: true });
+    }
+  } catch (err) {
+    console.error("Error al alternar like de IA:", err);
+    res.status(500).json({ error: "Error al actualizar el like" });
+  }
+};
+
+export const checkIfIaLiked = async (req, res) => {
+  const userId = req.userId;
+  const { identifier, source } = req.query;
+
+  if (!userId) return res.status(401).json({ error: "No autorizado" });
+  if (!identifier) return res.status(400).json({ error: "Falta identifier" });
+
+  try {
+    const externalSong = await db.get(
+      `SELECT id FROM canciones_externas WHERE external_id = ? AND source = ?`,
+      [identifier, source || 'internet_archive']
+    );
+
+    if (!externalSong) {
+      return res.json({ liked: false });
+    }
+
+    const like = await db.get(
+      `SELECT id FROM likes_externos WHERE user_id = ? AND cancion_externa_id = ?`,
+      [userId, externalSong.id]
+    );
+    res.json({ liked: !!like });
+  } catch (err) {
+    console.error("Error al verificar like de IA:", err);
+    res.status(500).json({ error: "Error al verificar like" });
+  }
+};
+
+export const getUserIaLikes = async (req, res) => {
+  const userId = req.userId;
+  if (!userId) return res.status(401).json({ error: "No autorizado" });
+
+  try {
+    const likes = await db.all(`
+      SELECT 
+        ce.id,
+        ce.external_id as identifier,
+        ce.source,
+        ce.title,
+        ce.artist,
+        ce.song_url as url,
+        ce.cover_url as portada,
+        ce.duration,
+        le.id as likeId
+      FROM likes_externos le
+      JOIN canciones_externas ce ON ce.id = le.cancion_externa_id
+      WHERE le.user_id = ?
+      ORDER BY le.liked_at DESC
+    `, [userId]);
+
+    res.json(likes);
+  } catch (err) {
+    console.error("Error al obtener likes de IA:", err);
+    res.status(500).json({ error: "Error al obtener canciones con like" });
+  }
+};
+
+// ============================================
+// -----------------EXPORT DEFAULT -----------------
 export default {
   searchAll,
   search,
@@ -863,5 +972,8 @@ export default {
   getUserLikes,
   registerIaClick,
   registerComparatorRelation,
-  registerIaComparator
+  registerIaComparator,
+  toggleIaLike,
+  checkIfIaLiked,
+  getUserIaLikes
 };

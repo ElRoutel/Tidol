@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axiosConfig'; 
 import { useAuth } from '../context/AuthContext';
+import '../styles/glass.css';
 import './upload.css';
 
 export function UploadPage() {
@@ -89,7 +90,7 @@ export function UploadPage() {
     <section className="music-upload-container">
       <h2 className="music-upload-title">Subir Canciones/Álbumes</h2>
       
-      <form className="music-upload-form" onSubmit={handleSubmit}>
+      <form className="music-upload-form glass-card" onSubmit={handleSubmit}>
         <input 
           type="file" 
           className="music-upload-input-file music-upload-songs-input"
@@ -132,11 +133,11 @@ export function UploadPage() {
         </button>
       </form>
       
-      <p className="music-upload-status">{status}</p>
+      <p className="music-upload-status glass-card">{status}</p>
 
       <div className="music-upload-songs-grid">
         {uploadedSongs.map(song => (
-          <div key={song.id} className="music-upload-song-card">
+          <div key={song.id} className="music-upload-song-card glass-card">
             <strong className="music-upload-song-title">
               {song.titulo}
             </strong>

@@ -1,8 +1,78 @@
 // src/components/SearchResultCard.jsx
-import React from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { IoPlay } from 'react-icons/io5';
+import { IoHeart, IoHeartOutline } from 'react-icons/io5';
+import { AuthContext } from '../context/AuthContext';
+import api from '../api/axiosConfig';
 
-export default function SearchResultCard({ image, title, subtitle, onClick }) {
+export default function SearchResultCard({ 
+  image, 
+  title, 
+  subtitle, 
+  onClick,
+  isArchive = false,
+  songData = null,
+  onLikeChange = null
+}) {
+  const { userId } = useContext(AuthContext);
+  const [isLiked, setIsLiked] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Verificar si la canción está marcada como favorita al montar el componente
+  useEffect(() => {
+    if (isArchive && isLoading && userId) {
+      checkIfLiked();
+    }
+  }, [isArchive, userId]);
+
+  const checkIfLiked = async () => {
+    if (!isArchive || !songData) return;
+    
+    try {
+      const response = await api.get('/music/ia/likes/check', {
+        params: {
+          identifier: songData.identifier || songData.id,
+          source: songData.source || 'internet_archive'
+        }
+      });
+      setIsLiked(response.data.liked);
+    } catch (err) {
+      console.error('Error al verificar like:', err);
+    }
+  };
+
+  const handleLikeClick = async (e) => {
+    e.stopPropagation(); // Evitar que se dispare onClick de la tarjeta
+    
+    if (!userId) {
+      alert('Debes iniciar sesión para marcar como favorito');
+      return;
+    }
+
+    if (!isArchive || !songData) return;
+
+    setIsLoading(true);
+    try {
+      const response = await api.post('/music/ia/likes/toggle', {
+        identifier: songData.identifier || songData.id,
+        title: songData.titulo || title,
+        artist: songData.artista || subtitle,
+        source: songData.source || 'internet_archive'
+      });
+      
+      setIsLiked(response.data.liked);
+      
+      if (onLikeChange) {
+        onLikeChange(response.data.liked);
+      }
+    } catch (err) {
+      console.error('Error al alternar like:', err);
+      alert('Error al guardar el favorito');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div
       onClick={onClick}
@@ -30,6 +100,22 @@ export default function SearchResultCard({ image, title, subtitle, onClick }) {
         <h3 className="card-title">{title}</h3>
         <p className="card-subtitle">{subtitle}</p>
       </div>
+
+      {/* Botón de like para Internet Archive */}
+      {isArchive && (
+        <button
+          onClick={handleLikeClick}
+          disabled={isLoading}
+          className="like-button"
+          title={isLiked ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+        >
+          {isLiked ? (
+            <IoHeart size={20} color="#ef4444" />
+          ) : (
+            <IoHeartOutline size={20} color="rgba(255, 255, 255, 0.6)" />
+          )}
+        </button>
+      )}
 
       {/* Barra de acento sutil */}
       <div className="card-accent" />
@@ -224,6 +310,35 @@ export default function SearchResultCard({ image, title, subtitle, onClick }) {
 
         .search-result-card:hover .card-accent {
           transform: translateY(-50%) scaleY(1);
+        }
+
+        /* Botón de Like */
+        .like-button {
+          flex-shrink: 0;
+          width: 40px;
+          height: 40px;
+          border: none;
+          background: rgba(255, 255, 255, 0.08);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 8px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s ease;
+          padding: 0;
+          margin-left: 8px;
+        }
+
+        .like-button:hover {
+          background: rgba(239, 68, 68, 0.2);
+          border-color: rgba(239, 68, 68, 0.4);
+          box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+        }
+
+        .like-button:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
 
         /* Responsive */

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { usePlayer } from '../context/PlayerContext';
 import './search.css';
+import '../styles/glass.css';
 import SearchInput from '../components/SearchInput';
 import SearchResultCard from '../components/SearchResultCard';
 
@@ -97,13 +98,13 @@ export function SearchPage() {
   return (
     <div className="search-page">
       {/* Barra de búsqueda */}
-      <div className="search-header">
+      <div className="search-header glass-card">
         <SearchInput onSearch={handleSearch} loading={loading} />
       </div>
 
       {/* Estado inicial */}
       {initialSearch && (
-        <div className="search-empty-state">
+        <div className="search-empty-state glass-card">
           <div className="empty-icon">🔍</div>
           <h2 className="empty-title">Descubre tu música</h2>
           <p className="empty-description">
@@ -117,7 +118,7 @@ export function SearchPage() {
 
       {/* Sin resultados */}
       {!loading && !initialSearch && !hasResults && (
-        <div className="search-empty-state">
+        <div className="search-empty-state glass-card">
           <div className="empty-icon">🎵</div>
           <h2 className="empty-title">No se encontraron resultados</h2>
           <p className="empty-description">
@@ -131,7 +132,7 @@ export function SearchPage() {
         {/* Artistas */}
         {results.artists.length > 0 && (
           <div className="results-section">
-            <div className="section-header">
+            <div className="section-header glass-card">
               <h2 className="section-title">
                 Artistas
                 <span className="results-count">{results.artists.length}</span>
@@ -154,7 +155,7 @@ export function SearchPage() {
         {/* Álbumes locales */}
         {results.albums.length > 0 && (
           <div className="results-section">
-            <div className="section-header">
+            <div className="section-header glass-card">
               <h2 className="section-title">
                 Álbumes
                 <span className="results-count">{results.albums.length}</span>
@@ -177,7 +178,7 @@ export function SearchPage() {
         {/* Canciones locales */}
         {results.canciones.length > 0 && (
           <div className="results-section">
-            <div className="section-header">
+            <div className="section-header glass-card">
               <h2 className="section-title">
                 Canciones
                 <span className="results-count">{results.canciones.length}</span>
@@ -200,7 +201,7 @@ export function SearchPage() {
         {/* Internet Archive */}
         {results.archive.length > 0 && (
           <div className="results-section">
-            <div className="section-header">
+            <div className="section-header glass-card">
               <h2 className="section-title">
                 Internet Archive 🌐
                 <span className="results-count">{results.archive.length}</span>
@@ -214,6 +215,8 @@ export function SearchPage() {
                   title={item.titulo}
                   subtitle={item.artista}
                   onClick={() => handlePlayArchive(item)}
+                  isArchive={true}
+                  songData={item}
                 />
               ))}
             </div>
@@ -223,9 +226,9 @@ export function SearchPage() {
 
       {/* Indicador de carga */}
       {loading && (
-        <div className="search-loading">
+        <div className="search-loading glass-card">
           <div className="loading-spinner" />
-          <p className="loading-text">Buscando en todas partes...</p>
+          <p className="loading-text">Buscando en todas partes (si la busqueda es nueva puede tardar unos 30s)...</p>
         </div>
       )}
     </div>

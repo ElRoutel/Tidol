@@ -23,6 +23,7 @@ import InternetArchivePage from './pages/InternetArchivePage';
 import RegisterPage from './pages/RegisterPage';
 import ProfilePage from './pages/ProfilePage';
 import LibraryPage from './pages/LibraryPage';
+import TermsPage from './pages/TermsPage';
 
 // RUTA PROTEGIDA
 function ProtectedRoute({ children }) {
@@ -89,6 +90,7 @@ function AppLayout() {
               <Route path="/ia-album/:identifier" element={<InternetArchivePage />} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/library" element={<LibraryPage />} />
+              <Route path="/terms" element={<TermsPage />} />
             </Routes>
           </main>
 
