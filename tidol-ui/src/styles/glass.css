@@ -1,0 +1,82 @@
+:root{
+  --glass-bg: rgba(255,255,255,0.03);
+  --glass-bg-2: rgba(255,255,255,0.02);
+  --glass-border: rgba(255,255,255,0.06);
+  --glass-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  --glass-radius: 12px;
+  --glass-accent: rgba(255,255,255,0.06);
+}
+
+/* Reusable glass surface for cards / panels */
+.glass-card {
+  background: linear-gradient(180deg, var(--glass-bg) 0%, var(--glass-bg-2) 100%);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+/* Prevent visual seams when cards overlap/backdrop-filter stacks */
+.glass-card {
+  background-clip: padding-box;
+  -webkit-background-clip: padding-box;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Hover: no elevation in carousels, use shadow/brightness only */
+.glass-card:hover { box-shadow: 0 12px 36px rgba(0,0,0,0.55); background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.03) 100%); }
+
+.song-card-local {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.song-card-local.playing { box-shadow: 0 14px 40px rgba(0,0,0,0.55); transform: translateY(-2px); }
+
+.song-cover { width:56px; height:56px; object-fit: cover; border-radius: 8px; flex: 0 0 56px; }
+
+.song-card-local h4 { margin: 0; font-size: 14px; color: #fff; }
+.song-card-local p { margin: 0; font-size: 12px; color: rgba(255,255,255,0.7); }
+
+.context-menu { min-width: 150px; }
+.context-menu ul { margin: 0; padding: 6px; list-style: none; }
+.context-menu li { padding: 8px 10px; border-radius: 6px; }
+.context-menu li:hover { background: rgba(255,255,255,0.04); }
+
+@media (max-width: 768px){
+  .song-cover { width:48px; height:48px; }
+  .song-card-local { padding: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-card { transition: none; transform: none; }
+}
+
+/* Album card sizing to keep consistent aesthetic */
+.album-card { width: 12rem; flex-shrink: 0; }
+.album-cover { width: 100%; height: 10rem; object-fit: cover; border-radius: 8px; }
+
+/* Archive album specific adjustments */
+.archive-album-card { display: flex; flex-direction: column; gap: 8px; }
+.result-info { padding-top: 6px; }
+
+/* Compact glass variant: less padding, smaller blur/shadow for dense lists */
+.glass-compact {
+  background: linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.01) 100%);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 10px;
+  padding: 8px; /* compact padding */
+  box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+  backdrop-filter: blur(6px) saturate(110%);
+  -webkit-backdrop-filter: blur(6px) saturate(110%);
+}
+
+.glass-compact:hover { box-shadow: 0 10px 25px rgba(0,0,0,0.45); background: linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%); }
+

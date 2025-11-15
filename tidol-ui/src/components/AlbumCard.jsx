@@ -1,17 +1,18 @@
 // src/components/AlbumCard.jsx
 import { Link } from 'react-router-dom';
 import { IoPlay } from "react-icons/io5";
+import '../styles/glass.css';
 
 const AlbumCard = ({ album }) => {
   return (
-    <Link to={`/album/${album.id}`} className="block w-48 flex-shrink-0 group">
-      <div className="bg-surface hover:bg-interactive-bg transition-colors duration-300 rounded-lg p-4 h-full">
+    <Link to={`/album/${album.id}`} className="block album-card group">
+      <div className="glass-card rounded-lg p-3 h-full transition-colors duration-300">
         
         <div className="relative w-full mb-4">
           <img
             src={album.portada}
             alt={album.titulo}
-            className="w-full h-40 object-cover rounded-md mb-4"
+            className="album-cover mb-4"
           />
           
           {/* Overlay and Play Button */}

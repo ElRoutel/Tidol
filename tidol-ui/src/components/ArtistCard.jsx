@@ -5,7 +5,7 @@ import { IoPlay } from "react-icons/io5";
 export default function ArtistCard({ artist }) {
   return (
     <Link to={`/artist/${artist.id}`} className="block w-48 flex-shrink-0 group">
-      <div className="bg-surface hover:bg-interactive-bg transition-colors duration-300 rounded-lg p-4 text-center">
+      <div className="glass-card rounded-lg p-3 text-center transition-colors duration-200">
         
         <div className="relative w-32 h-32 mx-auto mb-4">
           <img 

@@ -43,12 +43,12 @@ const IaAlbumCard = ({ album }) => {
   }, [identifier]);
 
   return (
-    <div onClick={handleClick} className="block w-48 flex-shrink-0 cursor-pointer">
-      <div className="bg-surface rounded-lg p-4 transition-all duration-300 hover:bg-interactive-bg h-full shadow-lg">
+    <div onClick={handleClick} className="block album-card flex-shrink-0 cursor-pointer">
+      <div className="glass-card rounded-lg p-3 transition-all duration-300 h-full shadow-lg">
         <img
           src={displayImage || fallbackImg}
           alt={title}
-          className="w-full h-40 object-cover rounded-md mb-4 shadow-md"
+          className="album-cover mb-4 shadow-md"
           loading="lazy"
         />
         <h3 className="font-semibold text-text truncate">{title}</h3>

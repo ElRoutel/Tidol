@@ -2,107 +2,104 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import './Auth.css';
+import logo from '../../public/logo.svg';
 
 export default function LoginPage() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const { login, loading, error } = useAuth(); // 'error' viene del contexto
-  const navigate = useNavigate();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const { login, loading, error } = useAuth();
+  const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const result = await login(username, password); // Llama a la función del contexto
-    if (result.success) {
-      // Redirige a la página que dijo el backend o a la home
-      navigate(result.redirectPage || '/');
-    }
-  };
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const result = await login(username, password);
+    if (result.success) {
+      navigate(result.redirectPage || '/');
+    }
+  };
 
-  return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #1db954 0%, #191414 100%)'
-    }}>
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          background: '#181818',
-          padding: '40px',
-          borderRadius: '12px',
-          width: '400px',
-          maxWidth: '90%'
-        }}
-      >
-        <h1 style={{ marginBottom: '24px', textAlign: 'center' }}>Tidol</h1>
-        
-        <input
-          type="text"
-          placeholder="Usuario"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '12px',
-            marginBottom: '16px',
-            background: '#282828',
-            border: 'none',
-            borderRadius: '6px',
-            color: 'white',
-            fontSize: '14px'
-          }}
-        />
-        
-        <input
-          type="password"
-          placeholder="Contraseña"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '12px',
-            marginBottom: '24px',
-            background: '#282828',
-            border: 'none',
-            borderRadius: '6px',
-            color: 'white',
-            fontSize: '14px'
-          }}
-        />
-        
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            width: '100%',
-            padding: '14px',
-            background: '#1db954',
-            border: 'none',
-            borderRadius: '24px',
-            color: 'white',
-            fontSize: '16px',
-            fontWeight: '600',
-            cursor: 'pointer'
-          }}
-        >
-          {loading ? 'Cargando...' : 'Entrar'}
-        </button>
-        
-        {error && (
-          <p style={{ color: '#ff5555', marginTop: '16px', textAlign: 'center' }}>
-            {error}
-          </p>
-        )}
+  return (
+    <div className="auth-container">
+      <div className="auth-background">
+        <div className="auth-gradient-orb auth-orb-1"></div>
+        <div className="auth-gradient-orb auth-orb-2"></div>
+        <div className="auth-gradient-orb auth-orb-3"></div>
+      </div>
 
-        <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '14px', color: '#b3b3b3' }}>
-          ¿No tienes una cuenta?{' '}
-          <Link to="/register" style={{ color: 'white', textDecoration: 'underline', fontWeight: 'bold' }}>
-            Regístrate
-          </Link>
+      <div className="auth-card">
+        <div className="auth-logo">
+          <img src={logo} alt="Tidol Logo" className="auth-logo-icon" />
+          <h1 className="auth-title">Tidol</h1>
         </div>
-      </form>
-    </div>
-  );
+
+        <p className="auth-subtitle">Bienvenido de nuevo</p>
+
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <div className="auth-input-group">
+            <label htmlFor="username" className="auth-label">Usuario</label>
+            <input
+              id="username"
+              type="text"
+              placeholder="Ingresa tu usuario"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="auth-input"
+              required
+            />
+          </div>
+
+          <div className="auth-input-group">
+            <label htmlFor="password" className="auth-label">Contraseña</label>
+            <input
+              id="password"
+              type="password"
+              placeholder="Ingresa tu contraseña"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="auth-input"
+              required
+            />
+          </div>
+
+          {error && (
+            <div className="auth-alert auth-alert-error">
+              <svg className="auth-alert-icon" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="auth-button auth-button-primary"
+          >
+            {loading ? (
+              <>
+                <span className="auth-spinner"></span>
+                Entrando...
+              </>
+            ) : (
+              'Iniciar Sesión'
+            )}
+          </button>
+        </form>
+
+        <div className="auth-divider">
+          <span className="auth-divider-text">o</span>
+        </div>
+
+        <div className="auth-footer">
+          <p className="auth-footer-text">
+            ¿No tienes una cuenta?{' '}
+            <Link to="/register" className="auth-link">
+              Regístrate gratis
+            </Link>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }

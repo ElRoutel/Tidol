@@ -2,13 +2,16 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { useState } from 'react';
+import './AppBlur.css'; // Importar estilos de blur
+import './styles/glass.css'; // Importar estilos glass de forma global
 
 // COMPONENTES DE LAYOUT
 import Sidebar from './components/Sidebar';
 import PlayerBar from './components/PlayerBar';
 import MobileNav from './components/MobileNav';
-import MobileHeader from './components/MobileHeader'; // 1. Importar el nuevo componente
+import MobileHeader from './components/MobileHeader';
 import ContextMenu from './components/ContextMenu';
+import FullScreenPlayerPortal from './components/FullScreenPlayerPortal';
 
 // PÁGINAS
 import HomePage from './pages/HomePage';
@@ -17,7 +20,7 @@ import { UploadPage } from './pages/UploadPage';
 import AlbumPage from './pages/AlbumPage';
 import LoginPage from './pages/LoginPage';
 import InternetArchivePage from './pages/InternetArchivePage';
-import RegisterPage from './pages/RegisterPage'; // Importar página de registro
+import RegisterPage from './pages/RegisterPage';
 import ProfilePage from './pages/ProfilePage';
 import LibraryPage from './pages/LibraryPage';
 
@@ -27,8 +30,12 @@ function ProtectedRoute({ children }) {
 
   if (loading) {
     return (
-      <div className="h-screen bg-background flex justify-center items-center">
-        <h2 className="text-text text-2xl">Cargando...</h2>
+      <div className="tidol-loading-screen">
+        <div className="tidol-loading-content">
+          <div className="tidol-loading-spinner"></div>
+          <h2 className="tidol-loading-title">Cargando...</h2>
+          <p className="tidol-loading-subtitle">Preparando tu música</p>
+        </div>
       </div>
     );
   }
@@ -40,57 +47,67 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
-// LAYOUT PRINCIPAL
+// LAYOUT PRINCIPAL CON BLUR
 function AppLayout() {
   const [contextItem, setContextItem] = useState(null);
 
   const handleContextAction = (action, data) => {
     if (action === "setItem") return setContextItem(data);
-
-    // Aquí puedes integrar funciones de PlayerContext o navegación
     console.log("ContextMenu Action:", action, data);
-
     setContextItem(null);
   };
 
   return (
-    <div className="h-screen bg-background text-text grid
-                    grid-rows-[auto_1fr_auto_auto]
-                    md:grid-rows-[1fr_auto]
-                    md:grid-cols-[250px_1fr] relative">
+    <>
+      <div className="tidol-app-container">
+        {/* Background con orbes animados */}
+        <div className="tidol-app-background">
+          <div className="tidol-app-orb tidol-app-orb-1"></div>
+          <div className="tidol-app-orb tidol-app-orb-2"></div>
+          <div className="tidol-app-orb tidol-app-orb-3"></div>
+        </div>
 
-      {/* Sidebar */}
-      <Sidebar />
+        {/* Grid principal */}
+        <div className="tidol-app-grid">
+          {/* Sidebar con glassmorphism */}
+          <aside className="tidol-sidebar-container">
+            <Sidebar />
+          </aside>
 
-      {/* Header para móvil (nuevo) */}
-      <MobileHeader />
+          {/* Header móvil */}
+          <div className="tidol-mobile-header">
+            <MobileHeader />
+          </div>
 
-      {/* Contenido principal */}
-      <main className="overflow-y-auto row-start-2 md:col-start-2 md:row-start-1 bg-background">
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/search" element={<SearchPage />} />
-          <Route path="/upload" element={<UploadPage />} />
-          <Route path="/album/:id" element={<AlbumPage />} />
-          <Route path="/ia-album/:identifier" element={<InternetArchivePage />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/library" element={<LibraryPage />} />
-        </Routes>
-      </main>
+          {/* Contenido principal */}
+          <main className="tidol-main-content">
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/search" element={<SearchPage />} />
+              <Route path="/upload" element={<UploadPage />} />
+              <Route path="/album/:id" element={<AlbumPage />} />
+              <Route path="/ia-album/:identifier" element={<InternetArchivePage />} />
+              <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/library" element={<LibraryPage />} />
+            </Routes>
+          </main>
 
-      {/* Player fijo abajo */}
-      <footer className="h-10 from-zinc-900 text-text
-                         border-t border-interactive-bg
-                         md:col-span-2">
-        <PlayerBar />
-      </footer>
+          {/* Player bar con blur intenso */}
+          <footer className="tidol-player-container">
+            <PlayerBar />
+          </footer>
 
-      {/* Nav móvil */}
-      <MobileNav />
+          {/* Nav móvil */}
+          <nav className="tidol-mobile-nav">
+            <MobileNav />
+          </nav>
 
-      {/* ContextMenu global */}
-      <ContextMenu item={contextItem} onAction={handleContextAction} />
-    </div>
+          {/* ContextMenu global */}
+          <ContextMenu item={contextItem} onAction={handleContextAction} />
+        </div>
+      </div>
+      <FullScreenPlayerPortal />
+    </>
   );
 }
 

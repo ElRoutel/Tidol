@@ -127,7 +127,7 @@ const FullScreenPlayer = () => {
   // Auto-scroll a la línea activa
   useEffect(() => {
     if (!lyricsContainerRef.current) return;
-    const activeLine = lyricsContainerRef.current.querySelector('.active');
+    const activeLine = lyricsContainerRef.current.querySelector('.fsp-active');
     if (activeLine) {
       const container = lyricsContainerRef.current;
       const offset = Math.max(0, activeLine.offsetTop - container.clientHeight / 2 + activeLine.clientHeight / 2);
@@ -168,7 +168,7 @@ const FullScreenPlayer = () => {
       {!showLyrics ? (
         <div
           {...handlers}
-          className={`fixed inset-0 bg-black bg-opacity-90 backdrop-blur-xl z-50 flex flex-col text-white p-4 pb-20 md:pb-4 transition-all duration-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full'}`}
+          className={`fsp-container fixed inset-0 bg-black bg-opacity-90 backdrop-blur-xl z-[9999] flex flex-col text-white p-4 pb-20 md:pb-4 transition-all duration-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full'}`}
         >
           <div className={`absolute top-4 left-4 transition-all duration-500 delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
             <button
@@ -270,7 +270,7 @@ const FullScreenPlayer = () => {
       ) : (
         <div
           {...handlers}
-          className={`fixed inset-0 z-50 bg-black bg-opacity-90 backdrop-blur-xl flex flex-col text-white p-4 pb-20 md:pb-4 transition-all duration-400 ${showLyrics && !isAnimating ? 'opacity-100' : 'opacity-0'}`}
+          className={`fsp-lyrics-container fixed inset-0 z-[9999] bg-black bg-opacity-90 backdrop-blur-xl flex flex-col text-white p-4 pb-20 md:pb-4 transition-all duration-400 ${showLyrics && !isAnimating ? 'opacity-100' : 'opacity-0'}`}
         >
           <div className={`absolute top-4 left-4 transition-all duration-500 ${showLyrics && !isAnimating ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'}`}>
             <button
@@ -283,7 +283,7 @@ const FullScreenPlayer = () => {
 
           <div
             ref={lyricsContainerRef}
-            className={`lyrics-container transition-all duration-500 delay-100 ${showLyrics && !isAnimating ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+            className={`fsp-lyrics-content transition-all duration-500 delay-100 ${showLyrics && !isAnimating ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
           >
             {lyrics.length === 0 ? (
               <p className="text-center text-white/50 mt-10 animate-pulse">
@@ -293,7 +293,7 @@ const FullScreenPlayer = () => {
               lyrics.map((line, i) => (
                 <p
                   key={i}
-                  className={`lyric-line transition-all duration-300 ${i === currentLineIndex ? 'active' : ''}`}
+                  className={`fsp-lyric-line transition-all duration-300 ${i === currentLineIndex ? 'fsp-active' : ''}`}
                   style={{ transitionDelay: `${i * 20}ms` }}
                 >
                   {line.line}

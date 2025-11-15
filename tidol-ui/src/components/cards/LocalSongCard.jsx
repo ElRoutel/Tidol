@@ -1,21 +1,22 @@
-// src/components/LocalSongCard.jsx
-import React, { useState } from 'react'; 
-import { usePlayer } from '../context/PlayerContext';
+// src/components/cards/LocalSongCard.jsx
+import React, { useState } from 'react';
+import { usePlayer } from '../../context/PlayerContext';
+import '../../styles/glass.css';
 
 // Mini ContextMenu interno
 function ContextMenu({ position, onClose }) {
   return (
     <div
-      className="fixed bg-gray-800 text-white rounded shadow-lg z-50"
+      className="context-menu glass-card fixed text-white rounded shadow-lg z-50"
       style={{ top: position.y, left: position.x, minWidth: '150px' }}
       onClick={onClose} // cierra al hacer click en cualquier opción
     >
-      <ul className="p-2">
-        <li className="hover:bg-gray-700 cursor-pointer p-1">Reproducir</li>
-        <li className="hover:bg-gray-700 cursor-pointer p-1">Agregar a la cola</li>
-        <li className="hover:bg-gray-700 cursor-pointer p-1">Agregar a favoritos</li>
-        <li className="hover:bg-gray-700 cursor-pointer p-1">Ir al artista</li>
-        <li className="hover:bg-gray-700 cursor-pointer p-1">Ir al álbum</li>
+      <ul>
+        <li className="cursor-pointer">Reproducir</li>
+        <li className="cursor-pointer">Agregar a la cola</li>
+        <li className="cursor-pointer">Agregar a favoritos</li>
+        <li className="cursor-pointer">Ir al artista</li>
+        <li className="cursor-pointer">Ir al álbum</li>
       </ul>
     </div>
   );
@@ -37,11 +38,11 @@ export default function LocalSongCard({ song, onPlay }) {
   return (
     <>
       <div 
-        className={`song-card-local ${isPlaying ? 'playing' : ''}`} 
+        className={`song-card-local glass-card ${isPlaying ? 'playing' : ''}`} 
         onClick={onPlay}
         onContextMenu={handleContextMenu} // click derecho
       >
-        <img src={song.portada || '/default_cover.png'} alt={song.titulo} />
+        <img className="song-cover" src={song.portada || '/default_cover.png'} alt={song.titulo} />
         <div style={{flex: 1}}>
           <h4>{song.titulo}</h4>
           <p>{song.artista} - {song.album}</p>

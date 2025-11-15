@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axiosConfig';
+import '../../styles/glass.css';
 
 export default function ArchiveAlbumCard({ item, onView, onPlay }) {
   const { identifier, titulo, artista } = item;
@@ -31,11 +32,11 @@ export default function ArchiveAlbumCard({ item, onView, onPlay }) {
   }, [identifier]);
 
   return (
-    <div className="card-base cursor-pointer" onClick={onView}>
+    <div className="glass-compact archive-album-card album-card cursor-pointer" onClick={onView}>
       <img
         src={coverUrl}
         alt={titulo}
-        className="object-cover rounded-md w-full h-40"
+        className="album-cover"
         loading="lazy"
       />
 

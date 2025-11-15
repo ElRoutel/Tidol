@@ -36,7 +36,7 @@ const Shelf = ({ title, endpoint, renderItem }) => {
   return (
     <div className="mb-8">
       <h2 className="text-3xl font-bold mb-4 text-white">{title}</h2>
-      <div className="flex overflow-x-auto gap-4 pb-4">
+      <div className="flex overflow-x-auto gap-8 pb-4 tidol-shelf-scroll">
         {items.map((item, index) => renderItem(item, index, items))}
       </div>
     </div>

@@ -1,0 +1,230 @@
+/* ============================================
+   HOME PAGE STYLES - GLASSMORPHISM
+   ============================================ */
+
+.tidol-home-container {
+  min-height: 100%;
+  padding-bottom: 2rem;
+}
+
+/* Header con efecto glassmorphism sutil */
+.tidol-home-header {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  transform: translateZ(0);
+  will-change: backdrop-filter;
+}
+
+.tidol-home-title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #FFFFFF;
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #FFFFFF 0%, #B3B3B3 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.tidol-home-subtitle {
+  font-size: 1rem;
+  color: #B3B3B3;
+  font-weight: 500;
+}
+
+/* Contenedor de contenido */
+.tidol-home-content {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+}
+
+/* Wrapper de cada Shelf con glassmorphism */
+.tidol-shelf-wrapper {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  padding: 1.5rem;
+  transition: all 0.3s ease;
+  transform: translateZ(0);
+  will-change: transform, backdrop-filter;
+}
+
+.tidol-shelf-wrapper:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+}
+
+/* Custom scrollbar for shelves - glass style */
+.tidol-shelf-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.4) rgba(255, 255, 255, 0.05);
+}
+
+/* Webkit scrollbar (Chrome, Safari, Edge) */
+.tidol-shelf-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.tidol-shelf-scroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 10px;
+}
+
+.tidol-shelf-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.3) 100%);
+  border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(4px);
+}
+
+.tidol-shelf-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.5) 100%);
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Cards con animación individual */
+.tidol-card-item {
+  width: 192px;
+  flex-shrink: 0;
+  cursor: pointer;
+  animation: tidol-scale-in 0.5s ease-out backwards;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.tidol-card-item:hover {
+  /* No elevation in carousel: use brightness instead to avoid collisions */
+  filter: brightness(1.1);
+  z-index: 12;
+}
+
+.tidol-card-item:active {
+  filter: brightness(0.98);
+}
+
+/* ============================================
+   RESPONSIVE - MOBILE
+   ============================================ */
+@media (max-width: 767px) {
+  .tidol-home-header {
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .tidol-home-title {
+    font-size: 1.75rem;
+  }
+
+  .tidol-home-subtitle {
+    font-size: 0.875rem;
+  }
+
+  .tidol-home-content {
+    gap: 2rem;
+  }
+
+  .tidol-shelf-wrapper {
+    padding: 1rem;
+    border-radius: 16px;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+
+  .tidol-card-item {
+    width: 160px;
+  }
+}
+
+/* ============================================
+   RESPONSIVE - TABLET
+   ============================================ */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .tidol-home-header {
+    padding: 1.75rem;
+  }
+
+  .tidol-home-title {
+    font-size: 2rem;
+  }
+
+  .tidol-card-item {
+    width: 176px;
+  }
+}
+
+/* ============================================
+   RESPONSIVE - DESKTOP LARGE
+   ============================================ */
+@media (min-width: 1440px) {
+  .tidol-home-header {
+    padding: 2.5rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .tidol-home-title {
+    font-size: 3rem;
+  }
+
+  .tidol-home-subtitle {
+    font-size: 1.125rem;
+  }
+
+  .tidol-home-content {
+    gap: 3.5rem;
+  }
+
+  .tidol-shelf-wrapper {
+    padding: 2rem;
+  }
+
+  .tidol-card-item {
+    width: 208px;
+  }
+}
+
+/* Scroll-snap for shelves to avoid visual collisions */
+.tidol-shelf-scroll {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tidol-card-item {
+  scroll-snap-align: start;
+  padding: 0; /* ensure click area doesn't shift due to extra padding */
+}
+
+/* ============================================
+   ACCESIBILIDAD
+   ============================================ */
+@media (prefers-reduced-motion: reduce) {
+  .tidol-card-item {
+    animation: none !important;
+  }
+
+  .tidol-shelf-wrapper {
+    transition: none !important;
+  }
+}
+
+/* ============================================
+   PERFORMANCE - GPU ACCELERATION
+   ============================================ */
+.tidol-home-header,
+.tidol-shelf-wrapper {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}

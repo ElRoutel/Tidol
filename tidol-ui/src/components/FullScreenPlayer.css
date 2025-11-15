@@ -1,5 +1,39 @@
+/* ============================================
+   FULLSCREEN PLAYER - MÁXIMA PRIORIDAD
+   ============================================ */
+
+.fsp-container,
+.fsp-lyrics-container {
+  position: fixed !important;
+  z-index: 9999 !important;
+  inset: 0 !important;
+  isolation: isolate; /* Crear nuevo stacking context aislado */
+  transform: translateZ(0); /* Forzar GPU layer */
+}
+
+/* Backdrop blur mejorado con fallback */
+.fsp-container,
+.fsp-lyrics-container {
+  background: rgba(0, 0, 0, 0.95);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+}
+
+/* Asegurar que nada del layout interfiera */
+.fsp-container *,
+.fsp-lyrics-container * {
+  z-index: auto; /* Resetear z-index de hijos */
+}
+
+/* Controles con z-index relativo al contenedor */
+.fsp-container button,
+.fsp-lyrics-container button {
+  position: relative;
+  z-index: 1;
+}
+
 /* Animaciones personalizadas */
-@keyframes shine {
+@keyframes fsp-shine {
   0% {
     transform: translateX(-100%) translateY(-100%) rotate(30deg);
   }
@@ -8,7 +42,7 @@
   }
 }
 
-@keyframes fadeInUp {
+@keyframes fsp-fadeInUp {
   from {
     opacity: 0;
     transform: translateY(30px);
@@ -19,7 +53,7 @@
   }
 }
 
-@keyframes fadeInScale {
+@keyframes fsp-fadeInScale {
   from {
     opacity: 0;
     transform: scale(0.9);
@@ -30,7 +64,7 @@
   }
 }
 
-@keyframes pulse {
+@keyframes fsp-pulse {
   0%, 100% {
     opacity: 1;
   }
@@ -39,7 +73,7 @@
   }
 }
 
-@keyframes slideInFromBottom {
+@keyframes fsp-slideInFromBottom {
   from {
     transform: translateY(100%);
     opacity: 0;
@@ -51,18 +85,18 @@
 }
 
 /* Efecto de brillo en la portada */
-.animate-shine {
-  animation: shine 8s infinite linear;
+.fsp-container .fsp-animate-shine {
+  animation: fsp-shine 8s infinite linear;
 }
 
 /* Estilos para el input range mejorado */
-input[type="range"] {
+.fsp-container input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
   outline: none;
 }
 
-input[type="range"]::-webkit-slider-thumb {
+.fsp-container input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   width: 14px;
@@ -75,7 +109,7 @@ input[type="range"]::-webkit-slider-thumb {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-input[type="range"]::-moz-range-thumb {
+.fsp-container input[type="range"]::-moz-range-thumb {
   width: 14px;
   height: 14px;
   background: white;
@@ -88,33 +122,33 @@ input[type="range"]::-moz-range-thumb {
 }
 
 /* Mostrar el thumb al hacer hover en el grupo */
-.group:hover input[type="range"]::-webkit-slider-thumb {
+.fsp-container .fsp-group:hover input[type="range"]::-webkit-slider-thumb {
   opacity: 1;
   transform: scale(1.2);
 }
 
-.group:hover input[type="range"]::-moz-range-thumb {
+.fsp-container .fsp-group:hover input[type="range"]::-moz-range-thumb {
   opacity: 1;
   transform: scale(1.2);
 }
 
-input[type="range"]:active::-webkit-slider-thumb {
+.fsp-container input[type="range"]:active::-webkit-slider-thumb {
   transform: scale(1.4);
   box-shadow: 0 0 12px rgba(255, 255, 255, 0.6);
 }
 
-input[type="range"]:active::-moz-range-thumb {
+.fsp-container input[type="range"]:active::-moz-range-thumb {
   transform: scale(1.4);
   box-shadow: 0 0 12px rgba(255, 255, 255, 0.6);
 }
 
 /* Animaciones de botones */
-button {
+.fsp-container button {
   position: relative;
   overflow: hidden;
 }
 
-button::before {
+.fsp-container button::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -123,12 +157,12 @@ button::before {
   transition: transform 0.5s ease;
 }
 
-button:active::before {
+.fsp-container button:active::before {
   transform: scale(2);
 }
 
 /* Efecto de onda en el botón de play */
-.bg-white::after {
+.fsp-container .fsp-bg-white::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -139,13 +173,13 @@ button:active::before {
   pointer-events: none;
 }
 
-button:active .bg-white::after {
+.fsp-container button:active .fsp-bg-white::after {
   transform: scale(1.5);
   opacity: 0;
 }
 
 /* Animación de entrada suave */
-@keyframes slideUp {
+@keyframes fsp-slideUp {
   from {
     transform: translateY(100%);
     opacity: 0;
@@ -157,33 +191,33 @@ button:active .bg-white::after {
 }
 
 /* Rotación suave de la imagen al hover */
-img {
+.fsp-container img {
   will-change: transform;
 }
 
 /* Transiciones suaves globales para el player */
-* {
+.fsp-container * {
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Mejora del backdrop blur */
-.backdrop-blur-xl {
+.fsp-container .fsp-backdrop-blur-xl {
   backdrop-filter: blur(40px) saturate(180%);
   -webkit-backdrop-filter: blur(40px) saturate(180%);
 }
 
 /* Animación para los iconos de control */
-svg {
+.fsp-container svg {
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
   transition: filter 0.2s ease;
 }
 
-button:hover svg {
+.fsp-container button:hover svg {
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
 }
 
 /* Efecto de resplandor en el botón principal */
-@keyframes glow {
+@keyframes fsp-glow {
   0%, 100% {
     box-shadow: 0 0 20px rgba(255, 255, 255, 0.3),
                 0 0 40px rgba(255, 255, 255, 0.1);
@@ -194,8 +228,8 @@ button:hover svg {
   }
 }
 
-.bg-white.shadow-lg {
-  animation: glow 2s ease-in-out infinite;
+.fsp-container .fsp-bg-white.fsp-shadow-lg {
+  animation: fsp-glow 2s ease-in-out infinite;
 }
 
 /* Scroll suave para toda la página */

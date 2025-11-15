@@ -27,9 +27,10 @@ export function PlayerProvider({ children }) {
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
 
-  const [isFullScreenPlayerOpen, setFullScreenPlayerOpen] = useState(false);
-  const toggleFullScreenPlayer = () => setFullScreenPlayerOpen(prev => !prev);
-  const closeFullScreenPlayer = () => setFullScreenPlayerOpen(false);
+  const [isFullScreenOpen, setIsFullScreenOpen] = useState(false);
+  const openFullScreenPlayer = () => setIsFullScreenOpen(true);
+  const toggleFullScreenPlayer = () => setIsFullScreenOpen(prev => !prev);
+  const closeFullScreenPlayer = () => setIsFullScreenOpen(false);
 
   // likedSongs como Set
   const [likedSongs, setLikedSongs] = useState(new Set());
@@ -401,7 +402,8 @@ export function PlayerProvider({ children }) {
         changeVolume,
         toggleMute,
         seek,
-        isFullScreenPlayerOpen,
+        isFullScreenOpen,
+        openFullScreenPlayer,
         toggleFullScreenPlayer,
         closeFullScreenPlayer,
         toggleLike,

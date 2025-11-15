@@ -1,7 +1,6 @@
 // src/components/PlayerBar.jsx
 import { useEffect, useMemo, memo, useRef } from 'react';
 import { usePlayer } from '../context/PlayerContext';
-import FullScreenPlayer from './FullScreenPlayer';
 import './PlayerBar.css';
 import { useSwipeable } from 'react-swipeable';
 
@@ -35,7 +34,7 @@ export default function PlayerBar() {
     toggleMute,
     seek,
     toggleFullScreenPlayer,
-    isFullScreenPlayerOpen
+    isFullScreenOpen
   } = usePlayer();
 
   // Refs para tracking y evitar actualizaciones innecesarias
@@ -221,7 +220,7 @@ export default function PlayerBar() {
   return (
     <>
       {/* SOLO MOSTRAR PLAYER CHICO SI FULLSCREEN NO ESTÁ ABIERTO */}
-      {!isFullScreenPlayerOpen && (
+      {!isFullScreenOpen && (
         <footer className="player-container" {...handlers}>
           {/* NUEVA BARRA DE PROGRESO (Estilo YT Music) - Solo móvil */}
           <div className="progress-line-container md:hidden">
@@ -297,9 +296,6 @@ export default function PlayerBar() {
           </div>
         </footer>
       )}
-
-      {/* FULLSCREEN PLAYER */}
-      {isFullScreenPlayerOpen && <FullScreenPlayer />}
     </>
   );
 }

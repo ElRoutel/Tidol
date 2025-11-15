@@ -1,5 +1,5 @@
 /* Contenedor de lyrics */
-.lyrics-container {
+.fsp-lyrics-container {
   flex-grow: 1;
   overflow-y: auto;
   margin-top: 3rem;

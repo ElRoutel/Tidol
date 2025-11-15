@@ -3,8 +3,7 @@ import { IoPlay } from "react-icons/io5";
 
 export default function Card({ image, title, subtitle }) {
   return (
-    <div className="group relative bg-surface hover:bg-interactive-bg 
-                    transition-colors duration-300 rounded-lg p-4 cursor-pointer">
+    <div className="group relative glass-card transition-colors duration-200 rounded-lg p-3 cursor-pointer">
       
       <div className="relative w-full mb-4">
         <img 

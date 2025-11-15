@@ -6,7 +6,7 @@ export default function SearchResultCard({ image, title, subtitle, onClick }) {
   return (
     <div
       onClick={onClick}
-      className="search-result-card"
+      className="search-result-card glass-compact"
     >
       {/* Imagen con overlay de play */}
       <div className="card-image-wrapper">
