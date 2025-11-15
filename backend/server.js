@@ -22,15 +22,15 @@ async function showAnimatedBanner() {
 
   const banner = `
  ███████████ █████ ██████████      ███████    █████       
- ░█░░░███░░░█░░███ ░░███░░░░███   ███░░░░░███ ░░███          
+ ░█░░░███░░░█░░███ ░░███░░░░███   ███░░░░░███ ░░███           
  ░   ░███  ░  ░███  ░███   ░░███ ███     ░░███ ░███       
      ░███     ░███  ░███    ░███░███      ░███ ░███       
-     ░███     ░███  ░███    ░███░███      ░███ ░███         
+     ░███     ░███  ░███    ░███░███      ░███ ░███           
      ░███     ░███  ░███    ███ ░░███     ███  ░███      █
      █████    █████ ██████████   ░░░███████░   ███████████
-    ░░░░░    ░░░░░ ░░░░░░░░░░      ░░░░░░░    ░░░░░░░░░░░ 
-    𝗥𝗼𝘂𝘁𝗲𝗹 𝗠𝘂𝘀𝗶𝗰 𝗔𝗣𝗜 - v1.0.0
-   Release 12/2024 - Developed by Routel
+     ░░░░░    ░░░░░ ░░░░░░░░░░      ░░░░░░░    ░░░░░░░░░░░ 
+     𝗥𝗼𝘂𝘁𝗲𝗹 𝗠𝘂𝘀𝗶𝗰 𝗔𝗣𝗜 - v1.0.0
+    Release 12/2024 - Developed by Routel
 `;
 
   const neonAnim = chalkAnimation.pulse(banner);
@@ -51,7 +51,7 @@ await showAnimatedBanner();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
-app.set('trust proxy', 1); 
+app.set("trust proxy", 1);
 const PORT = process.env.PORT || 3000;
 
 if (!process.env.JWT_SECRET) {
@@ -85,18 +85,22 @@ async function columnExists(table, column) {
   return Array.isArray(rows) && rows.some(c => c.name === column);
 }
 
+// Versión endurecida: no oculta errores ajenos a columna duplicada
 async function ensureColumn(table, column, typeDef) {
+  const exists = await columnExists(table, column);
+  if (exists) {
+    logStatus(`Migración columna ${table}.${column}`, true, "(ya existe)");
+    return;
+  }
   try {
-    const exists = await columnExists(table, column);
-    if (!exists) {
-      await db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${typeDef}`);
-      logStatus(`Migración columna ${table}.${column}`, true, "(añadida)");
-    } else {
-      logStatus(`Migración columna ${table}.${column}`, true, "(ya existe)");
-    }
+    await db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${typeDef}`);
+    logStatus(`Migración columna ${table}.${column}`, true, "(añadida)");
   } catch (e) {
-    // SQLite no soporta IF NOT EXISTS en ADD COLUMN; si ya existe, ignoramos. 
-    logStatus(`Migración columna ${table}.${column}`, true, "(ignorada si ya existía)");
+    if (!/duplicate column name/i.test(e.message || "")) {
+      logStatus(`Migración columna ${table}.${column}`, false, e.message);
+      throw e;
+    }
+    logStatus(`Migración columna ${table}.${column}`, true, "(ya existía)");
   }
 }
 
@@ -221,38 +225,51 @@ async function ensureColumn(table, column, typeDef) {
     logStatus("Likes Locales", true, "Tabla 'likes' lista.");
 
     // --- TABLA CANCIONES EXTERNAS (Internet Archive) ---
-    await db.run(`
-      CREATE TABLE IF NOT EXISTS canciones_externas (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        external_id TEXT NOT NULL UNIQUE,
-        source TEXT NOT NULL DEFAULT 'internet_archive',
-        title TEXT NOT NULL,
-        artist TEXT,
-        song_url TEXT NOT NULL,
-        cover_url TEXT,
-        duration INTEGER DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    await db.run(`CREATE INDEX IF NOT EXISTS idx_canciones_externas_external_id ON canciones_externas(external_id)`);
-    logStatus("Canciones Externas", true, "Tabla 'canciones_externas' lista.");
+// --- TABLA CANCIONES EXTERNAS (Internet Archive) ---
+  // ASEGÚRATE DE BORRAR CUALQUIER OTRA DEFINICIÓN DE "canciones_externas"
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS canciones_externas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      external_id TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT 'internet_archive',
+      title TEXT,
+      artist TEXT,
+      song_url TEXT,
+      cover_url TEXT,
+      duration REAL,
+      added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(external_id, source)
+    )
+  `);
+  await db.run(`CREATE INDEX IF NOT EXISTS idx_canciones_externas_id_source ON canciones_externas(external_id, source)`);
+  logStatus("Canciones Externas", true, "Tabla 'canciones_externas' lista.");
 
     // --- TABLA LIKES EXTERNOS (Internet Archive) ---
-    await db.run(`
-      CREATE TABLE IF NOT EXISTS likes_externos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        cancion_externa_id INTEGER NOT NULL,
-        liked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE,
-        FOREIGN KEY (cancion_externa_id) REFERENCES canciones_externas(id) ON DELETE CASCADE,
-        UNIQUE(user_id, cancion_externa_id)
-      )
-    `);
-    await db.run(`CREATE INDEX IF NOT EXISTS idx_likes_externos_user_id ON likes_externos(user_id)`);
-    await db.run(`CREATE INDEX IF NOT EXISTS idx_likes_externos_cancion_externa_id ON likes_externos(cancion_externa_id)`);
-    logStatus("Likes Externos", true, "Tabla 'likes_externos' lista.");
+    // Idempotente y sin pérdida de datos: no usar DROP en arranque.
+    await db.run("BEGIN IMMEDIATE");
+    try {
+      await db.run(`
+        CREATE TABLE IF NOT EXISTS likes_externos (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          cancion_externa_id INTEGER NOT NULL,
+          liked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+          FOREIGN KEY (cancion_externa_id) REFERENCES canciones_externas(id) ON DELETE CASCADE,
+          UNIQUE(user_id, cancion_externa_id)
+        )
+      `);
 
+      await db.run(`CREATE INDEX IF NOT EXISTS idx_likes_externos_user_id ON likes_externos(user_id)`);
+      await db.run(`CREATE INDEX IF NOT EXISTS idx_likes_externos_cancion_externa_id ON likes_externos(cancion_externa_id)`);
+
+      await db.run("COMMIT");
+      logStatus("Likes Externos", true, "Tabla 'likes_externos' lista sin DROP ni duplicados.");
+    } catch (e) {
+      await db.run("ROLLBACK");
+      logStatus("Likes Externos", false, e.message);
+      throw e;
+    }
 
     app.get("/api/health", (req, res) => {
       res.json({ status: "ok", server: "Routel Music API" });
@@ -265,5 +282,5 @@ async function ensureColumn(table, column, typeDef) {
   } catch (err) {
     logStatus("Conexión a DB / Creación de tablas", false, err.message);
     process.exit(1);
-  }
-})();
+  }}
+)();

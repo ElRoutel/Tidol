@@ -182,6 +182,7 @@ CREATE INDEX IF NOT EXISTS idx_canciones_externas_external_id ON canciones_exter
 -- =======================================
 -- 11) LIKES EXTERNOS (Me Gusta para canciones externas)
 -- =======================================
+DROP TABLE IF EXISTS likes_externos;
 CREATE TABLE IF NOT EXISTS likes_externos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,

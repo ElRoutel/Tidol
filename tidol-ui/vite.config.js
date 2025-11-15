@@ -17,10 +17,6 @@ export default defineConfig({
       '/api': { target: TARGET, changeOrigin: true },
       '/uploads': { target: TARGET, changeOrigin: true }
     },
-
-    // --- 👇 TU SOLUCIÓN ESTÁ AQUÍ ---
-    // El '.' al inicio significa "permite CUALQUIER COSA
-    // que termine en .trycloudflare.com"
     allowedHosts: ['.trycloudflare.com']
     // ---------------------------------
   }

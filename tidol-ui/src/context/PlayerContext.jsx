@@ -1,4 +1,3 @@
-// src/context/PlayerContext.jsx
 import React, {
   createContext,
   useContext,
@@ -44,23 +43,49 @@ export function PlayerProvider({ children }) {
     setPlayedHistory(prev => prev.includes(songId) ? prev : [...prev, songId]);
   }, []);
 
-  // Cargar liked songs al inicio
+  // ==================================================================
+  // --- SECCIÓN CORREGIDA ---
+  // Cargar TODOS los liked songs (locales y de IA) al inicio
+  // ==================================================================
   useEffect(() => {
     let mounted = true;
-    const fetchLikedSongs = async () => {
+    const fetchAllLikedSongs = async () => {
       try {
-        const res = await api.get('/music/songs/likes');
-        const data = res.data;
-        const arr = Array.isArray(data) ? data : (Array.isArray(data?.likes) ? data.likes : []);
-        const likedIds = new Set(arr.map(song => song.songId || song.id || song.id_cancion || null).filter(Boolean));
-        if (mounted) setLikedSongs(likedIds);
+        // 1. Pedir ambos endpoints en paralelo
+        const [localRes, iaRes] = await Promise.all([
+          api.get('/music/songs/likes'),
+          api.get('/music/ia/likes') // <-- LLAMADA AÑADIDA
+        ]);
+
+        // 2. Procesar likes locales
+        const localData = localRes.data;
+        const localArr = Array.isArray(localData) ? localData : [];
+        const localLikedIds = localArr.map(song => song.id || song.songId).filter(Boolean);
+
+        // 3. Procesar likes de IA
+        const iaData = iaRes.data;
+        const iaArr = Array.isArray(iaData) ? iaData : [];
+        // Usamos el ID de la base de datos (ce.id o song.id) que es lo que devuelve getUserIaLikes
+        const iaLikedIds = iaArr.map(song => song.id).filter(Boolean);
+
+        // 4. Combinarlos en un solo Set
+        const allLikedIds = new Set([...localLikedIds, ...iaLikedIds]);
+
+        if (mounted) {
+          setLikedSongs(allLikedIds);
+        }
+        
       } catch (err) {
-        console.error("Error al cargar likes:", err);
+        console.error("Error al cargar todos los likes:", err);
       }
     };
-    fetchLikedSongs();
+    
+    fetchAllLikedSongs();
     return () => { mounted = false; };
-  }, []);
+  }, []); // Se ejecuta solo una vez al inicio
+  // ==================================================================
+  // --- FIN DE LA SECCIÓN CORREGIDA ---
+  // ==================================================================
 
   const toggleLike = useCallback(async (songId, songData = null) => {
     if (!songId) return;
@@ -82,12 +107,15 @@ export function PlayerProvider({ children }) {
 
     try {
       if (isIa) {
-        // ✅ Usar endpoint de IA
+        // ✅ Usar endpoint de IA (con todos los datos)
         await api.post(`/music/ia/likes/toggle`, {
           identifier: songData?.identifier || songId,
           title: songData?.titulo || songData?.title || '',
           artist: songData?.artista || songData?.artist || '',
-          source: songData?.source || 'internet_archive'
+          source: songData?.source || 'internet_archive',
+          url: songData?.url,                // <-- Corregido
+          portada: songData?.portada,          // <-- Corregido
+          duration: songData?.duration         // <-- Corregido
         }, {
           headers: { Authorization: `Bearer ${token}` }
         });

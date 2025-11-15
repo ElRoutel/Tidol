@@ -158,14 +158,21 @@ const FullScreenPlayer = () => {
 
   const handleToggleLike = () => {
     if (!currentSong) return;
+    
+    // Pasamos todos los datos de la canción al contexto
     toggleLike(currentSong.id, {
+      // Datos para identificar la canción
       identifier: currentSong.identifier,
+      source: currentSong.source,
+      
+      // Datos para GUARDAR si la canción no existe en la DB
       titulo: currentSong.titulo,
       artista: currentSong.artista,
-      source: currentSong.source
+      url: currentSong.url,           // <-- AÑADIDO
+      portada: currentSong.portada,   // <-- AÑADIDO
+      duration: currentSong.duration  // <-- AÑADIDO
     });
   };
-
   const liked = currentSong ? isSongLiked(currentSong.id) : false;
 
   return (

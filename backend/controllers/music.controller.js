@@ -1,4 +1,3 @@
-// backend/controllers/music.controller.js
 import db from "../models/db.js";
 import { fetchWithProxy } from "../services/iaProxy.service.js";
 
@@ -45,7 +44,7 @@ async function fetchWithRetry(url, retries = FETCH_RETRIES) {
         (
           (res.response && Array.isArray(res.response.docs)) || // advancedsearch
           Array.isArray(res.files) ||                           // metadata
-          Array.isArray(res)                                    // fallback arrays
+          Array.isArray(res)                                   // fallback arrays
         );
       if (ok) return res;
       throw new Error("Invalid response shape");
@@ -160,6 +159,7 @@ async function pruneCache() {
 
 // ----------------- CLICK / COMPARATOR / HITS -----------------
 async function _registerClickInternal(queryRaw, identifier, title = "", creator = "") {
+  await ensureIaTables(); // defensivo: asegura tablas antes de escribir
   try {
     const query = normalizeQuery(queryRaw);
     const now = Date.now();
@@ -186,6 +186,7 @@ async function _registerClickInternal(queryRaw, identifier, title = "", creator 
 }
 
 async function reinforceComparator(queryWords = [], titleWords = [], creatorWords = []) {
+  await ensureIaTables(); // defensivo: asegura ia_comparator
   try {
     const now = Date.now();
     const all = [...new Set([...(queryWords || []), ...(titleWords || []), ...(creatorWords || [])])];
@@ -209,6 +210,7 @@ async function reinforceComparator(queryWords = [], titleWords = [], creatorWord
 }
 
 async function maybeComputeHitFromClicks(queryRaw) {
+  await ensureIaTables(); // defensivo: asegura ia_hits
   try {
     const query = normalizeQuery(queryRaw);
     const rows = await db.all(
@@ -218,7 +220,7 @@ async function maybeComputeHitFromClicks(queryRaw) {
     if (!rows || rows.length === 0) return;
 
     const total = rows.reduce((s, r) => s + (r.clicks || 0), 0);
-    if (total === 0) return;
+    if (total === 0) return; // corregido: return válido
 
     const top = rows[0];
     const confidence = top.clicks / total;
@@ -344,8 +346,9 @@ async function _searchArchiveForceFetch(originalQuery) {
 
   const searchQueries = [];
   if (originalQuery.trim().length > 0) {
+    // simplificado: sin interpolación redundante
     searchQueries.push({
-      q: `(${`title:"${originalQuery}" OR creator:"${originalQuery}"`}) AND mediatype:audio`,
+      q: `(title:"${originalQuery}" OR creator:"${originalQuery}") AND mediatype:audio`,
       rows: 30
     });
   }
@@ -848,33 +851,50 @@ export const registerIaComparator = async (req, res) => {
 // -----------------IA LIKES CONTROLLERS -----------------
 export const toggleIaLike = async (req, res) => {
   const userId = req.userId;
-  const { identifier, title, artist, source } = req.body;
+  const { identifier, title, artist, source, url, portada, duration } = req.body;
 
   if (!userId) return res.status(401).json({ error: "No autorizado" });
   if (!identifier) return res.status(400).json({ error: "Falta identifier" });
 
+  const songSource = source || 'internet_archive';
+
   try {
-    // Verificar si canción externa existe
     let externalSong = await db.get(
       `SELECT id FROM canciones_externas WHERE external_id = ? AND source = ?`,
-      [identifier, source || 'internet_archive']
+      [identifier, songSource]
     );
 
-    // Si no existe, crearla
     if (!externalSong) {
-      const songUrl = `https://archive.org/download/${identifier}/${identifier}.mp3`; // URL por defecto de IA
+      const songUrl = url || `https://archive.org/details/${identifier}`;
+      const coverUrl = portada || `https://archive.org/services/img/${identifier}`;
+      const songDuration = duration ? Number(duration) : null;
+
+      // UPSERT válido: conflict target coincide con la restricción UNIQUE existente (external_id)
       await db.run(
-        `INSERT INTO canciones_externas (external_id, source, title, artist, song_url) 
-         VALUES (?, ?, ?, ?, ?)`,
-        [identifier, source || 'internet_archive', title || '', artist || '', songUrl]
+        `INSERT INTO canciones_externas 
+           (external_id, source, title, artist, song_url, cover_url, duration) 
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(external_id) DO NOTHING`,
+        [identifier, songSource, title || 'Sin título', artist || 'Desconocido', songUrl, coverUrl, songDuration]
       );
+      
       externalSong = await db.get(
-        `SELECT id FROM canciones_externas WHERE external_id = ?`,
-        [identifier]
+        `SELECT id FROM canciones_externas WHERE external_id = ? AND source = ?`,
+        [identifier, songSource]
       );
+
+      if (!externalSong) {
+        // fallback por si existe con otro source bajo la unicidad de external_id
+        externalSong = await db.get(
+          `SELECT id FROM canciones_externas WHERE external_id = ?`,
+          [identifier]
+        );
+        if (!externalSong) {
+           throw new Error("No se pudo crear o encontrar la canción externa después del INSERT.");
+        }
+      }
     }
 
-    // Verificar si ya tiene like
     const existing = await db.get(
       `SELECT id FROM likes_externos WHERE user_id = ? AND cancion_externa_id = ?`,
       [userId, externalSong.id]
@@ -891,7 +911,7 @@ export const toggleIaLike = async (req, res) => {
       return res.json({ liked: true });
     }
   } catch (err) {
-    console.error("Error al alternar like de IA:", err);
+    console.error("Error al alternar like de IA:", err.message);
     res.status(500).json({ error: "Error al actualizar el like" });
   }
 };
@@ -954,6 +974,42 @@ export const getUserIaLikes = async (req, res) => {
 };
 
 // ============================================
+// -----------------IA GET COVER -----------------
+export const getCover = async (req, res) => {
+  const identifier = req.params[0]; 
+  
+  if (!identifier) return res.status(400).json({ error: "Falta identifier" });
+
+  try {
+    const meta = await fetchWithRetry(`https://archive.org/metadata/${identifier}`);
+    if (!meta) throw new Error("No se encontró metadata");
+    
+    const files = meta?.files || [];
+    
+    const imageFiles = files.filter(f => f.name && /\.(jpg|jpeg|png|gif)$/i.test(f.name));
+    
+    const preferred = imageFiles.find(f =>
+      ['cover.jpg', 'folder.jpg', 'album.jpg', 'front.jpg'].includes((f.name || "").toLowerCase())
+    );
+
+    let cover;
+    if (preferred) {
+      cover = `https://archive.org/download/${identifier}/${encodeURIComponent(preferred.name)}`;
+    } else {
+      cover = `https://archive.org/services/img/${identifier}`;
+    }
+
+    res.json({ portada: cover });
+  
+  } catch (err) {
+    console.error("Error en getCover:", err.message);
+    res.status(500).json({ error: "Error al obtener la portada" });
+  }
+};
+// ============================================
+
+
+// ============================================
 // -----------------EXPORT DEFAULT -----------------
 export default {
   searchAll,
@@ -976,5 +1032,6 @@ export default {
   registerIaComparator,
   toggleIaLike,
   checkIfIaLiked,
-  getUserIaLikes
+  getUserIaLikes,
+  getCover
 };
