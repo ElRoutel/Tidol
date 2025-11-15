@@ -3,7 +3,7 @@ import path from 'path';
 import db from './models/db.js'; // Asegúrate que apunta a tu conexión SQLite
 
 // ---------------- CONFIG ----------------
-const songId = 17; // ID de la canción en tu tabla 'canciones'
+const songId = 17; //SOLO PARA PRUEBAS: ID de la canción a la que se asocian las letras Y el archivo .lrc 
 const lrcFile = path.join('uploads', 'lyrics', 'Bad Bunny - DtMF.lrc'); // Ruta a tu archivo .lrc
 // ---------------------------------------
 

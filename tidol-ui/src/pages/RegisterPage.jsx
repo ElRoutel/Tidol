@@ -52,7 +52,7 @@ export default function RegisterPage() {
         
         <input
           type="text"
-          placeholder="Usuario"
+          placeholder="Usuario (no es necesario usar correo electrónico)"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           required

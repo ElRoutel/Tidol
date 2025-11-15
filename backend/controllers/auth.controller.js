@@ -57,7 +57,7 @@ export const loginUser = async (req, res) => {
         const valid = await bcrypt.compare(password, user.password);
         if (!valid) return res.status(401).json({ message: "Contraseña incorrecta" });
 
-        const token = jwt.sign({ id: user.id, username: user.nombre, role: user.role }, SECRET, { expiresIn: "1h" });
+        const token = jwt.sign({ id: user.id, username: user.nombre, role: user.role }, SECRET, { expiresIn: "24h" });//aqui se puede cambir el tiempo de expiracion
 
         let redirectPage = "/";
         if (["admin", "tester", "owner"].includes(user.role)) {

@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import api from '../api/axiosConfig'; 
 import { useAuth } from '../context/AuthContext';
+import './upload.css';
 
 export function UploadPage() {
   const [songFiles, setSongFiles] = useState(null);
   const [coverFile, setCoverFile] = useState(null);
-  const [lyricsFiles, setLyricsFiles] = useState(null); // Nuevo estado para letras
+  const [lyricsFiles, setLyricsFiles] = useState(null);
   const [albumName, setAlbumName] = useState('');
   const [status, setStatus] = useState('');
   const [uploadedSongs, setUploadedSongs] = useState([]);
@@ -29,7 +30,6 @@ export function UploadPage() {
     if (coverFile) formData.append("coverFile", coverFile);
     if (albumName) formData.append("albumName", albumName);
 
-    // Adjuntar archivos de letras si existen
     if (lyricsFiles) {
       for (let i = 0; i < lyricsFiles.length; i++) {
         formData.append("lyrics", lyricsFiles[i]);
@@ -51,7 +51,7 @@ export function UploadPage() {
         setAlbumName('');
         setSongFiles(null);
         setCoverFile(null);
-        setLyricsFiles(null); // Limpiar letras
+        setLyricsFiles(null);
         e.target.reset(); 
         setUploadedSongs(data.canciones || []);
       }
@@ -62,51 +62,66 @@ export function UploadPage() {
   };
 
   return (
-    <section id="uploadSection">
-      <h2>Subir Canciones/Álbumes con Letras</h2>
-      <form id="uploadForm" onSubmit={handleSubmit}>
+    <section className="music-upload-container">
+      <h2 className="music-upload-title">Subir Canciones/Álbumes</h2>
+      
+      <form className="music-upload-form" onSubmit={handleSubmit}>
         <input 
           type="file" 
-          id="songFile" 
+          className="music-upload-input-file music-upload-songs-input"
           name="song" 
           multiple 
           accept=".mp3,.wav,.ogg,.flac,.alac" 
           onChange={(e) => setSongFiles(e.target.files)} 
           required 
         />
+        
         <input 
           type="file" 
-          id="coverFile" 
+          className="music-upload-input-file music-upload-cover-input"
           name="coverFile" 
           accept="image/*" 
           onChange={(e) => setCoverFile(e.target.files[0])}
         />
-        <input 
+        
+        {/* <input 
           type="file" 
-          id="lyricsFiles" 
+          className="music-upload-input-file music-upload-lyrics-input"
           name="lyrics" 
           multiple 
           accept=".lrc" 
           onChange={(e) => setLyricsFiles(e.target.files)}
-        />
+        /> */}
+        
         <input 
           type="text" 
-          id="albumName" 
+          className="music-upload-input-text music-upload-album-input"
           name="albumName" 
           placeholder="Nombre del álbum" 
           value={albumName}
           onChange={(e) => setAlbumName(e.target.value)}
           required 
         />
-        <button type="submit">Subir</button>
+        
+        <button type="submit" className="music-upload-submit-btn">
+          Subir
+        </button>
       </form>
-      <p id="uploadStatus">{status}</p>
+      
+      <p className="music-upload-status">{status}</p>
 
-      <div id="uploadedSongs">
+      <div className="music-upload-songs-grid">
         {uploadedSongs.map(song => (
-          <div key={song.id} className="song-info">
-            <strong>{song.titulo}</strong> - {song.artista} ({song.album})<br/>
-            <small>Calidad: {song.bitDepth}-bit {song.sampleRate/1000} kHz</small>
+          <div key={song.id} className="music-upload-song-card">
+            <strong className="music-upload-song-title">
+              {song.titulo}
+            </strong>
+            <span className="music-upload-song-artist">
+              {song.artista} ({song.album})
+            </span>
+            <small className="music-upload-song-quality">
+              Calidad: {song.bitDepth}-bit {song.sampleRate/1000} kHz
+            </small>
           </div>
         ))}
       </div>
