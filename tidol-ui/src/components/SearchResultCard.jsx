@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { IoPlay } from 'react-icons/io5';
 import { IoHeart, IoHeartOutline } from 'react-icons/io5';
 import { useAuth } from '../context/AuthContext';
+import { usePlayer } from '../context/PlayerContext';
 import api from '../api/axiosConfig';
 
 export default function SearchResultCard({ 
@@ -15,6 +16,7 @@ export default function SearchResultCard({
   onLikeChange = null
 }) {
   const { userId } = useAuth();
+  const { toggleLike } = usePlayer(); // ✅ Usar contexto
   const [isLiked, setIsLiked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -42,7 +44,7 @@ export default function SearchResultCard({
   };
 
   const handleLikeClick = async (e) => {
-    e.stopPropagation(); // Evitar que se dispare onClick de la tarjeta
+    e.stopPropagation();
     
     if (!userId) {
       alert('Debes iniciar sesión para marcar como favorito');
@@ -51,26 +53,13 @@ export default function SearchResultCard({
 
     if (!isArchive || !songData) return;
 
-    setIsLoading(true);
-    try {
-      const response = await api.post('/music/ia/likes/toggle', {
-        identifier: songData.identifier || songData.id,
-        title: songData.titulo || title,
-        artist: songData.artista || subtitle,
-        source: songData.source || 'internet_archive'
-      });
-      
-      setIsLiked(response.data.liked);
-      
-      if (onLikeChange) {
-        onLikeChange(response.data.liked);
-      }
-    } catch (err) {
-      console.error('Error al alternar like:', err);
-      alert('Error al guardar el favorito');
-    } finally {
-      setIsLoading(false);
-    }
+    // ✅ Usar toggleLike del contexto
+    toggleLike(songData.identifier || songData.id, {
+      identifier: songData.identifier,
+      titulo: songData.titulo || title,
+      artista: songData.artista || subtitle,
+      source: 'internet_archive'
+    });
   };
 
   return (

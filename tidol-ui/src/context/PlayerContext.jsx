@@ -62,8 +62,11 @@ export function PlayerProvider({ children }) {
     return () => { mounted = false; };
   }, []);
 
-  const toggleLike = useCallback(async (songId) => {
+  const toggleLike = useCallback(async (songId, songData = null) => {
     if (!songId) return;
+
+    // Determinar si es de IA o local
+    const isIa = songData?.identifier || songData?.source === 'internet_archive' || typeof songId === 'string' && songId.includes('-');
 
     // Optimistic UI
     setLikedSongs(prev => {
@@ -78,9 +81,22 @@ export function PlayerProvider({ children }) {
     const token = localStorage.getItem('token');
 
     try {
-      await api.post(`/music/songs/${songId}/like`, null, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      if (isIa) {
+        // ✅ Usar endpoint de IA
+        await api.post(`/music/ia/likes/toggle`, {
+          identifier: songData?.identifier || songId,
+          title: songData?.titulo || songData?.title || '',
+          artist: songData?.artista || songData?.artist || '',
+          source: songData?.source || 'internet_archive'
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } else {
+        // ✅ Usar endpoint local
+        await api.post(`/music/songs/${songId}/like`, null, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      }
 
       // sincronizar currentSong.isLiked si es la pista actual
       setCurrentSong(cs => {
@@ -102,7 +118,7 @@ export function PlayerProvider({ children }) {
           return newSet;
         });
       }
-      console.error("No se pudo actualizar el like en el servidor para songId:", songId, err);
+      console.error("No se pudo actualizar el like:", err);
     }
   }, []);
 

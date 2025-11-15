@@ -158,7 +158,12 @@ const FullScreenPlayer = () => {
 
   const handleToggleLike = () => {
     if (!currentSong) return;
-    toggleLike(currentSong.id);
+    toggleLike(currentSong.id, {
+      identifier: currentSong.identifier,
+      titulo: currentSong.titulo,
+      artista: currentSong.artista,
+      source: currentSong.source
+    });
   };
 
   const liked = currentSong ? isSongLiked(currentSong.id) : false;

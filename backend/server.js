@@ -206,7 +206,7 @@ async function ensureColumn(table, column, typeDef) {
     `);
     logStatus("Tabla de Letras", true, "Tabla 'lyrics' lista e indexada.");
 
-    // --- TABLA LIKES ---
+    // --- TABLA LIKES (Canciones Locales) ---
     await db.run(`
       CREATE TABLE IF NOT EXISTS likes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -218,7 +218,40 @@ async function ensureColumn(table, column, typeDef) {
         UNIQUE(user_id, song_id)
       )
     `);
-    logStatus("Likes", true, "Tabla 'likes' lista.");
+    logStatus("Likes Locales", true, "Tabla 'likes' lista.");
+
+    // --- TABLA CANCIONES EXTERNAS (Internet Archive) ---
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS canciones_externas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        external_id TEXT NOT NULL UNIQUE,
+        source TEXT NOT NULL DEFAULT 'internet_archive',
+        title TEXT NOT NULL,
+        artist TEXT,
+        song_url TEXT NOT NULL,
+        cover_url TEXT,
+        duration INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_canciones_externas_external_id ON canciones_externas(external_id)`);
+    logStatus("Canciones Externas", true, "Tabla 'canciones_externas' lista.");
+
+    // --- TABLA LIKES EXTERNOS (Internet Archive) ---
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS likes_externos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        cancion_externa_id INTEGER NOT NULL,
+        liked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+        FOREIGN KEY (cancion_externa_id) REFERENCES canciones_externas(id) ON DELETE CASCADE,
+        UNIQUE(user_id, cancion_externa_id)
+      )
+    `);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_likes_externos_user_id ON likes_externos(user_id)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_likes_externos_cancion_externa_id ON likes_externos(cancion_externa_id)`);
+    logStatus("Likes Externos", true, "Tabla 'likes_externos' lista.");
 
 
     app.get("/api/health", (req, res) => {
