@@ -862,10 +862,11 @@ export const toggleIaLike = async (req, res) => {
 
     // Si no existe, crearla
     if (!externalSong) {
+      const songUrl = `https://archive.org/download/${identifier}/${identifier}.mp3`; // URL por defecto de IA
       await db.run(
-        `INSERT INTO canciones_externas (external_id, source, title, artist) 
-         VALUES (?, ?, ?, ?)`,
-        [identifier, source || 'internet_archive', title || '', artist || '']
+        `INSERT INTO canciones_externas (external_id, source, title, artist, song_url) 
+         VALUES (?, ?, ?, ?, ?)`,
+        [identifier, source || 'internet_archive', title || '', artist || '', songUrl]
       );
       externalSong = await db.get(
         `SELECT id FROM canciones_externas WHERE external_id = ?`,
