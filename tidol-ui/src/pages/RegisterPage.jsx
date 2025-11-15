@@ -2,13 +2,14 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import logo from '../../public/logo.svg';
+import logo from '/logo.svg';
 import './Auth.css';
 
 export default function RegisterPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const { register, loading } = useAuth();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -26,6 +27,11 @@ export default function RegisterPage() {
 
     if (password !== confirmPassword) {
       setError("Las contraseñas no coinciden.");
+      return;
+    }
+
+    if (!acceptTerms) {
+      setError("Debes aceptar los Términos de Uso para continuar.");
       return;
     }
 
@@ -92,6 +98,28 @@ export default function RegisterPage() {
               className="auth-input"
               required
             />
+          </div>
+
+          {/* Casilla de Términos de Uso */}
+          <div className="auth-checkbox-group">
+            <input
+              id="acceptTerms"
+              type="checkbox"
+              checked={acceptTerms}
+              onChange={(e) => setAcceptTerms(e.target.checked)}
+              className="auth-checkbox"
+              required
+            />
+            <label htmlFor="acceptTerms" className="auth-checkbox-label">
+              Acepto los{' '}
+              <Link to="/terms" target="_blank" rel="noopener noreferrer" className="auth-terms-link">
+                Términos de Uso
+              </Link>
+              {' '}y la{' '}
+              <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="auth-terms-link">
+                Política de Privacidad
+              </Link>
+            </label>
           </div>
 
           {error && (

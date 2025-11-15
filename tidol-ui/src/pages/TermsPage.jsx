@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import './terms.css';
 
 export default function TermsPage() {
@@ -177,11 +178,22 @@ export default function TermsPage() {
               Si tienes preguntas sobre estos Términos de Uso, por favor contáctanos a través de:
             </p>
             <ul className="terms-list">
-              <li>Email: support@tidol.app</li>
+              <li>Email: ElRoutel@hotmail.com</li>
               <li>GitHub: <a href="https://github.com/ElRoutel/Tidol" target="_blank" rel="noopener noreferrer">github.com/ElRoutel/Tidol</a></li>
             </ul>
           </section>
-
+        <section className="terms-section">
+            <h2 className="section-title">Recomendaciones al usuario final</h2>
+            <p>
+              Estos Términos de Uso constituyen el acuerdo completo entre tú y Tidol. Para proteger tu privacidad te recomendamos evitar el uso de correos personales o tu nombre real al registrarte o utilizar la aplicación; considera una dirección de contacto separada o un alias cuando sea apropiado.
+            </p>
+            <p>
+              Tidol realiza monitoreo básico del uso de la plataforma en búsqueda de actividades que puedan indicar piratería o abuso del servicio. El uso indebido de la aplicación por parte de usuarios puede exponer tanto al usuario como a Tidol a reclamaciones legales o acciones administrativas. En casos de indicios razonables de infracción, Tidol se reserva el derecho de suspender o cancelar cuentas y de cooperar con las autoridades competentes cuando la ley lo requiera.
+            </p>
+            <p>
+              No podemos incluir ni promover recomendaciones para evadir sanciones legales o eludir controles (por ejemplo, instrucciones para ocultar actividad ilícita). Si te preocupa tu privacidad, sigue prácticas legales y responsables: revisa nuestra Política de Privacidad, limita la información personal que compartes, utiliza direcciones de contacto alternativas y consulta asesoría legal si tienes dudas sobre el uso de contenido disponible en la plataforma.
+            </p>
+        </section>
           {/* Disclaimer */}
           <section className="terms-section disclaimer">
             <h2 className="section-title">Descargo de Responsabilidad</h2>
@@ -204,6 +216,7 @@ export default function TermsPage() {
         <div className="terms-footer glass-card">
           <p>© 2025 Tidol. Todos los derechos reservados.</p>
           <p className="footer-note">Al usar Tidol, aceptas estos Términos de Uso.</p>
+          <Link to="/privacy" className="auth-terms-link">Política de Privacidad</Link>
         </div>
       </div>
     </div>

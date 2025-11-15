@@ -24,6 +24,7 @@ import RegisterPage from './pages/RegisterPage';
 import ProfilePage from './pages/ProfilePage';
 import LibraryPage from './pages/LibraryPage';
 import TermsPage from './pages/TermsPage';
+import PrivacyPage from './pages/PrivacyPage';
 
 // RUTA PROTEGIDA
 function ProtectedRoute({ children }) {
@@ -91,6 +92,7 @@ function AppLayout() {
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/library" element={<LibraryPage />} />
               <Route path="/terms" element={<TermsPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
             </Routes>
           </main>
 

@@ -1,8 +1,8 @@
 // src/components/SearchResultCard.jsx
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import { IoPlay } from 'react-icons/io5';
 import { IoHeart, IoHeartOutline } from 'react-icons/io5';
-import { AuthContext } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import api from '../api/axiosConfig';
 
 export default function SearchResultCard({ 
@@ -14,13 +14,13 @@ export default function SearchResultCard({
   songData = null,
   onLikeChange = null
 }) {
-  const { userId } = useContext(AuthContext);
+  const { userId } = useAuth();
   const [isLiked, setIsLiked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   // Verificar si la canción está marcada como favorita al montar el componente
   useEffect(() => {
-    if (isArchive && isLoading && userId) {
+    if (isArchive && !isLoading && userId) {
       checkIfLiked();
     }
   }, [isArchive, userId]);
