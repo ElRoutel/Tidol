@@ -20,12 +20,15 @@ const tryFetch = async (url) => {
 
 // Detecta automáticamente y guarda el resultado
 (async () => {
-  if (await tryFetch(LAN_URL)) {
+  // Si estamos en HTTPS, usa URL relativa o el proxy de Cloudflare
+  if (window.location.protocol === 'https:') {
+    selectedBaseURL = "/api"; // Usa URL relativa para el proxy
+  } else if (await tryFetch(LAN_URL)) {
     selectedBaseURL = LAN_URL;
   } else if (await tryFetch(TAILSCALE_URL)) {
     selectedBaseURL = TAILSCALE_URL;
   } else {
-    selectedBaseURL = window.location.origin + "/api";
+    selectedBaseURL = "/api"; // Fallback a URL relativa
   }
   console.log("🌐 Conectando con backend:", selectedBaseURL);
   api.defaults.baseURL = selectedBaseURL;
@@ -33,7 +36,7 @@ const tryFetch = async (url) => {
 
 // Instancia global de axios (ya exportable)
 const api = axios.create({
-  baseURL: selectedBaseURL || "http://100.69.46.108:3000/api", // valor inicial por si tarda
+  baseURL: "/api", // valor inicial que se sobrescribe arriba
 });
 
 // Token automático

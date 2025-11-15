@@ -20,10 +20,10 @@ export default function SearchResultCard({
 
   // Verificar si la canción está marcada como favorita al montar el componente
   useEffect(() => {
-    if (isArchive && !isLoading && userId) {
+    if (isArchive && userId && songData) {
       checkIfLiked();
     }
-  }, [isArchive, userId]);
+  }, [isArchive, userId, songData]);
 
   const checkIfLiked = async () => {
     if (!isArchive || !songData) return;

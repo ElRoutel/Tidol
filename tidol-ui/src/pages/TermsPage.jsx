@@ -214,8 +214,8 @@ export default function TermsPage() {
 
         {/* Footer */}
         <div className="terms-footer glass-card">
-          <p>© 2025 Tidol. Todos los derechos reservados.</p>
-          <p className="footer-note">Al usar Tidol, aceptas estos Términos de Uso.</p>
+          <p>© 2025 Tidol.</p>
+          <p className="footer-note">Al usar Tidol, aceptas estos Términos de Uso (SOBRETODO A QUIEN LO ALOJA).</p>
           <Link to="/privacy" className="auth-terms-link">Política de Privacidad</Link>
         </div>
       </div>
