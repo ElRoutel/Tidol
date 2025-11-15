@@ -7,7 +7,8 @@ const router = Router();
 router.post("/musica", 
     authMiddleware, 
     upload.fields([
-        { name: "song", maxCount: 30 },
+        // Aquí se define el límite de canciones que se pueden subir por álbum.
+        { name: "song", maxCount: 35 },
         { name: "coverFile", maxCount: 1 }
     ]), 
     uploadMusic

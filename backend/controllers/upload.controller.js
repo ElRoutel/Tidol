@@ -96,7 +96,7 @@ export async function importLyricsToDB(songId, filePath) {
     for await (const line of rl) {
         const match = line.match(/\[(\d+):(\d+\.\d+)\](.*)/);
         if (!match) continue;
-        const minutes = parseInt(match[1], 10);
+        const minutes = parseInt(match[1], 100);
         const seconds = parseFloat(match[2]);
         const text = match[3].trim();
         const timeMs = Math.round((minutes * 60 + seconds) * 1000);
@@ -105,6 +105,35 @@ export async function importLyricsToDB(songId, filePath) {
     }
 
     await insertStmt.finalize();
+}
+
+// Función para normalizar nombres de artistas (extraer artista principal)
+function normalizarArtista(artistaCompleto) {
+    if (!artistaCompleto) return "Desconocido";
+    
+    // Patrones comunes de colaboración
+    const separadores = [
+        ' & ',
+        ' and ',
+        ' feat. ',
+        ' feat ',
+        ' ft. ',
+        ' ft ',
+        ' featuring ',
+    ];
+    
+    let artistaPrincipal = artistaCompleto.trim();
+    
+    // Buscar el primer separador y tomar solo lo que está antes
+    for (const sep of separadores) {
+        const index = artistaPrincipal.toLowerCase().indexOf(sep.toLowerCase());
+        if (index !== -1) {
+            artistaPrincipal = artistaPrincipal.substring(0, index).trim();
+            break;
+        }
+    }
+    
+    return artistaPrincipal;
 }
 
 // Función principal de subida
@@ -127,7 +156,8 @@ export const uploadMusic = async (req, res) => {
             const common = meta?.common || {};
             const format = meta?.format || {};
             const titulo = common.title || file.originalname.replace(/\.[^/.]+$/, "");
-            const artistaNombre = common.artist?.trim() || "Desconocido";
+            const artistaNombreCompleto = common.artist?.trim() || "Desconocido";
+            const artistaNombre = normalizarArtista(artistaNombreCompleto);
 
             let artista = await db.get("SELECT * FROM artistas WHERE nombre = ?", [artistaNombre]);
             if (!artista) {

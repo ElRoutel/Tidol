@@ -15,6 +15,7 @@ import musicRoutes from "./routes/music.routes.js";
 import uploadRoutes from "./routes/upload.routes.js";
 import historyRoutes from "./routes/history.routes.js";
 import playlistsRoutes from "./routes/playlists.js";
+import albumesRoutes from "./routes/albumes.js";
 
 async function showAnimatedBanner() {
   console.clear();
@@ -75,6 +76,7 @@ app.use("/api/music", musicRoutes);
 app.use("/api/uploads", uploadRoutes);
 app.use("/api/history", historyRoutes);
 app.use("/api/playlists", playlistsRoutes);
+app.use("/api/albumes", albumesRoutes);
 // -------------------------
 
 // Helpers de migración

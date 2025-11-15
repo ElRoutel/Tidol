@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from '../api/axiosConfig'; 
 import { useAuth } from '../context/AuthContext';
 import './upload.css';
@@ -10,8 +10,22 @@ export function UploadPage() {
   const [albumName, setAlbumName] = useState('');
   const [status, setStatus] = useState('');
   const [uploadedSongs, setUploadedSongs] = useState([]);
+  const [existingAlbums, setExistingAlbums] = useState([]);
   
   const { token } = useAuth();
+
+  useEffect(() => {
+    const fetchAlbums = async () => {
+      try {
+        const response = await api.get('/albumes');
+        setExistingAlbums(response.data);
+      } catch (error) {
+        console.error('Error fetching albums:', error);
+      }
+    };
+
+    fetchAlbums();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -20,6 +34,12 @@ export function UploadPage() {
 
     if (!songFiles || songFiles.length === 0) {
       setStatus('❌ Selecciona al menos una canción');
+      return;
+    }
+
+    // Validación de álbumes duplicados corregida
+    if (existingAlbums.some(album => album.titulo?.toLowerCase() === albumName.toLowerCase())) {
+      setStatus('❌ El álbum ya existe.');
       return;
     }
 
@@ -37,7 +57,7 @@ export function UploadPage() {
     }
 
     try {
-      const res = await api.post("/api/uploads/musica", formData, {
+      const res = await api.post("/uploads/musica", formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         }
@@ -54,6 +74,10 @@ export function UploadPage() {
         setLyricsFiles(null);
         e.target.reset(); 
         setUploadedSongs(data.canciones || []);
+        
+        // Actualizar lista de álbumes después de subir
+        const response = await api.get('/albumes');
+        setExistingAlbums(response.data);
       }
     } catch (err) {
       console.error(err);
