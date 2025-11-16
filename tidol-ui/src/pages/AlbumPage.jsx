@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import api from '../api/axiosConfig'; // <-- 1. USAR LA INSTANCIA CENTRAL
 import { usePlayer } from '../context/PlayerContext';
+import { IoPlaySharp, IoPauseSharp } from 'react-icons/io5';
 
 export default function AlbumPage() {
   const { id } = useParams(); // ID del álbum desde la URL
@@ -133,7 +134,7 @@ export default function AlbumPage() {
                 {Math.floor(song.duracion / 60)}:{(song.duracion % 60).toString().padStart(2, '0')}
               </div>
               <button className="play-btn-small">
-                {currentSong?.id === song.id ? '⏸' : '▶'}
+                {currentSong?.id === song.id ? <IoPauseSharp /> : <IoPlaySharp />}
               </button>
             </div>
           ))}
@@ -304,12 +305,13 @@ export default function AlbumPage() {
           }
 
           .song-card {
-            grid-template-columns: 30px 40px 1fr 40px;
+            grid-template-columns: 40px 1fr 40px;
             padding-left: 0; /* Remove side padding from individual cards */
             padding-right: 0;
           }
 
           .song-quality,
+          .song-number,
           .song-duration {
             display: none;
           }

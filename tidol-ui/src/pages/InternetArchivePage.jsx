@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
 import axios from 'axios';
+import { IoPlaySharp, IoPauseSharp } from 'react-icons/io5';
 
 const qualityRank = {
   'FLAC': 1,
@@ -239,7 +240,7 @@ export default function InternetArchivePage() {
               onClick={() => playSongList(filteredTracks, 0)}
               className="play-button-main"
             >
-              ▶ Reproducir
+              <IoPlaySharp /> Reproducir
             </button>
           </div>
         </div>
@@ -317,7 +318,7 @@ export default function InternetArchivePage() {
                   {Math.floor(songToShow.duracion / 60)}:{Math.floor(songToShow.duracion % 60).toString().padStart(2, '0')}
                 </div>
                 <button className="play-btn-small">
-                  {isPlaying ? '⏸' : '▶'}
+                  {isPlaying ? <IoPauseSharp /> : <IoPlaySharp />}
                 </button>
               </div>
             );
@@ -370,6 +371,12 @@ export default function InternetArchivePage() {
           border-radius: 8px;
           box-shadow: 0 12px 24px rgba(0,0,0,0.6);
           object-fit: cover;
+        }
+        
+        .album-info {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start; /* Alinea el texto a la izquierda */
         }
 
         .album-info h1 {
@@ -435,6 +442,10 @@ export default function InternetArchivePage() {
           cursor: pointer;
           font-size: 16px;
           font-weight: 700;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-top: 20px; /* Espacio sobre el botón */
           transition: all 0.2s;
           box-shadow: 0 4px 12px rgba(29,185,84,0.3);
         }
@@ -625,9 +636,11 @@ export default function InternetArchivePage() {
             font-size: 14px;
           }
           .song-card {
-            grid-template-columns: 30px 45px 1fr 40px;
+            grid-template-columns: 45px 1fr 40px;
           }
-          .song-quality, .song-duration {
+          .song-quality,
+          .song-duration,
+          .song-number {
             display: none;
           }
         }
