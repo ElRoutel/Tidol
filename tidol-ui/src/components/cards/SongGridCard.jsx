@@ -8,8 +8,9 @@ import '../../styles/cards.css'; // Usaremos el CSS de tarjetas existente
  * Muestra portada, info y un indicador de reproducción.
  */
 export default function SongGridCard({ song, onPlay }) {
-  const { currentSong } = usePlayer();
-  const isPlaying = currentSong?.id === song.id || currentSong?.identifier === song.identifier;
+  const { currentSong, isPlaying: isPlayerActive } = usePlayer();
+  const isThisSongCurrent = currentSong?.id === song.id || currentSong?.identifier === song.identifier;
+  const isPlaying = isThisSongCurrent && isPlayerActive;
 
   return (
     <div 

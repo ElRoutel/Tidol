@@ -1,9 +1,8 @@
-// src/App.jsx
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { useState } from 'react';
-import './AppBlur.css'; // Importar estilos de blur
-import './styles/glass.css'; // Importar estilos glass de forma global
+import './AppBlur.css'; 
+import './styles/glass.css'; 
 
 // COMPONENTES DE LAYOUT
 import Sidebar from './components/Sidebar';
@@ -26,7 +25,7 @@ import LibraryPage from './pages/LibraryPage';
 import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
 
-// RUTA PROTEGIDA
+// RUTA PROTEGIDA (Sin cambios)
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
 
@@ -49,7 +48,9 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
-// LAYOUT PRINCIPAL CON BLUR
+// ==========================================================
+// --- CAMBIO 1: Eliminar rutas de AppLayout ---
+// ==========================================================
 function AppLayout() {
   const [contextItem, setContextItem] = useState(null);
 
@@ -62,26 +63,22 @@ function AppLayout() {
   return (
     <>
       <div className="tidol-app-container">
-        {/* Background con orbes animados */}
+        {/* ... (Orbes de fondo, etc.) ... */}
         <div className="tidol-app-background">
           <div className="tidol-app-orb tidol-app-orb-1"></div>
           <div className="tidol-app-orb tidol-app-orb-2"></div>
           <div className="tidol-app-orb tidol-app-orb-3"></div>
         </div>
 
-        {/* Grid principal */}
         <div className="tidol-app-grid">
-          {/* Sidebar con glassmorphism */}
+          {/* ... (Sidebar, Header, etc.) ... */}
           <aside className="tidol-sidebar-container">
             <Sidebar />
           </aside>
-
-          {/* Header móvil */}
           <div className="tidol-mobile-header">
             <MobileHeader />
           </div>
 
-          {/* Contenido principal */}
           <main className="tidol-main-content">
             <Routes>
               <Route path="/" element={<HomePage />} />
@@ -91,22 +88,19 @@ function AppLayout() {
               <Route path="/ia-album/:identifier" element={<InternetArchivePage />} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/library" element={<LibraryPage />} />
-              <Route path="/terms" element={<TermsPage />} />
-              <Route path="/privacy" element={<PrivacyPage />} />
+              {/* --- RUTAS MOVIDAS --- */}
+              {/* <Route path="/terms" element={<TermsPage />} /> */}
+              {/* <Route path="/privacy" element={<PrivacyPage />} /> */}
             </Routes>
           </main>
 
-          {/* Player bar con blur intenso */}
+          {/* ... (PlayerBar, MobileNav, etc.) ... */}
           <footer className="tidol-player-container">
             <PlayerBar />
           </footer>
-
-          {/* Nav móvil */}
           <nav className="tidol-mobile-nav">
             <MobileNav />
           </nav>
-
-          {/* ContextMenu global */}
           <ContextMenu item={contextItem} onAction={handleContextAction} />
         </div>
       </div>
@@ -115,12 +109,21 @@ function AppLayout() {
   );
 }
 
-// APP PRINCIPAL
+// ==========================================================
+// --- CAMBIO 2: Añadir rutas públicas a App() ---
+// ==========================================================
 export default function App() {
   return (
     <Routes>
+      {/* --- RUTAS PÚBLICAS --- */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      {/* Estas páginas no tendrán la barra lateral ni el reproductor, 
+          lo cual es correcto para páginas legales. */}
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+
+      {/* --- RUTAS PRIVADAS --- */}
       <Route
         path="/*"
         element={

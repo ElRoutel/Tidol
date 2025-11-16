@@ -33,8 +33,7 @@ export default function LoginPage() {
           <h1 className="auth-title">Tidol</h1>
         </div>
 
-        <p className="auth-subtitle">Bienvenido de nuevo</p>
-
+        <p className="auth-subtitle">Musica gratis para todos</p>
         <form className="auth-form" onSubmit={handleSubmit}>
           <div className="auth-input-group">
             <label htmlFor="username" className="auth-label">Usuario</label>
