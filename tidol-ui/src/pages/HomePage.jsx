@@ -1,11 +1,43 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePlayer } from '../context/PlayerContext';
 import Shelf from '../components/HomeShelf';
 import AlbumCard from '../components/AlbumCard';
-import Card from '../components/Card';
+import SongShelfCard from '../components/cards/SongShelfCard';
+import SongGridCard from '../components/cards/SongGridCard'; // <-- Nueva tarjeta para la cuadrícula
+import api from '../api/axiosConfig';
 import './HomePage.css';
+
+// Función para barajar un array (algoritmo de Fisher-Yates)
+const shuffleArray = (array) => {
+  let currentIndex = array.length, randomIndex;
+  while (currentIndex !== 0) {
+    randomIndex = Math.floor(Math.random() * currentIndex);
+    currentIndex--;
+    [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+  }
+  return array;
+};
+
 export default function HomePage() {
   const { playSongList } = usePlayer();
+  const [quickPicks, setQuickPicks] = useState([]);
+
+  // Cargar datos para la sección rápida
+  useEffect(() => {
+    const fetchQuickPicks = async () => {
+      try {
+        const [historyRes, recsRes] = await Promise.all([
+          api.get('/history'),
+          api.get('/music/home-recommendations')
+        ]);
+        const combined = [...(historyRes.data?.slice(0, 6) || []), ...(recsRes.data?.slice(0, 6) || [])];
+        setQuickPicks(shuffleArray(combined));
+      } catch (error) {
+        console.error("Error cargando la sección rápida:", error);
+      }
+    };
+    fetchQuickPicks();
+  }, []);
 
   const handlePlaySong = (song, index, songList) => {
     const playlist = songList.slice(index);
@@ -22,23 +54,32 @@ export default function HomePage() {
 
       {/* Shelves con animaciones escalonadas */}
       <div className="tidol-home-content">
+        {/* Nueva Sección Rápida en formato Grid */}
+        {quickPicks.length > 0 && (
+          <div className="tidol-shelf-wrapper tidol-slide-up" style={{ animationDelay: '0.05s' }}>
+            <h2 className="text-3xl font-bold mb-4 text-white">Selección rápida</h2>
+            <div className="quick-picks-grid">
+              {quickPicks.slice(0, 6).map((song, index, songList) => (
+                <SongGridCard
+                  key={song.id || `${song.identifier}-${index}`}
+                  song={song}
+                  onPlay={() => handlePlaySong(song, index, songList)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="tidol-shelf-wrapper tidol-slide-up" style={{ animationDelay: '0.1s' }}>
           <Shelf
             title="Escuchado Recientemente"
             endpoint="/history"
             renderItem={(song, index, songList) => (
-              <div 
-                key={song.id} 
-                onClick={() => handlePlaySong(song, index, songList)} 
-                className="tidol-card-item"
-                style={{ animationDelay: `${index * 0.05}s` }}
-              >
-                <Card
-                  image={song.portada || '/default_cover.png'}
-                  title={song.titulo}
-                  subtitle={song.artista}
-                />
-              </div>
+              <SongShelfCard 
+                key={song.id}
+                song={song}
+                onPlay={() => handlePlaySong(song, index, songList)}
+              />
             )}
           />
         </div>
@@ -48,18 +89,11 @@ export default function HomePage() {
             title="Para ti"
             endpoint="/music/home-recommendations"
             renderItem={(song, index, songList) => (
-              <div 
-                key={song.id} 
-                onClick={() => handlePlaySong(song, index, songList)} 
-                className="tidol-card-item"
-                style={{ animationDelay: `${index * 0.05}s` }}
-              >
-                <Card
-                  image={song.portada || '/default_cover.png'}
-                  title={song.titulo}
-                  subtitle={song.artista}
-                />
-              </div>
+              <SongShelfCard
+                key={song.id}
+                song={song}
+                onPlay={() => handlePlaySong(song, index, songList)}
+              />
             )}
           />
         </div>
@@ -69,13 +103,7 @@ export default function HomePage() {
             title="Álbumes Populares"
             endpoint="/music/albums"
             renderItem={(album, index) => (
-              <div 
-                key={album.id} 
-                className="tidol-card-item"
-                style={{ animationDelay: `${index * 0.05}s` }}
-              >
-                <AlbumCard album={album} />
-              </div>
+              <AlbumCard key={album.id} album={album} />
             )}
           />
         </div>

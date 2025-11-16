@@ -553,32 +553,14 @@
 
 /* ==================== RESPONSIVE (MODIFICADO) ==================== */
 @media (max-width: 768px) {
-
-  /* ================================================
-    AQUÍ ESTÁ LA LÍNEA QUE SOLUCIONA EL PROBLEMA:
-    Esto fuerza a que los controles centrales de escritorio
-    (la barra de progreso y botones) se oculten en móvil.
-    ================================================
-  */
   .player-center {
-    display: none;
+    display: none; /* Oculta los controles centrales (progreso, botones grandes) en móvil */
   }
   
   .player-container {
     height: 64px; /* Barra más pequeña */
     padding: 0 12px; /* Menos padding */
     bottom: 64px; /* Ajuste para el BottomNav (asumiendo h-16 = 64px) */
-    padding-top: 2px; /* Espacio para la barra de progreso fina */
-  }
-  
-  .progress-line-container {
-    display: block; /* Mostrar la barra de progreso fina */
-  }
-  .player-container {
-    height: 64px; /* Barra más pequeña */
-    padding: 0 12px; /* Menos padding */
-    bottom: 64px; /* Ajuste para el BottomNav (asumiendo h-16 = 64px) */
-    padding-top: 2px; /* Espacio para la barra de progreso fina */
   }
   
   .progress-line-container {
@@ -615,14 +597,13 @@
     display: none;
   }
   
-  /* El player-center se oculta con 'hidden md:flex' en el JSX */
-  
   .player-right {
     flex: 0 0 auto; /* No crecer */
     justify-content: flex-end; /* Alinear a la derecha */
+    gap: 8px;
   }
 
-  /* Los controles de volumen se ocultan con 'hidden md:flex' en el JSX */
+  /* Ocultar control de volumen en móvil */
   .player-right .volume-btn,
   .player-right .volume-slider {
     display: none;

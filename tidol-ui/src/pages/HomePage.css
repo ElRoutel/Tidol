@@ -228,3 +228,24 @@
   backface-visibility: hidden;
   perspective: 1000px;
 }
+
+/* ===================================================================
+   NUEVA CUADRÍCULA PARA SELECCIÓN RÁPIDA
+   =================================================================== */
+.quick-picks-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr); /* Dos columnas por defecto */
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .quick-picks-grid {
+    grid-template-columns: 1fr; /* Una sola columna en móvil */
+  }
+}
+
+@media (min-width: 1024px) {
+  .quick-picks-grid {
+    grid-template-columns: repeat(3, 1fr); /* Tres columnas en pantallas grandes */
+  }
+}

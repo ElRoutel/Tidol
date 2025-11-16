@@ -3,6 +3,16 @@ import { useEffect, useMemo, memo, useRef } from 'react';
 import { usePlayer } from '../context/PlayerContext';
 import './PlayerBar.css';
 import { useSwipeable } from 'react-swipeable';
+import {
+  IoPlaySharp,
+  IoPauseSharp,
+  IoPlaySkipForwardSharp,
+  IoPlaySkipBackSharp,
+  IoVolumeHighSharp,
+  IoVolumeMediumSharp,
+  IoVolumeLowSharp,
+  IoVolumeMuteSharp,
+} from 'react-icons/io5';
 
 // Componente memoizado para la portada (evita re-renders innecesarios)
 const AlbumCover = memo(({ src, alt, onClick }) => (
@@ -215,6 +225,13 @@ export default function PlayerBar() {
     return parts.join(' / ') || 'N/A';
   }, [currentSong?.bit_depth, currentSong?.sample_rate]);
 
+  // Componente para el icono de volumen
+  const VolumeIcon = () => {
+    if (isMuted || volume === 0) return <IoVolumeMuteSharp size={22} />;
+    if (volume < 0.3) return <IoVolumeLowSharp size={22} />;
+    if (volume < 0.7) return <IoVolumeMediumSharp size={22} />;
+    return <IoVolumeHighSharp size={22} />;
+  };
   if (!currentSong) return null;
 
   return (
@@ -246,11 +263,15 @@ export default function PlayerBar() {
           {/* Center section (Solo escritorio) */}
           <div className="player-center hidden md:flex">
             <div className="controls">
-              {/* <button onClick={previousSong} ... > PREV </button> */}
-              <button onClick={togglePlayPause} className="control-btn play-pause" title={isPlaying ? 'Pausar' : 'Reproducir'}>
-                {isPlaying ? '⏸' : '▶'}
+              <button onClick={previousSong} className="control-btn" title="Anterior">
+                <IoPlaySkipBackSharp />
               </button>
-              {/* <button onClick={nextSong} ... > NEXT </button> */}
+              <button onClick={togglePlayPause} className="control-btn play-pause" title={isPlaying ? 'Pausar' : 'Reproducir'}>
+                {isPlaying ? <IoPauseSharp /> : <IoPlaySharp />}
+              </button>
+              <button onClick={nextSong} className="control-btn" title="Siguiente">
+                <IoPlaySkipForwardSharp />
+              </button>
             </div>
             <div className="progress-container">
               <span className="time-current">{formatTime(currentTime)}</span>
@@ -271,7 +292,7 @@ export default function PlayerBar() {
             {/* Controles de volumen (Solo escritorio) */}
             <div className="hidden md:flex items-center gap-2">
               <button onClick={toggleMute} className="volume-btn" title="Silenciar">
-                {isMuted || volume === 0 ? '🔇' : volume < 0.3 ? '🔈' : volume < 0.7 ? '🔉' : '🔊'}
+                <VolumeIcon />
               </button>
               <input
                 type="range"
@@ -287,10 +308,10 @@ export default function PlayerBar() {
             {/* Controles de reproducción (Solo móvil) */}
             <div className="flex md:hidden items-center gap-3">
               <button onClick={togglePlayPause} className="control-btn play-pause-mobile" title={isPlaying ? 'Pausar' : 'Reproducir'}>
-                {isPlaying ? '⏸' : '▶'}
+                {isPlaying ? <IoPauseSharp size={22} /> : <IoPlaySharp size={22} />}
               </button>
               <button onClick={nextSong} className="control-btn" title="Siguiente">
-                ⏭
+                <IoPlaySkipForwardSharp size={22} />
               </button>
             </div>
           </div>

@@ -80,3 +80,94 @@
 
 .glass-compact:hover { box-shadow: 0 10px 25px rgba(0,0,0,0.45); background: linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%); }
 
+/* ===================================================================
+   NUEVA VARIANTE: Tarjeta Compacta para Listas (Ej: Recientes)
+   =================================================================== */
+
+/* Contenedor principal de la tarjeta compacta */
+.song-card-compact {
+  display: flex;
+  align-items: center;
+  gap: 10px; /* Espacio reducido entre elementos */
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Hereda los estilos de .glass-compact */
+.song-card-compact.glass-compact {
+  padding: 8px; /* Padding reducido */
+}
+
+/* Portada más pequeña */
+.song-card-compact .song-cover {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px; /* Bordes más sutiles */
+  flex-shrink: 0; /* Evita que la imagen se encoja */
+}
+
+/* Ocultar el ícono de play/pause para un look más limpio */
+.song-card-compact .song-play-icon {
+  display: none;
+}
+
+/* ===================================================================
+   NUEVA VARIANTE: Vista de Lista (List View)
+   =================================================================== */
+
+/* Contenedor de la fila */
+.song-list-item {
+  display: grid;
+  grid-template-columns: 40px 1fr auto; /* [Icono/Num] [Título/Artista] [Duración] */
+  align-items: center;
+  gap: 16px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  transition: background-color 0.2s ease;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid transparent; /* Espacio para borde sutil */
+}
+
+.song-list-item:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+/* Columna 1: Portada o Número */
+.song-list-cover {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+/* Columna 2: Info principal */
+.song-list-info {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* Para truncar texto */
+}
+
+.song-list-info .title {
+  font-size: 15px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.song-list-info .artist {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Columna 3: Duración */
+.song-list-duration {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+  font-variant-numeric: tabular-nums; /* Asegura que los números se alineen */
+}

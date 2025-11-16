@@ -6,21 +6,38 @@ import '../styles/glass.css';
 import favImage from "./favImage.jpg";
 import "./Library.css";
 
-function SongGridItem({ song, onPlay, isActive, isArchive = false }) {
+// Componente para la fila de canción en la lista
+function SongListItem({ song, onPlay, isActive, isArchive = false }) {
+  const formatDuration = (s) => {
+    if (!s || isNaN(s)) return '--:--';
+    const minutes = Math.floor(s / 60);
+    const seconds = Math.floor(s % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
   return (
-    <div className="library-card" onClick={onPlay}>
+    <div 
+      className={`song-list-item ${isActive ? 'playing' : ''}`} 
+      onClick={onPlay}
+    >
       <img
-        src={isArchive ? (song.portada || song.cover_url || "https://via.placeholder.com/300") : (song.portada || "https://via.placeholder.com/300")}
+        className="song-list-cover"
+        src={isArchive ? (song.portada || song.cover_url || '/default_cover.png') : (song.portada || '/default_cover.png')}
         alt={isArchive ? song.title : song.titulo}
-        className="library-img"
       />
-      <p className="library-name">{isArchive ? song.title : song.titulo}</p>
-      <p className="library-artist">{isArchive ? song.artist : song.artista}</p>
+      <div className="song-list-info">
+        <span className="title">{isArchive ? song.title : song.titulo}</span>
+        <span className="artist">{isArchive ? song.artist : song.artista}</span>
+      </div>
+      <div className="song-list-duration">
+        {formatDuration(isArchive ? song.duration : song.duracion)}
+      </div>
     </div>
   );
 }
 
 function PlaylistItem({ playlist, onSelect }) {
+  // Estilo para la lista de playlists se mantiene
   return (
     <div className="playlist-item" onClick={onSelect}>
       <img
@@ -166,12 +183,12 @@ export default function LibraryPage() {
           </div>
 
           {!loading && songs.length > 0 && (
-            <div className="library-grid">
+            <div className="library-song-list">
               {songs.map((song, i) => (
-                <SongGridItem
+                <SongListItem
                   key={song.id || i}
                   song={song}
-                  isActive={currentSong?.id === song.id}
+                  isActive={currentSong?.id === song.id && currentSong?.source !== 'internet_archive'}
                   onPlay={() => playSongList(songs, i)}
                 />
               ))}
@@ -204,13 +221,13 @@ export default function LibraryPage() {
           </div>
 
           {!loadingIaLikes && iaLikes.length > 0 && (
-            <div className="library-grid">
+            <div className="library-song-list">
               {iaLikes.map((song, i) => (
-                <SongGridItem
+                <SongListItem
                   key={song.id || i}
                   song={song}
                   isArchive={true}
-                  isActive={currentSong?.identifier === song.identifier}
+                  isActive={currentSong?.identifier === song.identifier && currentSong?.source === 'internet_archive'}
                   onPlay={() => {
                     // Convertir canciones de IA al formato esperado por playSongList
                     const formattedSongs = iaLikes.map(s => ({

@@ -1,0 +1,123 @@
+/* ===================================================================
+   ESTILOS COMPARTIDOS PARA TARJETAS DE CARRUSEL (SHELF)
+   =================================================================== */
+
+.song-shelf-card, .album-card {
+  width: 12rem; /* Ancho fijo para consistencia en el carrusel */
+  flex-shrink: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+
+.card-cover-container {
+  position: relative;
+  width: 100%;
+  padding-top: 100%; /* Aspect ratio 1:1 */
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.card-cover {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.song-shelf-card:hover .card-cover,
+.album-card:hover .card-cover {
+  transform: scale(1.05);
+}
+
+.card-play-button {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  width: 40px;
+  height: 40px;
+  background-color: #1db954;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.25s ease;
+}
+
+.song-shelf-card:hover .card-play-button,
+.album-card:hover .card-play-button {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.card-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.card-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.card-subtitle {
+  font-size: 12px;
+  color: rgba(255,255,255,0.7);
+}
+
+/* ===================================================================
+   NUEVA TARJETA: SongGridCard (para cuadrículas)
+   =================================================================== */
+
+.song-grid-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s ease;
+}
+
+.song-grid-card:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.song-grid-card.playing {
+  background-color: rgba(29, 185, 84, 0.1);
+  border-color: rgba(29, 185, 84, 0.2);
+}
+
+.song-grid-cover {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.song-grid-info {
+  flex-grow: 1;
+  min-width: 0; /* Clave para que el texto se trunque correctamente */
+}
+
+.song-grid-play-icon {
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.song-grid-card:hover .song-grid-play-icon,
+.song-grid-card.playing .song-grid-play-icon {
+  opacity: 1;
+}

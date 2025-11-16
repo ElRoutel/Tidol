@@ -1,24 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axiosConfig';
 
-const Shelf = ({ title, endpoint, renderItem }) => {
-  const [items, setItems] = useState([]);
+const Shelf = ({ title, endpoint, items: propItems, renderItem }) => {
+  const [items, setItems] = useState(propItems || []);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Si se pasa un endpoint, cargar datos. Si no, usar propItems.
+    if (!endpoint) {
+      setLoading(false);
+      return;
+    }
+
     const fetchData = async () => {
       try {
         const response = await api.get(endpoint);
         setItems(response.data);
       } catch (error) {
         console.error(`Error cargando la shelf "${title}":`, error);
+        setItems([]); // Asegurarse de que items sea un array en caso de error
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [endpoint, title]);
+  }, [endpoint, title]); // No incluir propItems aquí para evitar re-fetches
 
   if (loading) {
     return (
