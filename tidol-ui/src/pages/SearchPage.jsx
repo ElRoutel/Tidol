@@ -228,7 +228,7 @@ export function SearchPage() {
       {loading && (
         <div className="search-loading glass-card">
           <div className="loading-spinner" />
-          <p className="loading-text">Buscando en todas partes (si la busqueda es nueva puede tardar unos 30s)...</p>
+          <p className="loading-text">Buscando en todas partes (si la busqueda es nueva puede tardar unos 172s)...</p>
         </div>
       )}
     </div>

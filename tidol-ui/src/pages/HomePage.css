@@ -1,221 +1,510 @@
 /* ============================================
-   HOME PAGE STYLES - GLASSMORPHISM
+   TIDOL HOME - PROFESSIONAL GLASSMORPHISM SYSTEM
+   Design System v2.0 - Production Ready
    ============================================ */
 
-.tidol-home-container {
-  min-height: 100%;
-  padding-bottom: 2rem;
+/* ============================================
+   DESIGN TOKENS - Centralized Theme System
+   ============================================ */
+:root {
+  /* Glassmorphism Primitives */
+  --glass-blur-strong: 12px;
+  --glass-blur-medium: 8px;
+  --glass-blur-light: 6px;
+  
+  --glass-bg-header: rgba(255, 255, 255, 0.03);
+  --glass-bg-shelf: rgba(255, 255, 255, 0.02);
+  --glass-bg-shelf-hover: rgba(255, 255, 255, 0.04);
+  
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --glass-border-hover: rgba(255, 255, 255, 0.08);
+  
+  /* Spacing Scale (8px base) */
+  --space-xs: 0.5rem;    /* 8px */
+  --space-sm: 1rem;      /* 16px */
+  --space-md: 1.5rem;    /* 24px */
+  --space-lg: 2rem;      /* 32px */
+  --space-xl: 2.5rem;    /* 40px */
+  --space-2xl: 3rem;     /* 48px */
+  --space-3xl: 3.5rem;   /* 56px */
+  
+  /* Typography Scale */
+  --font-size-xs: 0.875rem;   /* 14px */
+  --font-size-sm: 1rem;       /* 16px */
+  --font-size-md: 1.125rem;   /* 18px */
+  --font-size-lg: 1.75rem;    /* 28px */
+  --font-size-xl: 2rem;       /* 32px */
+  --font-size-2xl: 2.5rem;    /* 40px */
+  --font-size-3xl: 3rem;      /* 48px */
+  
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 800;
+  
+  /* Color Palette */
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #B3B3B3;
+  --color-text-tertiary: #808080;
+  
+  /* Border Radius Scale */
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  
+  /* Shadows */
+  --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.15);
+  --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.3);
+  
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* Card Widths */
+  --card-width-mobile: 160px;
+  --card-width-tablet: 176px;
+  --card-width-desktop: 192px;
+  --card-width-large: 208px;
+  
+  /* Scrollbar */
+  --scrollbar-height: 8px;
+  --scrollbar-track: rgba(255, 255, 255, 0.02);
+  --scrollbar-thumb: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.3) 100%);
+  --scrollbar-thumb-hover: linear-gradient(180deg, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.5) 100%);
 }
 
-/* Header con efecto glassmorphism sutil */
+/* Fallback tokens for browsers without custom properties */
+@supports not (--css: variables) {
+  .tidol-home-header {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+}
+
+/* ============================================
+   ACCESSIBILITY - High Contrast & Forced Colors
+   ============================================ */
+@media (prefers-contrast: more) {
+  :root {
+    --glass-bg-header: rgba(255, 255, 255, 0.08);
+    --glass-bg-shelf: rgba(255, 255, 255, 0.06);
+    --glass-border: rgba(255, 255, 255, 0.12);
+    --color-text-secondary: #CCCCCC;
+    --font-weight-medium: 600;
+    --font-weight-semibold: 700;
+  }
+}
+
+@media (forced-colors: active) {
+  .tidol-home-header,
+  .tidol-shelf-wrapper {
+    background-color: Canvas;
+    color: CanvasText;
+    border: 1px solid CanvasText;
+    forced-color-adjust: none;
+  }
+  
+  .tidol-home-title {
+    background: none;
+    -webkit-text-fill-color: inherit;
+    color: CanvasText;
+  }
+  
+  .tidol-card-item:hover {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+}
+
+/* ============================================
+   BASE CONTAINER
+   ============================================ */
+.tidol-home-container {
+  min-block-size: 100%; /* Logical property for internationalization */
+  padding-block-end: var(--space-lg);
+  isolation: isolate; /* Creates stacking context */
+  contain: layout style; /* Performance optimization */
+}
+
+/* ============================================
+   HEADER - Glassmorphism with Fallback
+   ============================================ */
 .tidol-home-header {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 16px;
-  padding: 2rem;
-  margin-bottom: 2rem;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  /* Fallback for browsers without backdrop-filter */
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  margin-block-end: var(--space-lg);
+  box-shadow: var(--shadow-md);
+  
+  /* Performance optimizations */
   transform: translateZ(0);
   will-change: backdrop-filter;
+  contain: layout paint; /* Limits repaints to this element */
+  
+  /* Smooth glassmorphism transition */
+  transition: 
+    background-color var(--transition-normal),
+    border-color var(--transition-normal),
+    box-shadow var(--transition-normal);
 }
 
+/* Progressive enhancement: Apply backdrop-filter only if supported */
+@supports (backdrop-filter: blur(12px)) or (-webkit-backdrop-filter: blur(12px)) {
+  .tidol-home-header {
+    background: var(--glass-bg-header);
+    backdrop-filter: blur(var(--glass-blur-strong));
+    -webkit-backdrop-filter: blur(var(--glass-blur-strong));
+  }
+}
+
+/* ============================================
+   TYPOGRAPHY - Gradient Text with Fallback
+   ============================================ */
 .tidol-home-title {
-  font-size: 2.5rem;
-  font-weight: 800;
-  color: #FFFFFF;
-  margin-bottom: 0.5rem;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary); /* Fallback */
+  margin-block-end: var(--space-xs);
   letter-spacing: -0.02em;
+  line-height: 1.2;
+  
+  /* Gradient text effect */
   background: linear-gradient(135deg, #FFFFFF 0%, #B3B3B3 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  
+  /* Ensure gradient doesn't break with paint containment */
+  paint-order: stroke fill;
+}
+
+/* Fallback for browsers without background-clip: text */
+@supports not (background-clip: text) {
+  .tidol-home-title {
+    background: none;
+    color: var(--color-text-primary);
+  }
 }
 
 .tidol-home-subtitle {
-  font-size: 1rem;
-  color: #B3B3B3;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.5;
+  max-inline-size: 80ch; /* Optimal reading width */
 }
 
-/* Contenedor de contenido */
+/* ============================================
+   CONTENT LAYOUT
+   ============================================ */
 .tidol-home-content {
   display: flex;
   flex-direction: column;
-  gap: 3rem;
+  gap: var(--space-2xl);
+  contain: layout style; /* Performance */
 }
 
-/* Wrapper de cada Shelf con glassmorphism */
+/* ============================================
+   SHELF WRAPPER - Advanced Glassmorphism
+   ============================================ */
 .tidol-shelf-wrapper {
-  background: rgba(255, 255, 255, 0.02);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
-  padding: 1.5rem;
-  transition: all 0.3s ease;
+  /* Fallback background */
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding-block: var(--space-md);
+  
+  /* Performance optimizations */
   transform: translateZ(0);
-  will-change: transform, backdrop-filter;
+  will-change: transform;
+  isolation: isolate;
+  contain: layout paint; /* Limits repaints and creates paint boundary */
+  
+  /* Smooth transitions */
+  transition: 
+    background-color var(--transition-normal),
+    border-color var(--transition-normal),
+    box-shadow var(--transition-normal),
+    transform var(--transition-normal);
+}
+
+/* Progressive enhancement */
+@supports (backdrop-filter: blur(8px)) or (-webkit-backdrop-filter: blur(8px)) {
+  .tidol-shelf-wrapper {
+    background: var(--glass-bg-shelf);
+    backdrop-filter: blur(var(--glass-blur-medium));
+    -webkit-backdrop-filter: blur(var(--glass-blur-medium));
+  }
 }
 
 .tidol-shelf-wrapper:hover {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.08);
+  background: var(--glass-bg-shelf-hover);
+  border-color: var(--glass-border-hover);
   transform: translateY(-2px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-lg);
 }
 
-/* Custom scrollbar for shelves - glass style */
+.tidol-shelf-wrapper:focus-within {
+  outline: 2px solid var(--glass-border-hover);
+  outline-offset: 2px;
+}
+
+/* ============================================
+   CAROUSEL - Optimized Horizontal Scroll
+   ============================================ */
 .tidol-shelf-scroll {
+  display: flex;
+  gap: var(--space-sm);
+  
+  /* Scroll configuration */
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain; /* Prevents scroll chaining */
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch; /* iOS momentum scrolling */
+  
+  /* Visual padding */
+  padding-inline: var(--space-md);
+  scroll-padding-inline: var(--space-md);
+  
+  /* Performance: Skip rendering offscreen content */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 250px;
+  
+  /* Custom scrollbar */
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.4) rgba(255, 255, 255, 0.05);
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-gutter: stable; /* Prevents layout shift */
 }
 
-/* Webkit scrollbar (Chrome, Safari, Edge) */
+/* WebKit scrollbar styling */
 .tidol-shelf-scroll::-webkit-scrollbar {
-  height: 8px;
+  block-size: var(--scrollbar-height);
 }
 
 .tidol-shelf-scroll::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--scrollbar-track);
   border-radius: 10px;
 }
 
 .tidol-shelf-scroll::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.3) 100%);
+  background: var(--scrollbar-thumb);
   border-radius: 10px;
-  border: 2px solid rgba(255, 255, 255, 0.02);
-  backdrop-filter: blur(4px);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background var(--transition-fast);
 }
 
 .tidol-shelf-scroll::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.5) 100%);
+  background: var(--scrollbar-thumb-hover);
   box-shadow: 0 0 8px rgba(0, 0, 0, 0.3);
 }
 
-/* Cards con animación individual */
+/* ============================================
+   CARDS - Isolated Visual Effects
+   ============================================ */
 .tidol-card-item {
-  width: 192px;
-  flex-shrink: 0;
+  inline-size: var(--card-width-desktop);
+  flex: 0 0 auto;
   cursor: pointer;
-  animation: tidol-scale-in 0.5s ease-out backwards;
-  transition: transform 0.2s ease, opacity 0.2s ease;
+  scroll-snap-align: start;
+  scroll-snap-stop: normal;
+  
+  /* Performance */
+  contain: layout style paint;
+  content-visibility: auto;
+  
+  /* Smooth entrance animation */
+  animation: tidol-card-enter var(--transition-slow) cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  
+  /* Hover transitions */
+  transition: 
+    transform var(--transition-fast),
+    opacity var(--transition-fast);
+  
+  /* Prevent text selection on drag */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
-.tidol-card-item:hover {
-  /* No elevation in carousel: use brightness instead to avoid collisions */
-  filter: brightness(1.1);
-  z-index: 12;
+/* Apply effects ONLY to media elements, not text */
+.tidol-card-item :is(img, picture, video, canvas, [class*="cover"], [class*="thumbnail"]) {
+  display: block;
+  inline-size: 100%;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  
+  /* Smooth visual transitions */
+  transition: 
+    filter var(--transition-fast),
+    transform var(--transition-fast);
+  
+  will-change: filter, transform;
+  
+  /* Performance */
+  contain: layout paint;
 }
 
-.tidol-card-item:active {
+.tidol-card-item:hover :is(img, picture, video, canvas, [class*="cover"], [class*="thumbnail"]) {
+  filter: brightness(1.1) saturate(1.05);
+  transform: scale(1.02);
+}
+
+.tidol-card-item:active :is(img, picture, video, canvas, [class*="cover"], [class*="thumbnail"]) {
   filter: brightness(0.98);
+  transform: scale(0.99);
+}
+
+/* Protect text from filters */
+.tidol-card-item :is(h1, h2, h3, h4, h5, h6, p, span, small, strong, em, [class*="title"], [class*="text"]) {
+  filter: none !important;
+  transform: none !important;
+  will-change: auto;
+}
+
+/* Card entrance animation */
+@keyframes tidol-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* ============================================
-   RESPONSIVE - MOBILE
+   ACCESSIBILITY - Reduced Motion
+   ============================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  
+  .tidol-card-item {
+    animation: none;
+  }
+  
+  .tidol-shelf-wrapper {
+    transition: none;
+  }
+}
+
+/* ============================================
+   RESPONSIVE - MOBILE (< 768px)
    ============================================ */
 @media (max-width: 767px) {
+  :root {
+    --space-lg: 1.5rem;
+    --space-2xl: 2rem;
+    --font-size-2xl: 1.75rem;
+    --font-size-sm: 0.875rem;
+    --glass-blur-strong: 8px;
+    --glass-blur-medium: 6px;
+  }
+  
   .tidol-home-header {
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    padding: var(--space-md);
+    margin-block-end: var(--space-md);
   }
-
-  .tidol-home-title {
-    font-size: 1.75rem;
-  }
-
-  .tidol-home-subtitle {
-    font-size: 0.875rem;
-  }
-
-  .tidol-home-content {
-    gap: 2rem;
-  }
-
+  
   .tidol-shelf-wrapper {
-    padding: 1rem;
-    border-radius: 16px;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    padding-block: var(--space-sm);
+    border-radius: var(--radius-md);
   }
-
+  
   .tidol-card-item {
-    width: 160px;
+    inline-size: var(--card-width-mobile);
+  }
+  
+  .tidol-shelf-scroll {
+    gap: 0.75rem;
+    padding-inline: var(--space-sm);
   }
 }
 
 /* ============================================
-   RESPONSIVE - TABLET
+   RESPONSIVE - TABLET (768px - 1024px)
    ============================================ */
 @media (min-width: 768px) and (max-width: 1024px) {
+  :root {
+    --font-size-2xl: 2rem;
+  }
+  
   .tidol-home-header {
     padding: 1.75rem;
   }
-
-  .tidol-home-title {
-    font-size: 2rem;
-  }
-
+  
   .tidol-card-item {
-    width: 176px;
+    inline-size: var(--card-width-tablet);
   }
 }
 
 /* ============================================
-   RESPONSIVE - DESKTOP LARGE
+   RESPONSIVE - LARGE DESKTOP (> 1440px)
    ============================================ */
 @media (min-width: 1440px) {
+  :root {
+    --space-lg: 2.5rem;
+    --space-2xl: 3rem;
+    --space-3xl: 3.5rem;
+    --font-size-2xl: 3rem;
+    --font-size-sm: 1.125rem;
+  }
+  
   .tidol-home-header {
-    padding: 2.5rem;
-    margin-bottom: 2.5rem;
+    padding: var(--space-xl);
+    margin-block-end: var(--space-xl);
   }
-
-  .tidol-home-title {
-    font-size: 3rem;
-  }
-
-  .tidol-home-subtitle {
-    font-size: 1.125rem;
-  }
-
+  
   .tidol-home-content {
-    gap: 3.5rem;
+    gap: var(--space-3xl);
   }
-
+  
   .tidol-shelf-wrapper {
-    padding: 2rem;
+    padding-block: var(--space-lg);
   }
-
+  
   .tidol-card-item {
-    width: 208px;
+    inline-size: var(--card-width-large);
   }
-}
-
-/* Scroll-snap for shelves to avoid visual collisions */
-.tidol-shelf-scroll {
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-}
-
-.tidol-card-item {
-  scroll-snap-align: start;
-  padding: 0; /* ensure click area doesn't shift due to extra padding */
 }
 
 /* ============================================
-   ACCESIBILIDAD
+   QUICK PICKS GRID - Responsive Grid System
    ============================================ */
-@media (prefers-reduced-motion: reduce) {
-  .tidol-card-item {
-    animation: none !important;
-  }
+.quick-picks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 0.75rem;
+  
+  /* Performance */
+  contain: layout style;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 400px;
+}
 
-  .tidol-shelf-wrapper {
-    transition: none !important;
+@media (max-width: 768px) {
+  .quick-picks-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 1024px) {
+  .quick-picks-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-sm);
   }
 }
 
@@ -223,29 +512,41 @@
    PERFORMANCE - GPU ACCELERATION
    ============================================ */
 .tidol-home-header,
-.tidol-shelf-wrapper {
+.tidol-shelf-wrapper,
+.tidol-card-item {
   transform: translateZ(0);
   backface-visibility: hidden;
   perspective: 1000px;
 }
 
-/* ===================================================================
-   NUEVA CUADRÍCULA PARA SELECCIÓN RÁPIDA
-   =================================================================== */
-.quick-picks-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr); /* Dos columnas por defecto */
-  gap: 12px;
-}
-
-@media (max-width: 768px) {
-  .quick-picks-grid {
-    grid-template-columns: 1fr; /* Una sola columna en móvil */
+/* ============================================
+   PRINT STYLES - Production Ready
+   ============================================ */
+@media print {
+  .tidol-home-header,
+  .tidol-shelf-wrapper {
+    background: transparent;
+    backdrop-filter: none;
+    border: 1px solid #000;
+  }
+  
+  .tidol-card-item {
+    page-break-inside: avoid;
+  }
+  
+  .tidol-shelf-scroll {
+    overflow: visible;
   }
 }
 
-@media (min-width: 1024px) {
-  .quick-picks-grid {
-    grid-template-columns: repeat(3, 1fr); /* Tres columnas en pantallas grandes */
-  }
+/* ============================================
+   DARK MODE OPTIMIZATION (if needed)
+   ============================================ */
+@media (prefers-color-scheme: dark) {
+  /* Already optimized for dark backgrounds */
+  /* Add specific adjustments if needed */
 }
+
+/* ============================================
+   END OF PROFESSIONAL GLASSMORPHISM SYSTEM
+   ============================================ */

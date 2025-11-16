@@ -4,6 +4,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import api from '../api/axiosConfig'; // <-- 1. USAR LA INSTANCIA CENTRAL
 import { usePlayer } from '../context/PlayerContext';
 import { IoPlaySharp, IoPauseSharp } from 'react-icons/io5';
+import LikeButton from '../components/LikeButton'; // Importamos el nuevo componente
 
 export default function AlbumPage() {
   const { id } = useParams(); // ID del álbum desde la URL
@@ -14,6 +15,7 @@ export default function AlbumPage() {
   const [songs, setSongs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [likedSongs, setLikedSongs] = useState(new Set()); // Para guardar los IDs de canciones favoritas
 
   const { playSongList, currentSong } = usePlayer();
 
@@ -21,6 +23,12 @@ export default function AlbumPage() {
     const fetchAlbum = async () => {
       try {
         setLoading(true);
+
+        // Obtenemos los likes del usuario para saber qué marcar
+        const likedRes = await api.get('/music/songs/likes');
+        if (likedRes.data) {
+          setLikedSongs(new Set(likedRes.data.map(s => s.id)));
+        }
 
         // Las llamadas ahora usan 'api' y rutas relativas.
         // El interceptor de Axios se encarga del token.
@@ -56,6 +64,19 @@ export default function AlbumPage() {
   // Manejar click en una canción
   const handleSongClick = (index) => {
     playSongList(songs, index);
+  };
+
+  // Manejar el cambio de estado de "Me Gusta"
+  const handleLikeToggle = (songId, isLiked) => {
+    setLikedSongs(prev => {
+      const newSet = new Set(prev);
+      if (isLiked) {
+        newSet.add(songId);
+      } else {
+        newSet.delete(songId);
+      }
+      return newSet;
+    });
   };
 
   // Formatear calidad
@@ -130,6 +151,11 @@ export default function AlbumPage() {
                 <div className="song-artist">{song.artista}</div>
               </div>
               <div className="song-quality">{formatQuality(song)}</div>
+              <LikeButton 
+                song={song}
+                isLiked={likedSongs.has(song.id)}
+                onLikeToggle={handleLikeToggle}
+              />
               <div className="song-duration">
                 {Math.floor(song.duracion / 60)}:{(song.duracion % 60).toString().padStart(2, '0')}
               </div>
@@ -202,7 +228,7 @@ export default function AlbumPage() {
 
         .song-card {
           display: grid;
-          grid-template-columns: 40px 50px 1fr 150px 60px 40px;
+          grid-template-columns: 40px 50px 1fr 150px 40px 60px 40px; /* Añadida columna para LikeButton */
           align-items: center;
           gap: 12px;
           padding: 8px 12px;
@@ -264,6 +290,19 @@ export default function AlbumPage() {
           font-size: 14px;
         }
 
+        .like-btn {
+          background: none;
+          border: none;
+          color: #b3b3b3;
+          font-size: 20px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .like-btn:hover {
+          color: white;
+          transform: scale(1.1);
+        }
+
         .play-btn-small {
           background: none;
           border: none;
@@ -305,7 +344,8 @@ export default function AlbumPage() {
           }
 
           .song-card {
-            grid-template-columns: 40px 1fr 40px;
+            /* Num(hide) Thumb Info Like Play */
+            grid-template-columns: 40px 1fr 40px 40px;
             padding-left: 0; /* Remove side padding from individual cards */
             padding-right: 0;
           }

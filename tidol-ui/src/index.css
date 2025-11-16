@@ -3,6 +3,34 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+/* En tu archivo CSS global o AppBlur.css */
+* {
+  touch-action: manipulation; /* Deshabilita double-tap zoom pero mantiene pinch */
+}
+
+/* Alternativa más específica para elementos interactivos */
+button, a, input, textarea, select, [role="button"] {
+  touch-action: manipulation;
+}
+/* En tu archivo CSS - iOS no hace zoom si font-size >= 16px */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+input[type="tel"],
+input[type="url"],
+input[type="number"],
+textarea,
+select {
+  font-size: 16px !important; /* Previene auto-zoom en focus */
+}
+
+/* Si necesitas un tamaño visual diferente, usa transform */
+input.small-text {
+  font-size: 16px;
+  transform: scale(0.875); /* Visualmente 14px */
+  transform-origin: left top;
+}
 
 /* Con v3, esta es la forma recomendada de aplicar estilos
   globales, y ahora sí funcionará.

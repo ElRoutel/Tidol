@@ -560,7 +560,8 @@
   .player-container {
     height: 64px; /* Barra más pequeña */
     padding: 0 12px; /* Menos padding */
-    bottom: 64px; /* Ajuste para el BottomNav (asumiendo h-16 = 64px) */
+    /* Ajuste para el BottomNav + safe area del navegador móvil */
+    bottom: calc(64px + env(safe-area-inset-bottom)); 
   }
   
   .progress-line-container {

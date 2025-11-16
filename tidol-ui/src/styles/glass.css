@@ -7,18 +7,28 @@
   --glass-accent: rgba(255,255,255,0.06);
 }
 
-/* Reusable glass surface for cards / panels */
+/* ============================================
+   GLASS CARD - CORREGIDO
+   ============================================ */
 .glass-card {
-  background: linear-gradient(180deg, var(--glass-bg) 0%, var(--glass-bg-2) 100%);
+  /* ✅ CORREGIDO: Fondo claro semi-transparente en lugar de oscuro */
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--glass-border);
   border-radius: var(--glass-radius);
   box-shadow: var(--glass-shadow);
-  backdrop-filter: blur(8px) saturate(120%);
-  -webkit-backdrop-filter: blur(8px) saturate(120%);
+  
+  /* ✅ CORREGIDO: Eliminamos saturate() para evitar cambios de color */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  
+  /* Aislamiento para evitar conflictos de stacking */
+  isolation: isolate;
+  
   transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  will-change: transform;
 }
 
-/* Prevent visual seams when cards overlap/backdrop-filter stacks */
+/* Prevenir "seams" visuales */
 .glass-card {
   background-clip: padding-box;
   -webkit-background-clip: padding-box;
@@ -26,8 +36,12 @@
   position: relative;
 }
 
-/* Hover: no elevation in carousels, use shadow/brightness only */
-.glass-card:hover { box-shadow: 0 12px 36px rgba(0,0,0,0.55); background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.03) 100%); }
+/* ✅ Hover consistente sin cambios bruscos */
+.glass-card:hover { 
+  box-shadow: 0 12px 36px rgba(0,0,0,0.55); 
+  background: rgba(255, 255, 255, 0.05); /* Incremento sutil y consistente */
+  transform: translateY(-1px);
+}
 
 .song-card-local {
   display: flex;
@@ -38,9 +52,19 @@
   user-select: none;
 }
 
-.song-card-local.playing { box-shadow: 0 14px 40px rgba(0,0,0,0.55); transform: translateY(-2px); }
+.song-card-local.playing { 
+  box-shadow: 0 14px 40px rgba(0,0,0,0.55); 
+  transform: translateY(-2px); 
+  background: rgba(255, 255, 255, 0.06);
+}
 
-.song-cover { width:56px; height:56px; object-fit: cover; border-radius: 8px; flex: 0 0 56px; }
+.song-cover { 
+  width:56px; 
+  height:56px; 
+  object-fit: cover; 
+  border-radius: 8px; 
+  flex: 0 0 56px; 
+}
 
 .song-card-local h4 { margin: 0; font-size: 14px; color: #fff; }
 .song-card-local p { margin: 0; font-size: 12px; color: rgba(255,255,255,0.7); }
@@ -59,66 +83,64 @@
   .glass-card { transition: none; transform: none; }
 }
 
-/* Album card sizing to keep consistent aesthetic */
 .album-card { width: 12rem; flex-shrink: 0; }
 .album-cover { width: 100%; height: 10rem; object-fit: cover; border-radius: 8px; }
 
-/* Archive album specific adjustments */
 .archive-album-card { display: flex; flex-direction: column; gap: 8px; }
 .result-info { padding-top: 6px; }
 
-/* Compact glass variant: less padding, smaller blur/shadow for dense lists */
+/* ============================================
+   GLASS COMPACT - CORREGIDO
+   ============================================ */
 .glass-compact {
-  background: linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.01) 100%);
+  /* ✅ CORREGIDO: Fondo consistente sin gradiente complejo */
+  background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255,255,255,0.04);
   border-radius: 10px;
-  padding: 8px; /* compact padding */
+  padding: 8px;
   box-shadow: 0 6px 20px rgba(0,0,0,0.35);
-  backdrop-filter: blur(6px) saturate(110%);
-  -webkit-backdrop-filter: blur(6px) saturate(110%);
+  
+  /* ✅ Sin saturate para evitar cambios de color */
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  
+  isolation: isolate;
 }
 
-.glass-compact:hover { box-shadow: 0 10px 25px rgba(0,0,0,0.45); background: linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%); }
+.glass-compact:hover { 
+  box-shadow: 0 10px 25px rgba(0,0,0,0.45); 
+  background: rgba(255, 255, 255, 0.04);
+}
 
-/* ===================================================================
-   NUEVA VARIANTE: Tarjeta Compacta para Listas (Ej: Recientes)
-   =================================================================== */
-
-/* Contenedor principal de la tarjeta compacta */
+/* ============================================
+   SONG CARDS - COMPACT & LIST
+   ============================================ */
 .song-card-compact {
   display: flex;
   align-items: center;
-  gap: 10px; /* Espacio reducido entre elementos */
+  gap: 10px;
   cursor: pointer;
   user-select: none;
 }
 
-/* Hereda los estilos de .glass-compact */
 .song-card-compact.glass-compact {
-  padding: 8px; /* Padding reducido */
+  padding: 8px;
 }
 
-/* Portada más pequeña */
 .song-card-compact .song-cover {
   width: 40px;
   height: 40px;
-  border-radius: 6px; /* Bordes más sutiles */
-  flex-shrink: 0; /* Evita que la imagen se encoja */
+  border-radius: 6px;
+  flex-shrink: 0;
 }
 
-/* Ocultar el ícono de play/pause para un look más limpio */
 .song-card-compact .song-play-icon {
   display: none;
 }
 
-/* ===================================================================
-   NUEVA VARIANTE: Vista de Lista (List View)
-   =================================================================== */
-
-/* Contenedor de la fila */
 .song-list-item {
   display: grid;
-  grid-template-columns: 40px 1fr auto; /* [Icono/Num] [Título/Artista] [Duración] */
+  grid-template-columns: 40px 1fr auto;
   align-items: center;
   gap: 16px;
   padding: 10px 12px;
@@ -126,14 +148,13 @@
   transition: background-color 0.2s ease;
   cursor: pointer;
   user-select: none;
-  border-bottom: 1px solid transparent; /* Espacio para borde sutil */
+  border-bottom: 1px solid transparent;
 }
 
 .song-list-item:hover {
   background-color: rgba(255, 255, 255, 0.04);
 }
 
-/* Columna 1: Portada o Número */
 .song-list-cover {
   width: 40px;
   height: 40px;
@@ -141,11 +162,10 @@
   object-fit: cover;
 }
 
-/* Columna 2: Info principal */
 .song-list-info {
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* Para truncar texto */
+  overflow: hidden;
 }
 
 .song-list-info .title {
@@ -165,9 +185,107 @@
   text-overflow: ellipsis;
 }
 
-/* Columna 3: Duración */
 .song-list-duration {
   font-size: 14px;
   color: rgba(255, 255, 255, 0.6);
-  font-variant-numeric: tabular-nums; /* Asegura que los números se alineen */
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================
+   CARRUSEL CON FADE EDGES - SOLUCIÓN PROFESIONAL
+   ============================================ */
+.tidol-shelf-wrapper {
+  position: relative;
+  /* ✅ NO usar overflow: hidden aquí si quieres que el scroll funcione */
+  /* En su lugar, el overflow lo maneja .tidol-shelf-scroll */
+  isolation: isolate; /* Crea stacking context limpio */
+}
+
+/* ✅ SOLUCIÓN: Usar mask-image en lugar de pseudo-elementos con backdrop-filter */
+.tidol-shelf-scroll {
+  /* Gradiente de máscara que oculta los bordes suavemente */
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black 30px,
+    black calc(100% - 30px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black 30px,
+    black calc(100% - 30px),
+    transparent 100%
+  );
+}
+
+/* ✅ ALTERNATIVA: Si necesitas el efecto de vidrio en los bordes */
+/* Usa pseudo-elementos SIN backdrop-filter, solo con gradiente */
+.tidol-shelf-wrapper::before,
+.tidol-shelf-wrapper::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40px;
+  z-index: 2;
+  pointer-events: none;
+  
+  /* ✅ CORREGIDO: Solo gradiente, SIN backdrop-filter */
+  /* Esto evita el doble blur y los cambios de color */
+}
+
+.tidol-shelf-wrapper::before {
+  left: 0;
+  /* ✅ Gradiente que coincide EXACTAMENTE con el fondo del wrapper */
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0.02) 0%,
+    rgba(255, 255, 255, 0.00) 100%
+  );
+}
+
+.tidol-shelf-wrapper::after {
+  right: 0;
+  background: linear-gradient(
+    to left,
+    rgba(255, 255, 255, 0.02) 0%,
+    rgba(255, 255, 255, 0.00) 100%
+  );
+}
+
+@media (max-width: 767px) {
+  .tidol-shelf-wrapper::before,
+  .tidol-shelf-wrapper::after {
+    width: 20px;
+  }
+  
+  /* Máscara más pequeña en móvil */
+  .tidol-shelf-scroll {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      black 15px,
+      black calc(100% - 15px),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      black 15px,
+      black calc(100% - 15px),
+      transparent 100%
+    );
+  }
+}
+
+/* ============================================
+   FALLBACK PARA NAVEGADORES SIN SOPORTE
+   ============================================ */
+@supports not (backdrop-filter: blur(10px)) {
+  .glass-card,
+  .glass-compact {
+    background: rgba(255, 255, 255, 0.08); /* Fondo más opaco como fallback */
+  }
 }

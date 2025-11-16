@@ -2,8 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
-import axios from 'axios';
+import api from '../api/axiosConfig'; // Usar la instancia de axios configurada
 import { IoPlaySharp, IoPauseSharp } from 'react-icons/io5';
+import LikeButton from '../components/LikeButton'; // Importamos el nuevo componente
 
 const qualityRank = {
   'FLAC': 1,
@@ -29,6 +30,7 @@ export default function InternetArchivePage() {
   const [availableFormats, setAvailableFormats] = useState([]);
   const [formatFilter, setFormatFilter] = useState('best');
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  const [likedSongs, setLikedSongs] = useState(new Set()); // Para guardar los IDs de canciones favoritas
 
   const { playSongList, currentSong } = usePlayer();
 
@@ -77,8 +79,14 @@ export default function InternetArchivePage() {
     const fetchAlbumData = async () => {
       try {
         setLoading(true);
-        const metaRes = await axios.get(`https://archive.org/metadata/${identifier}`);
+        const metaRes = await api.get(`https://archive.org/metadata/${identifier}`);
         const metaData = metaRes.data;
+
+        // Obtenemos los likes de IA del usuario
+        const likedRes = await api.get('/music/ia/likes'); // <-- CORRECCIÓN: Usar el endpoint local correcto
+        if (likedRes.data) {
+          setLikedSongs(new Set(likedRes.data.map(s => s.identifier)));
+        }
 
         if (!metaData || !metaData.metadata) {
           throw new Error('No se encontraron metadatos para este item.');
@@ -108,7 +116,8 @@ export default function InternetArchivePage() {
               artista: albumInfo.autor,
               album: albumInfo.titulo,
               id: `${identifier}_${f.name}`,
-              portada: highQualityCover, // ✅ Cada canción usa portada de alta calidad
+              identifier: `${identifier}_${f.name}`, // Usamos un identificador único
+              portada: highQualityCover,
               duracion: parseFloat(f.length) || 0,
             };
           });
@@ -178,6 +187,19 @@ export default function InternetArchivePage() {
     if (index !== -1) {
       playSongList(filteredTracks, index);
     }
+  };
+
+  // Manejar el cambio de estado de "Me Gusta"
+  const handleLikeToggle = (songIdentifier, isLiked) => {
+    setLikedSongs(prev => {
+      const newSet = new Set(prev);
+      if (isLiked) {
+        newSet.add(songIdentifier);
+      } else {
+        newSet.delete(songIdentifier);
+      }
+      return newSet;
+    });
   };
 
   if (loading) {
@@ -314,6 +336,12 @@ export default function InternetArchivePage() {
                   <div className="song-artist">{songToShow.artista}</div>
                 </div>
                 <div className="song-quality">{songToShow.format}</div>
+                <LikeButton 
+                  song={songToShow}
+                  isLiked={likedSongs.has(songToShow.identifier)}
+                  onLikeToggle={handleLikeToggle}
+                  isArchive={true}
+                />
                 <div className="song-duration">
                   {Math.floor(songToShow.duracion / 60)}:{Math.floor(songToShow.duracion % 60).toString().padStart(2, '0')}
                 </div>
@@ -509,7 +537,7 @@ export default function InternetArchivePage() {
 
         .song-card {
           display: grid;
-          grid-template-columns: 40px 50px 1fr 100px 60px 40px;
+          grid-template-columns: 40px 50px 1fr 100px 40px 60px 40px; /* Columna para LikeButton */
           align-items: center;
           gap: 12px;
           padding: 10px 12px;
@@ -578,6 +606,19 @@ export default function InternetArchivePage() {
           padding-right: 10px;
         }
 
+        .like-btn {
+          background: none;
+          border: none;
+          color: #b3b3b3;
+          font-size: 20px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .like-btn:hover {
+          color: white;
+          transform: scale(1.1);
+        }
+
         .song-duration {
           text-align: right;
           color: #b3b3b3;
@@ -636,7 +677,8 @@ export default function InternetArchivePage() {
             font-size: 14px;
           }
           .song-card {
-            grid-template-columns: 45px 1fr 40px;
+            /* Thumb Info Like Play */
+            grid-template-columns: 45px 1fr 40px 40px;
           }
           .song-quality,
           .song-duration,

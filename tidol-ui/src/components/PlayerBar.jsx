@@ -205,6 +205,7 @@ export default function PlayerBar() {
   const handlers = useSwipeable({
     onSwipedLeft: () => nextSong(),
     onSwipedRight: () => previousSong(),
+    delta: 50, // Mínimo de píxeles para registrar el swipe
     preventScrollOnSwipe: true,
     trackMouse: true
   });

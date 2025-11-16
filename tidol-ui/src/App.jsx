@@ -62,7 +62,10 @@ function AppLayout() {
 
   return (
     <>
-      <div className="tidol-app-container">
+      <div 
+        className="tidol-app-container"
+        style={{ maxWidth: '100%' }} // <-- CORRECCIÓN: Evita el desbordamiento horizontal en PC/TV
+      >
         {/* ... (Orbes de fondo, etc.) ... */}
         <div className="tidol-app-background">
           <div className="tidol-app-orb tidol-app-orb-1"></div>
