@@ -464,6 +464,67 @@ async function _searchArchiveForceFetch(originalQuery) {
   return enriched;
 }
 
+async function _getIaSongDetails(identifier) {
+  try {
+    const meta = await fetchWithRetry(`https://archive.org/metadata/${identifier}`);
+    if (!meta) {
+        return {
+            id: `ia_${identifier}`,
+            identifier,
+            titulo: 'Error al cargar',
+            artista: 'Desconocido',
+            url: `https://archive.org/details/${identifier}`,
+            portada: `https://archive.org/services/img/${identifier}`,
+            duration: null,
+            error: 'Metadata fetch failed'
+        };
+    }
+
+    const files = meta?.files || [];
+    let audioFile = files.find(f => f.name && /(\.flac$|\.wav$|\.m4a$|\.mp3$)/i.test(f.name));
+    if (!audioFile) audioFile = files.find(f => f.format && /(flac|wav|m4a|mp3)/i.test(f.format));
+    
+    const filename = audioFile ? audioFile.name : null;
+    const url = filename
+      ? `https://archive.org/download/${identifier}/${encodeURIComponent(filename)}`
+      : `https://archive.org/details/${identifier}`;
+    
+    const duration = audioFile && audioFile.length ? Number(audioFile.length) : null;
+    
+    const imageFiles = files.filter(f => f.name && /\.(jpg|jpeg|png|gif)$/i.test(f.name));
+    const preferred = imageFiles.find(f =>
+      ['cover.jpg', 'folder.jpg', 'album.jpg', 'front.jpg'].includes((f.name || "").toLowerCase())
+    );
+    
+    const cover = preferred
+      ? `https://archive.org/download/${identifier}/${encodeURIComponent(preferred.name)}`
+      : `https://archive.org/services/img/${identifier}`;
+    
+    const metadata = meta.metadata || {};
+    
+    return {
+      id: `ia_${identifier}`,
+      identifier,
+      titulo: metadata.title || 'Sin título',
+      artista: metadata.creator || 'Autor desconocido',
+      url,
+      portada: cover,
+      duration
+    };
+  } catch (err) {
+    return {
+      id: `ia_${identifier}`,
+      identifier,
+      titulo: 'Error al cargar',
+      artista: 'Desconocido',
+      url: `https://archive.org/details/${identifier}`,
+      portada: `https://archive.org/services/img/${identifier}`,
+      duration: null,
+      error: err.message
+    };
+  }
+}
+
 // ------------- PUBLIC CONTROLLERS --------------
 export const searchAll = async (req, res) => {
   const { q } = req.query;
@@ -949,24 +1010,26 @@ export const getUserIaLikes = async (req, res) => {
   if (!userId) return res.status(401).json({ error: "No autorizado" });
 
   try {
-    const likes = await db.all(`
+    const likedSongs = await db.all(`
       SELECT 
-        ce.id,
-        ce.external_id as identifier,
-        ce.source,
-        ce.title,
-        ce.artist,
-        ce.song_url as url,
-        ce.cover_url as portada,
-        ce.duration,
-        le.id as likeId
+        ce.external_id as identifier
       FROM likes_externos le
       JOIN canciones_externas ce ON ce.id = le.cancion_externa_id
       WHERE le.user_id = ?
       ORDER BY le.liked_at DESC
     `, [userId]);
 
-    res.json(likes);
+    const identifiers = likedSongs.map(l => l.identifier);
+
+    const results = await runWithConcurrency(
+      identifiers,
+      (id) => _getIaSongDetails(id),
+      CONCURRENCY
+    );
+    
+    const finalResults = results.filter(Boolean);
+
+    res.json(finalResults);
   } catch (err) {
     console.error("Error al obtener likes de IA:", err);
     res.status(500).json({ error: "Error al obtener canciones con like" });
