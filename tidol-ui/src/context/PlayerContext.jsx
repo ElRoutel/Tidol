@@ -363,6 +363,18 @@ export function PlayerProvider({ children }) {
       if (d > 0 && !isNaN(d) && isFinite(d)) {
         setDuration(d);
         setProgress((t / d) * 100);
+        
+        if ('mediaSession' in navigator && navigator.mediaSession.setPositionState) {
+          try {
+            navigator.mediaSession.setPositionState({
+              duration: d,
+              playbackRate: audio.playbackRate,
+              position: t
+            });
+          } catch (e) {
+            console.warn('Failed to set Media Session position state:', e);
+          }
+        }
       } else {
         setDuration(prev => prev || 0);
       }
@@ -424,6 +436,65 @@ export function PlayerProvider({ children }) {
       audio.removeEventListener('volumechange', onVolumeChange);
     };
   }, [nextSong]);
+
+  // --- Media Session API Integration ---
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) {
+      return;
+    }
+
+    if (!currentSong) {
+      navigator.mediaSession.metadata = null;
+      navigator.mediaSession.playbackState = 'none';
+      return;
+    }
+
+    const { titulo, artista, portada, album } = currentSong;
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: titulo || 'Sin título',
+      artist: artista || 'Artista desconocido',
+      album: album || 'Álbum desconocido',
+      artwork: [
+        { src: portada || '/img/default-cover.png', sizes: '96x96', type: 'image/png' },
+        { src: portada || '/img/default-cover.png', sizes: '128x128', type: 'image/png' },
+        { src: portada || '/img/default-cover.png', sizes: '192x192', type: 'image/png' },
+        { src: portada || '/img/default-cover.png', sizes: '256x256', type: 'image/png' },
+        { src: portada || '/img/default-cover.png', sizes: '384x384', type: 'image/png' },
+        { src: portada || '/img/default-cover.png', sizes: '512x512', type: 'image/png' },
+      ],
+    });
+
+    navigator.mediaSession.setActionHandler('play', togglePlayPause);
+    navigator.mediaSession.setActionHandler('pause', togglePlayPause);
+    navigator.mediaSession.setActionHandler('previoustrack', previousSong);
+    navigator.mediaSession.setActionHandler('nexttrack', nextSong);
+
+    try {
+      navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+        const skipTime = details.seekOffset || 10;
+        seek(Math.max(currentTime - skipTime, 0));
+      });
+    } catch (e) {
+      console.warn('MediaSession: seekbackward not supported');
+    }
+
+    try {
+      navigator.mediaSession.setActionHandler('seekforward', (details) => {
+        const skipTime = details.seekOffset || 10;
+        seek(Math.min(currentTime + skipTime, duration));
+      });
+    } catch (e) {
+      console.warn('MediaSession: seekforward not supported');
+    }
+  }, [currentSong, previousSong, nextSong, togglePlayPause, seek, currentTime, duration]);
+
+  // Update Media Session playback state
+  useEffect(() => {
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+    }
+  }, [isPlaying]);
 
   return (
     <PlayerContext.Provider
