@@ -16,6 +16,32 @@ import uploadRoutes from "./routes/upload.routes.js";
 import historyRoutes from "./routes/history.routes.js";
 import playlistsRoutes from "./routes/playlists.js";
 import albumesRoutes from "./routes/albumes.js";
+import readline from "readline";
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
+
+function askServeMode() {
+  return new Promise((resolve) => {
+    rl.question(
+      "Serve (B)uild or allow (D)ev server? [B/D]: ",
+      (answer) => {
+        const mode = answer.toUpperCase();
+        if (mode === "B" || mode === "D") {
+          rl.close();
+          resolve(mode);
+        } else {
+          console.log("Invalid input. Please enter B or D.");
+          resolve(askServeMode());
+        }
+      }
+    );
+  });
+}
+
+const serveMode = await askServeMode();
 
 async function showAnimatedBanner() {
   console.clear();
@@ -65,10 +91,23 @@ function logStatus(name, success, info = "") {
 }
 
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true,
+}));
 
-const FRONTEND_DIR = path.join(__dirname, "..", "tidol-ui", "dist");
-app.use(express.static(FRONTEND_DIR));
+if (serveMode === "B") {
+  console.log("Starting in Build mode. Serving frontend from '../tidol-ui/dist'.");
+  const FRONTEND_DIR = path.join(__dirname, "..", "tidol-ui", "dist");
+  app.use(express.static(FRONTEND_DIR));
+  
+  // Servir index.html para cualquier otra ruta no API (manejo de SPA)
+  app.get(/^(?!\/api).*/, (req, res) => {
+    res.sendFile(path.join(FRONTEND_DIR, "index.html"));
+  });
+} else {
+  console.log("Starting in Dev mode. Frontend is not served by this server.");
+}
 
 const UPLOADS_DIR = path.join(__dirname, "uploads");
 app.use("/uploads", express.static(UPLOADS_DIR));
@@ -81,11 +120,6 @@ app.use("/api/history", historyRoutes);
 app.use("/api/playlists", playlistsRoutes);
 app.use("/api/albumes", albumesRoutes);
 // -------------------------
-
-// Servir index.html para cualquier otra ruta no API (manejo de SPA)
-app.get(/^(?!\/api).*/, (req, res) => {
-  res.sendFile(path.join(FRONTEND_DIR, "index.html"));
-});
 
 // Helpers de migración
 async function columnExists(table, column) {
