@@ -67,6 +67,9 @@ function logStatus(name, success, info = "") {
 app.use(express.json());
 app.use(cors());
 
+const FRONTEND_DIR = path.join(__dirname, "..", "tidol-ui", "dist");
+app.use(express.static(FRONTEND_DIR));
+
 const UPLOADS_DIR = path.join(__dirname, "uploads");
 app.use("/uploads", express.static(UPLOADS_DIR));
 
@@ -78,6 +81,11 @@ app.use("/api/history", historyRoutes);
 app.use("/api/playlists", playlistsRoutes);
 app.use("/api/albumes", albumesRoutes);
 // -------------------------
+
+// Servir index.html para cualquier otra ruta no API (manejo de SPA)
+app.get(/^(?!\/api).*/, (req, res) => {
+  res.sendFile(path.join(FRONTEND_DIR, "index.html"));
+});
 
 // Helpers de migración
 async function columnExists(table, column) {
