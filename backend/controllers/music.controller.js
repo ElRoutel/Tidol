@@ -561,47 +561,43 @@ export const registerIaComparator = async (req, res) => {
 
 export const toggleIaLike = async (req, res) => {
   const userId = req.userId;
-  // IMPORTANTE: El frontend DEBE enviar 'url' (el archivo específico).
   const { identifier, title, artist, source, url, portada, duration } = req.body;
 
   if (!userId) return res.status(401).json({ error: "No autorizado" });
   if (!identifier) return res.status(400).json({ error: "Falta identifier" });
+  // Validación necesaria para la nueva DB
   if (!url) return res.status(400).json({ error: "Falta url específica de la canción" });
 
   const songSource = source || 'internet_archive';
 
   try {
-    // 1. Buscar si la canción específica (ID + URL) ya existe en DB
-    let externalSong = await db.get(
+    // 1. Primero intentamos registrar la canción en la tabla global
+    // IMPORTANTE: Aquí estaba el error. Cambiamos el ON CONFLICT.
+    await db.run(
+      `INSERT INTO canciones_externas 
+       (external_id, source, title, artist, song_url, cover_url, duration) 
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(external_id, song_url) DO NOTHING`, // <--- ESTA ES LA LÍNEA MÁGICA
+      [
+        identifier, 
+        songSource, 
+        title || 'Sin título', 
+        artist || 'Desconocido', 
+        url, 
+        portada || `https://archive.org/services/img/${identifier}`, 
+        duration ? Number(duration) : 0
+      ]
+    );
+
+    // 2. Recuperamos el ID interno de esa canción
+    const externalSong = await db.get(
       `SELECT id FROM canciones_externas WHERE external_id = ? AND song_url = ?`,
       [identifier, url]
     );
 
-    // 2. Si no existe, la creamos
-    if (!externalSong) {
-      const cleanTitle = title || 'Sin título';
-      const cleanArtist = artist || 'Desconocido';
-      const coverUrl = portada || `https://archive.org/services/img/${identifier}`;
-      const songDuration = duration ? Number(duration) : 0;
+    if (!externalSong) throw new Error("Error crítico: No se pudo recuperar el ID de la canción.");
 
-      // Insertamos con la nueva restricción UNIQUE(external_id, song_url)
-      await db.run(
-        `INSERT INTO canciones_externas 
-         (external_id, source, title, artist, song_url, cover_url, duration) 
-         VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(external_id, song_url) DO NOTHING`, 
-        [identifier, songSource, cleanTitle, cleanArtist, url, coverUrl, songDuration]
-      );
-
-      externalSong = await db.get(
-        `SELECT id FROM canciones_externas WHERE external_id = ? AND song_url = ?`,
-        [identifier, url]
-      );
-    }
-
-    if (!externalSong) throw new Error("No se pudo registrar la canción externa.");
-
-    // 3. Toggle del Like
+    // 3. Toggle del Like en la tabla de relación usuario-canción
     const existingLike = await db.get(
       `SELECT id FROM likes_externos WHERE user_id = ? AND cancion_externa_id = ?`,
       [userId, externalSong.id]
@@ -612,36 +608,42 @@ export const toggleIaLike = async (req, res) => {
       return res.json({ liked: false });
     } else {
       await db.run(
-        `INSERT INTO likes_externos (user_id, cancion_externa_id, liked_at) VALUES (?, ?, ?)`,
-        [userId, externalSong.id, Date.now()]
+        `INSERT INTO likes_externos (user_id, cancion_externa_id) VALUES (?, ?)`,
+        [userId, externalSong.id]
       );
       return res.json({ liked: true });
     }
 
   } catch (err) {
-    console.error("Error al alternar like de IA:", err.message);
-    res.status(500).json({ error: "Error al actualizar el like" });
+    console.error("❌ Error en toggleIaLike:", err.message);
+    // Enviamos el error real para verlo en consola del navegador si falla de nuevo
+    res.status(500).json({ error: "Error de base de datos", details: err.message });
   }
 };
 
 export const checkIfIaLiked = async (req, res) => {
   const userId = req.userId;
-  // Necesitamos la URL para ser precisos, pero mantenemos compatibilidad
   const { identifier, url } = req.query;
 
   if (!userId) return res.status(401).json({ error: "No autorizado" });
   if (!identifier) return res.status(400).json({ error: "Falta identifier" });
 
   try {
-    let query = `SELECT id FROM canciones_externas WHERE external_id = ?`;
-    let params = [identifier];
-
+    // Lógica robusta: Si viene URL busca exacto, si no, busca genérico (fallback)
+    let externalSong;
+    
     if (url) {
-        query += ` AND song_url = ?`;
-        params.push(url);
+        externalSong = await db.get(
+            `SELECT id FROM canciones_externas WHERE external_id = ? AND song_url = ?`, 
+            [identifier, url]
+        );
+    } else {
+        // Fallback peligroso pero útil si el frontend olvida la URL en alguna vista
+        externalSong = await db.get(
+            `SELECT id FROM canciones_externas WHERE external_id = ?`, 
+            [identifier]
+        );
     }
-
-    const externalSong = await db.get(query, params);
 
     if (!externalSong) return res.json({ liked: false });
 
@@ -651,9 +653,8 @@ export const checkIfIaLiked = async (req, res) => {
     );
     
     res.json({ liked: !!like });
-  } catch (err) {
-    console.error("Error al verificar like de IA:", err);
-    res.status(500).json({ error: "Error al verificar like" });
+  } catch (err) { 
+    res.status(500).json({ error: "Error al verificar like" }); 
   }
 };
 
@@ -698,15 +699,21 @@ export const getUserIaLikes = async (req, res) => {
 };
 
 export const getCover = async (req, res) => {
-  const identifier = req.params[0]; 
+  // Soporta tanto req.params.identifier como req.params[0] (wildcard)
+  const identifier = req.params.identifier || req.params[0]; 
+  
   if (!identifier) return res.status(400).json({ error: "Falta identifier" });
+  
   const cleanId = identifier.replace(/\.(mp3|flac|wav|m4a)$/i, '');
   try {
     const meta = await fetchWithRetry(`https://archive.org/metadata/${encodeURIComponent(cleanId)}`);
     if (!meta) throw new Error("No se encontró metadata");
+    
     const files = meta?.files || [];
+    // Buscar imágenes priorizando portadas explícitas
     const imageFiles = files.filter(f => f.name && /\.(jpg|jpeg|png|gif)$/i.test(f.name));
     const preferred = imageFiles.find(f => ['cover.jpg', 'folder.jpg', 'album.jpg', 'front.jpg'].includes((f.name || "").toLowerCase()));
+    
     let cover;
     if (preferred) {
       cover = `https://archive.org/download/${cleanId}/${encodeURIComponent(preferred.name)}`;
@@ -714,7 +721,10 @@ export const getCover = async (req, res) => {
       cover = `https://archive.org/services/img/${cleanId}`;
     }
     res.json({ portada: cover });
-  } catch (err) { res.status(500).json({ error: "Error al obtener la portada" }); }
+  } catch (err) { 
+    // Fallback silencioso a la imagen por defecto de IA
+    res.json({ portada: `https://archive.org/services/img/${cleanId}` });
+  }
 };
 
 export default {

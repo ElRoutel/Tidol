@@ -225,51 +225,40 @@ async function ensureColumn(table, column, typeDef) {
     logStatus("Likes Locales", true, "Tabla 'likes' lista.");
 
     // --- TABLA CANCIONES EXTERNAS (Internet Archive) ---
-// --- TABLA CANCIONES EXTERNAS (Internet Archive) ---
-  // ASEGÚRATE DE BORRAR CUALQUIER OTRA DEFINICIÓN DE "canciones_externas"
-  await db.run(`
-    CREATE TABLE IF NOT EXISTS canciones_externas (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      external_id TEXT NOT NULL,
-      source TEXT NOT NULL DEFAULT 'internet_archive',
-      title TEXT,
-      artist TEXT,
-      song_url TEXT,
-      cover_url TEXT,
-      duration REAL,
-      added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(external_id, source)
-    )
-  `);
-  await db.run(`CREATE INDEX IF NOT EXISTS idx_canciones_externas_id_source ON canciones_externas(external_id, source)`);
-  logStatus("Canciones Externas", true, "Tabla 'canciones_externas' lista.");
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS canciones_externas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        external_id TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT 'internet_archive',
+        title TEXT,
+        artist TEXT,
+        song_url TEXT, -- Parte de la clave única
+        cover_url TEXT,
+        duration REAL,
+        added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(external_id, song_url)
+      )
+    `);
+    // Aseguramos el índice correcto para la lógica de la aplicación.
+    await db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_canciones_externas_unique ON canciones_externas(external_id, song_url)`);
+    logStatus("Canciones Externas", true, "Tabla 'canciones_externas' lista.");
 
     // --- TABLA LIKES EXTERNOS (Internet Archive) ---
-    // Idempotente y sin pérdida de datos: no usar DROP en arranque.
-    await db.run("BEGIN IMMEDIATE");
-    try {
-      await db.run(`
-        CREATE TABLE IF NOT EXISTS likes_externos (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id INTEGER NOT NULL,
-          cancion_externa_id INTEGER NOT NULL,
-          liked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE,
-          FOREIGN KEY (cancion_externa_id) REFERENCES canciones_externas(id) ON DELETE CASCADE,
-          UNIQUE(user_id, cancion_externa_id)
-        )
-      `);
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS likes_externos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        cancion_externa_id INTEGER NOT NULL,
+        liked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+        FOREIGN KEY (cancion_externa_id) REFERENCES canciones_externas(id) ON DELETE CASCADE,
+        UNIQUE(user_id, cancion_externa_id)
+      )
+    `);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_likes_externos_user_id ON likes_externos(user_id)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_likes_externos_cancion_externa_id ON likes_externos(cancion_externa_id)`);
+    logStatus("Likes Externos", true, "Tabla 'likes_externos' lista.");
 
-      await db.run(`CREATE INDEX IF NOT EXISTS idx_likes_externos_user_id ON likes_externos(user_id)`);
-      await db.run(`CREATE INDEX IF NOT EXISTS idx_likes_externos_cancion_externa_id ON likes_externos(cancion_externa_id)`);
-
-      await db.run("COMMIT");
-      logStatus("Likes Externos", true, "Tabla 'likes_externos' lista sin DROP ni duplicados.");
-    } catch (e) {
-      await db.run("ROLLBACK");
-      logStatus("Likes Externos", false, e.message);
-      throw e;
-    }
 //NO TOCAR ES PARA SERVIR EL FRONTEND
 //NO TOCAR
 //NO TOCAR
