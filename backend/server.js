@@ -21,16 +21,16 @@ async function showAnimatedBanner() {
   console.clear();
 
   const banner = `
- ███████████ █████ ██████████      ███████    █████       
- ░█░░░███░░░█░░███ ░░███░░░░███   ███░░░░░███ ░░███           
- ░   ░███  ░  ░███  ░███   ░░███ ███     ░░███ ░███       
-     ░███     ░███  ░███    ░███░███      ░███ ░███       
-     ░███     ░███  ░███    ░███░███      ░███ ░███           
+ ███████████ █████ ██████████      ███████    █████      
+░█░░░███░░░█░░███ ░░███░░░░███    ███░░░░░███ ░░███          
+░   ░███  ░  ░███  ░███    ░░███ ███     ░░███ ░███       
+     ░███     ░███  ░███     ░███░███      ░██ ░███       
+     ░███     ░███  ░███     ░███░███      ░██ ░███          
      ░███     ░███  ░███    ███ ░░███     ███  ░███      █
      █████    █████ ██████████   ░░░███████░   ███████████
      ░░░░░    ░░░░░ ░░░░░░░░░░      ░░░░░░░    ░░░░░░░░░░░ 
      𝗥𝗼𝘂𝘁𝗲𝗹 𝗠𝘂𝘀𝗶𝗰 𝗔𝗣𝗜 - v1.0.0
-    Release 12/2024 - Developed by Routel
+    Release 1.0.0- Developed by Routel
 `;
 
   const neonAnim = chalkAnimation.pulse(banner);
@@ -225,27 +225,25 @@ async function ensureColumn(table, column, typeDef) {
     logStatus("Likes Locales", true, "Tabla 'likes' lista.");
 
     // --- TABLA CANCIONES EXTERNAS (Internet Archive) ---
-// --- TABLA CANCIONES EXTERNAS (Internet Archive) ---
-  // ASEGÚRATE DE BORRAR CUALQUIER OTRA DEFINICIÓN DE "canciones_externas"
-  await db.run(`
-    CREATE TABLE IF NOT EXISTS canciones_externas (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      external_id TEXT NOT NULL,
-      source TEXT NOT NULL DEFAULT 'internet_archive',
-      title TEXT,
-      artist TEXT,
-      song_url TEXT,
-      cover_url TEXT,
-      duration REAL,
-      added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(external_id, source)
-    )
-  `);
-  await db.run(`CREATE INDEX IF NOT EXISTS idx_canciones_externas_id_source ON canciones_externas(external_id, source)`);
-  logStatus("Canciones Externas", true, "Tabla 'canciones_externas' lista.");
+    // MODIFICADO: UNIQUE ahora incluye song_url para permitir múltiples canciones del mismo álbum
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS canciones_externas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        external_id TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT 'internet_archive',
+        title TEXT,
+        artist TEXT,
+        song_url TEXT,
+        cover_url TEXT,
+        duration REAL,
+        added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(external_id, song_url) -- ESTO ES LA CLAVE DEL ARREGLO
+      )
+    `);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_canciones_externas_id_url ON canciones_externas(external_id, song_url)`);
+    logStatus("Canciones Externas", true, "Tabla 'canciones_externas' lista.");
 
     // --- TABLA LIKES EXTERNOS (Internet Archive) ---
-    // Idempotente y sin pérdida de datos: no usar DROP en arranque.
     await db.run("BEGIN IMMEDIATE");
     try {
       await db.run(`
@@ -264,7 +262,7 @@ async function ensureColumn(table, column, typeDef) {
       await db.run(`CREATE INDEX IF NOT EXISTS idx_likes_externos_cancion_externa_id ON likes_externos(cancion_externa_id)`);
 
       await db.run("COMMIT");
-      logStatus("Likes Externos", true, "Tabla 'likes_externos' lista sin DROP ni duplicados.");
+      logStatus("Likes Externos", true, "Tabla 'likes_externos' lista.");
     } catch (e) {
       await db.run("ROLLBACK");
       logStatus("Likes Externos", false, e.message);
@@ -282,5 +280,5 @@ async function ensureColumn(table, column, typeDef) {
   } catch (err) {
     logStatus("Conexión a DB / Creación de tablas", false, err.message);
     process.exit(1);
-  }}
-)();
+  }
+})();

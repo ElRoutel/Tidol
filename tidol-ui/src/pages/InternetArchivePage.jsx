@@ -117,6 +117,7 @@ export default function InternetArchivePage() {
               album: albumInfo.titulo,
               id: `${identifier}_${f.name}`,
               identifier: `${identifier}_${f.name}`, // Usamos un identificador único
+              parent_identifier: identifier, // <-- AÑADIMOS ESTA LÍNEA
               portada: highQualityCover,
               duracion: parseFloat(f.length) || 0,
             };
@@ -280,7 +281,7 @@ export default function InternetArchivePage() {
               onChange={(e) => setFormatFilter(e.target.value)}
               className="quality-filter"
             >
-              <option value="best">🏆 Mejor Calidad</option>
+              <option value="best">Mejor Calidad</option>
               {availableFormats.map(format => (
                 <option key={format} value={format}>
                   {format === 'FLAC' ? '💎' : format === 'WAV' ? '🎵' : '🎧'} {format}
@@ -404,7 +405,7 @@ export default function InternetArchivePage() {
         .album-info {
           display: flex;
           flex-direction: column;
-          align-items: flex-start; /* Alinea el texto a la izquierda */
+          align-items: flex-start;
         }
 
         .album-info h1 {
@@ -440,7 +441,7 @@ export default function InternetArchivePage() {
           transition: max-height 0.3s ease-in-out;
         }
         .album-description.collapsed {
-          max-height: 63px; /* Approx 3 lines */
+          max-height: 63px;
           overflow: hidden;
           position: relative;
           -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
@@ -473,7 +474,7 @@ export default function InternetArchivePage() {
           display: flex;
           align-items: center;
           gap: 8px;
-          margin-top: 20px; /* Espacio sobre el botón */
+          margin-top: 20px;
           transition: all 0.2s;
           box-shadow: 0 4px 12px rgba(29,185,84,0.3);
         }
@@ -537,7 +538,7 @@ export default function InternetArchivePage() {
 
         .song-card {
           display: grid;
-          grid-template-columns: 40px 50px 1fr 100px 40px 60px 40px; /* Columna para LikeButton */
+          grid-template-columns: 40px 50px 1fr 100px 40px 60px 40px;
           align-items: center;
           gap: 12px;
           padding: 10px 12px;
@@ -649,41 +650,221 @@ export default function InternetArchivePage() {
         }
 
         @media (max-width: 768px) {
+          .album-page {
+            padding-bottom: 120px;
+          }
+
           .album-header {
             height: auto;
             background-image: none !important;
+            margin: -0.5rem -0.5rem 16px -0.5rem;
+            border-radius: 0;
           }
+          
           .album-overlay {
             position: static;
             flex-direction: column;
             align-items: center;
             text-align: center;
             background: linear-gradient(180deg, #1a1a1a 0%, #0a0a0a 100%);
-            padding: 24px 16px;
+            padding: 32px 20px 24px;
+            gap: 16px;
           }
+          
           .album-cover-large {
             width: 200px;
             height: 200px;
-            margin-bottom: 20px;
+            margin-bottom: 8px;
           }
+          
+          .album-info {
+            width: 100%;
+            align-items: center;
+          }
+          
           .album-info h1 {
-            font-size: 32px;
+            font-size: 28px;
+            line-height: 1.2;
+            margin-bottom: 8px;
+            text-align: center;
           }
+          
           .album-artist {
-            font-size: 18px;
+            font-size: 16px;
+            margin-bottom: 6px;
           }
+          
+          .album-meta {
+            font-size: 13px;
+            margin-bottom: 8px;
+          }
+
+          .description-container {
+            width: 100%;
+            margin-bottom: 16px;
+          }
+
+          .album-description {
+            font-size: 13px;
+            text-align: center;
+            max-width: 100%;
+          }
+
+          .album-description.collapsed {
+            max-height: 60px;
+          }
+
+          .toggle-description-btn {
+            font-size: 11px;
+            padding: 6px 0 0;
+          }
+          
           .play-button-main {
-            padding: 14px 32px;
-            font-size: 14px;
+            padding: 14px 40px;
+            font-size: 15px;
+            margin-top: 12px;
+            width: 100%;
+            max-width: 280px;
+            justify-content: center;
           }
+
+          .songs-section {
+            padding: 0 12px;
+          }
+
+          .section-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 16px;
+          }
+
+          .section-header h2 {
+            font-size: 20px;
+          }
+
+          .filter-controls {
+            width: 100%;
+            justify-content: space-between;
+          }
+
+          .filter-controls label {
+            font-size: 13px;
+          }
+
+          .quality-filter {
+            flex: 1;
+            max-width: 200px;
+            padding: 10px 14px;
+            font-size: 13px;
+          }
+
+          .songs-grid {
+            gap: 2px;
+          }
+          
           .song-card {
-            /* Thumb Info Like Play */
-            grid-template-columns: 45px 1fr 40px 40px;
+            grid-template-columns: 42px 1fr 36px 36px;
+            gap: 10px;
+            padding: 10px 8px;
+            border-radius: 8px;
           }
+
+          .song-card:active {
+            background: rgba(255, 255, 255, 0.15);
+            transform: scale(0.98);
+          }
+
+          .song-card.playing {
+            background: rgba(29, 185, 84, 0.25);
+          }
+          
+          .song-thumb {
+            width: 42px;
+            height: 42px;
+          }
+          
+          .song-info {
+            min-width: 0;
+          }
+
+          .song-title {
+            font-size: 15px;
+            line-height: 1.3;
+          }
+          
+          .song-artist {
+            font-size: 13px;
+            margin-top: 2px;
+          }
+
           .song-quality,
           .song-duration,
           .song-number {
             display: none;
+          }
+
+          .song-quality-unavailable {
+            grid-column: 3 / -1;
+            font-size: 11px;
+            padding-right: 8px;
+          }
+
+          .play-btn-small {
+            font-size: 20px;
+            width: 36px;
+            height: 36px;
+            opacity: 1;
+          }
+
+          /* Estilos para el botón de Like en móvil */
+          .song-card :global(.like-btn) {
+            font-size: 18px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .album-cover-large {
+            width: 170px;
+            height: 170px;
+          }
+
+          .album-info h1 {
+            font-size: 24px;
+          }
+
+          .album-artist {
+            font-size: 15px;
+          }
+
+          .play-button-main {
+            padding: 12px 32px;
+            font-size: 14px;
+          }
+
+          .song-card {
+            grid-template-columns: 40px 1fr 34px 34px;
+            gap: 8px;
+            padding: 8px 6px;
+          }
+
+          .song-thumb {
+            width: 40px;
+            height: 40px;
+          }
+
+          .song-title {
+            font-size: 14px;
+          }
+
+          .song-artist {
+            font-size: 12px;
+          }
+
+          .play-btn-small {
+            font-size: 18px;
+            width: 34px;
+            height: 34px;
           }
         }
       `}</style>

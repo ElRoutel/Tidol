@@ -15,6 +15,13 @@ function SongListItem({ song, onPlay, isActive, isArchive = false }) {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
+  // LÓGICA CORREGIDA: El backend ahora envía 'titulo' y 'artista' unificados
+  // Usamos || para tener soporte retroactivo por si acaso.
+  const displayTitle = song.titulo || song.title || "Sin título";
+  const displayArtist = song.artista || song.artist || "Desconocido";
+  const displayCover = song.portada || song.cover_url || '/default_cover.png';
+  const displayDuration = song.duration || song.duracion;
+
   return (
     <div 
       className={`song-list-item ${isActive ? 'playing' : ''}`} 
@@ -22,22 +29,21 @@ function SongListItem({ song, onPlay, isActive, isArchive = false }) {
     >
       <img
         className="song-list-cover"
-        src={isArchive ? (song.portada || song.cover_url || '/default_cover.png') : (song.portada || '/default_cover.png')}
-        alt={isArchive ? song.title : song.titulo}
+        src={displayCover}
+        alt={displayTitle}
       />
       <div className="song-list-info">
-        <span className="title">{isArchive ? song.title : song.titulo}</span>
-        <span className="artist">{isArchive ? song.artist : song.artista}</span>
+        <span className="title">{displayTitle}</span>
+        <span className="artist">{displayArtist}</span>
       </div>
       <div className="song-list-duration">
-        {formatDuration(isArchive ? song.duration : song.duracion)}
+        {formatDuration(displayDuration)}
       </div>
     </div>
   );
 }
 
 function PlaylistItem({ playlist, onSelect }) {
-  // Estilo para la lista de playlists se mantiene
   return (
     <div className="playlist-item" onClick={onSelect}>
       <img
@@ -188,6 +194,7 @@ export default function LibraryPage() {
                 <SongListItem
                   key={song.id || i}
                   song={song}
+                  // Para canciones locales, source suele ser null o 'local'
                   isActive={currentSong?.id === song.id && currentSong?.source !== 'internet_archive'}
                   onPlay={() => playSongList(songs, i)}
                 />
@@ -227,17 +234,13 @@ export default function LibraryPage() {
                   key={song.id || i}
                   song={song}
                   isArchive={true}
+                  // La comparación debe ser por identifier Y source
                   isActive={currentSong?.identifier === song.identifier && currentSong?.source === 'internet_archive'}
                   onPlay={() => {
-                    // Convertir canciones de IA al formato esperado por playSongList
-                    const formattedSongs = iaLikes.map(s => ({
-                      ...s,
-                      titulo: s.title,
-                      artista: s.artist,
-                      portada: s.cover_url || s.portada,
-                      duration: s.duration
-                    }));
-                    playSongList(formattedSongs, i);
+                    // El backend ya envía la estructura correcta:
+                    // { titulo, artista, portada, url, duration, source: 'internet_archive' }
+                    // No necesitamos mapear nada extra.
+                    playSongList(iaLikes, i);
                   }}
                 />
               ))}
@@ -285,7 +288,7 @@ export default function LibraryPage() {
             <div className="library-empty glass-card">
               <p className="library-empty-title">No tienes playlists 📝</p>
               <p className="library-empty-text">
-                Proximamente las agregaré.
+                Próximamente podrás crearlas.
               </p>
             </div>
           )}
