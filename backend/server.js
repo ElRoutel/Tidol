@@ -16,47 +16,21 @@ import uploadRoutes from "./routes/upload.routes.js";
 import historyRoutes from "./routes/history.routes.js";
 import playlistsRoutes from "./routes/playlists.js";
 import albumesRoutes from "./routes/albumes.js";
-import readline from "readline";
-
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-});
-
-function askServeMode() {
-  return new Promise((resolve) => {
-    rl.question(
-      "Serve (B)uild or allow (D)ev server? [B/D]: ",
-      (answer) => {
-        const mode = answer.toUpperCase();
-        if (mode === "B" || mode === "D") {
-          rl.close();
-          resolve(mode);
-        } else {
-          console.log("Invalid input. Please enter B or D.");
-          resolve(askServeMode());
-        }
-      }
-    );
-  });
-}
-
-const serveMode = await askServeMode();
 
 async function showAnimatedBanner() {
   console.clear();
 
   const banner = `
- ███████████ █████ ██████████      ███████    █████      
-░█░░░███░░░█░░███ ░░███░░░░███    ███░░░░░███ ░░███          
-░   ░███  ░  ░███  ░███    ░░███ ███     ░░███ ░███       
-     ░███     ░███  ░███     ░███░███      ░██ ░███       
-     ░███     ░███  ░███     ░███░███      ░██ ░███          
+ ███████████ █████ ██████████      ███████    █████       
+ ░█░░░███░░░█░░███ ░░███░░░░███   ███░░░░░███ ░░███           
+ ░   ░███  ░  ░███  ░███   ░░███ ███     ░░███ ░███       
+     ░███     ░███  ░███    ░███░███      ░███ ░███       
+     ░███     ░███  ░███    ░███░███      ░███ ░███           
      ░███     ░███  ░███    ███ ░░███     ███  ░███      █
      █████    █████ ██████████   ░░░███████░   ███████████
      ░░░░░    ░░░░░ ░░░░░░░░░░      ░░░░░░░    ░░░░░░░░░░░ 
      𝗥𝗼𝘂𝘁𝗲𝗹 𝗠𝘂𝘀𝗶𝗰 𝗔𝗣𝗜 - v1.0.0
-    Release 1.0.0- Developed by Routel
+    Release 11/2025 - Developed by Routel
 `;
 
   const neonAnim = chalkAnimation.pulse(banner);
@@ -91,23 +65,7 @@ function logStatus(name, success, info = "") {
 }
 
 app.use(express.json());
-app.use(cors({
-  origin: 'http://localhost:5173',
-  credentials: true,
-}));
-
-if (serveMode === "B") {
-  console.log("Starting in Build mode. Serving frontend from '../tidol-ui/dist'.");
-  const FRONTEND_DIR = path.join(__dirname, "..", "tidol-ui", "dist");
-  app.use(express.static(FRONTEND_DIR));
-  
-  // Servir index.html para cualquier otra ruta no API (manejo de SPA)
-  app.get(/^(?!\/api).*/, (req, res) => {
-    res.sendFile(path.join(FRONTEND_DIR, "index.html"));
-  });
-} else {
-  console.log("Starting in Dev mode. Frontend is not served by this server.");
-}
+app.use(cors());
 
 const UPLOADS_DIR = path.join(__dirname, "uploads");
 app.use("/uploads", express.static(UPLOADS_DIR));
@@ -267,25 +225,27 @@ async function ensureColumn(table, column, typeDef) {
     logStatus("Likes Locales", true, "Tabla 'likes' lista.");
 
     // --- TABLA CANCIONES EXTERNAS (Internet Archive) ---
-    // MODIFICADO: UNIQUE ahora incluye song_url para permitir múltiples canciones del mismo álbum
-    await db.run(`
-      CREATE TABLE IF NOT EXISTS canciones_externas (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        external_id TEXT NOT NULL,
-        source TEXT NOT NULL DEFAULT 'internet_archive',
-        title TEXT,
-        artist TEXT,
-        song_url TEXT,
-        cover_url TEXT,
-        duration REAL,
-        added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(external_id, song_url) -- ESTO ES LA CLAVE DEL ARREGLO
-      )
-    `);
-    await db.run(`CREATE INDEX IF NOT EXISTS idx_canciones_externas_id_url ON canciones_externas(external_id, song_url)`);
-    logStatus("Canciones Externas", true, "Tabla 'canciones_externas' lista.");
+// --- TABLA CANCIONES EXTERNAS (Internet Archive) ---
+  // ASEGÚRATE DE BORRAR CUALQUIER OTRA DEFINICIÓN DE "canciones_externas"
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS canciones_externas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      external_id TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT 'internet_archive',
+      title TEXT,
+      artist TEXT,
+      song_url TEXT,
+      cover_url TEXT,
+      duration REAL,
+      added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(external_id, source)
+    )
+  `);
+  await db.run(`CREATE INDEX IF NOT EXISTS idx_canciones_externas_id_source ON canciones_externas(external_id, source)`);
+  logStatus("Canciones Externas", true, "Tabla 'canciones_externas' lista.");
 
     // --- TABLA LIKES EXTERNOS (Internet Archive) ---
+    // Idempotente y sin pérdida de datos: no usar DROP en arranque.
     await db.run("BEGIN IMMEDIATE");
     try {
       await db.run(`
@@ -304,12 +264,31 @@ async function ensureColumn(table, column, typeDef) {
       await db.run(`CREATE INDEX IF NOT EXISTS idx_likes_externos_cancion_externa_id ON likes_externos(cancion_externa_id)`);
 
       await db.run("COMMIT");
-      logStatus("Likes Externos", true, "Tabla 'likes_externos' lista.");
+      logStatus("Likes Externos", true, "Tabla 'likes_externos' lista sin DROP ni duplicados.");
     } catch (e) {
       await db.run("ROLLBACK");
       logStatus("Likes Externos", false, e.message);
       throw e;
     }
+//NO TOCAR ES PARA SERVIR EL FRONTEND
+//NO TOCAR
+//NO TOCAR
+    // --- Servir el Frontend (tidol-ui/dist) ---
+    const frontendDistPath = path.join(__dirname, '..', 'tidol-ui', 'dist');
+    
+    // Middleware para servir los archivos estáticos (JS, CSS, imágenes, etc.)
+    app.use(express.static(frontendDistPath));
+    logStatus("Frontend", true, `Sirviendo archivos estáticos desde ${frontendDistPath}`);
+
+    // Middleware "catch-all" para Single Page Applications (SPA).
+    // Debe ir DESPUÉS de todas las rutas de la API.
+    // Redirige cualquier otra petición al index.html del frontend para que el router del cliente se encargue.
+    app.get('*', (req, res) => {
+      // Evita que las rutas de la API caigan aquí por error.
+      if (!req.originalUrl.startsWith('/api')) {
+        res.sendFile(path.join(frontendDistPath, 'index.html'));
+      }
+    });
 
     app.get("/api/health", (req, res) => {
       res.json({ status: "ok", server: "Routel Music API" });
@@ -322,5 +301,5 @@ async function ensureColumn(table, column, typeDef) {
   } catch (err) {
     logStatus("Conexión a DB / Creación de tablas", false, err.message);
     process.exit(1);
-  }
-})();
+  }}
+)();
