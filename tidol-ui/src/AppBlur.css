@@ -94,19 +94,24 @@
 
 @media (min-width: 768px) {
   .tidol-app-container > .tidol-app-grid {
-    grid-template-rows: 1fr auto;
-    grid-template-columns: 250px 1fr;
+    display: grid;
+    /* Asegura que la columna del sidebar tenga ancho fijo */
+    grid-template-columns: 280px 1fr; 
+    grid-template-rows: 1fr auto; /* Content | Player */
   }
 
   .tidol-app-container .tidol-sidebar-container {
     display: block;
-    grid-row: 1 / 3;
+    grid-row: 1 / 2; /* Ocupa desde arriba hasta antes del player */
     grid-column: 1;
-    background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    height: 100%; /* Fuerza altura completa */
+    overflow: hidden; /* Evita scroll en el contenedor padre */
+    
+    /* IMPORTANTE: Quitar fondo sólido para que se vea el fondo dinámico */
+    background: transparent !important; 
+    
+    /* Se eliminan los efectos de glassmorphism para una transparencia total */
     border-right: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.3);
     animation: tidolSlideInLeft 0.4s ease-out;
   }
 }
@@ -183,6 +188,24 @@
   }
 }
 
+/* Modificador para quitar el padding en páginas de álbum */
+.tidol-app-container .tidol-main-content.no-padding {
+  padding: 0 !important;
+}
+/* Asegúrate de tener esto en tu media query de escritorio */
+@media (min-width: 768px) {
+  .tidol-app-grid {
+    display: grid;
+    grid-template-columns: 280px 1fr; /* Sidebar fija 280px | Contenido */
+    /* ... */
+  }
+
+  /* El contenedor del sidebar debe permitir que el sidebar flote */
+  .tidol-sidebar-container {
+    z-index: 50; /* Refuerzo */
+    position: relative;
+  }
+}
 /* Scrollbar personalizado SOLO para .tidol-main-content */
 .tidol-app-container .tidol-main-content::-webkit-scrollbar {
   width: 12px;
@@ -339,7 +362,7 @@
    ============================================ */
 @media (max-width: 767px) {
   .tidol-app-container .tidol-main-content {
-    padding: 0.75rem;
+    padding: 0;
   }
 
   .tidol-app-container .tidol-player-container {

@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { useState } from 'react';
 import './AppBlur.css'; 
@@ -11,12 +11,14 @@ import MobileNav from './components/MobileNav';
 import MobileHeader from './components/MobileHeader';
 import ContextMenu from './components/ContextMenu';
 import FullScreenPlayerPortal from './components/FullScreenPlayerPortal';
+import GlobalBackground from './components/GlobalBackground'; // <-- PASO 3: IMPORTAR
 
 // PÁGINAS
 import HomePage from './pages/HomePage';
 import { SearchPage } from './pages/SearchPage';
 import { UploadPage } from './pages/UploadPage';
 import AlbumPage from './pages/AlbumPage';
+import ArtistPage from './pages/ArtistPage'; // <-- AÑADIR IMPORT
 import LoginPage from './pages/LoginPage';
 import InternetArchivePage from './pages/InternetArchivePage';
 import RegisterPage from './pages/RegisterPage';
@@ -53,6 +55,7 @@ function ProtectedRoute({ children }) {
 // ==========================================================
 function AppLayout() {
   const [contextItem, setContextItem] = useState(null);
+  const location = useLocation();
 
   const handleContextAction = (action, data) => {
     if (action === "setItem") return setContextItem(data);
@@ -60,8 +63,12 @@ function AppLayout() {
     setContextItem(null);
   };
 
+  const isAlbumPage = location.pathname.startsWith('/ia-album/') || location.pathname.startsWith('/album/');
+
   return (
     <>
+      {/* PASO 3: INTEGRAR EL COMPONENTE DE FONDO */}
+      <GlobalBackground />
       <div 
         className="tidol-app-container"
         style={{ maxWidth: '100%' }} // <-- CORRECCIÓN: Evita el desbordamiento horizontal en PC/TV
@@ -82,12 +89,13 @@ function AppLayout() {
             <MobileHeader />
           </div>
 
-          <main className="tidol-main-content">
+          <main className={`tidol-main-content ${isAlbumPage ? 'no-padding' : ''}`}>
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/search" element={<SearchPage />} />
               <Route path="/upload" element={<UploadPage />} />
               <Route path="/album/:id" element={<AlbumPage />} />
+              <Route path="/artist/:id" element={<ArtistPage />} /> {/* <-- AÑADIR RUTA */}
               <Route path="/ia-album/:identifier" element={<InternetArchivePage />} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/library" element={<LibraryPage />} />

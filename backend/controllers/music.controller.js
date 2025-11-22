@@ -169,7 +169,7 @@ async function _searchLocal(query) {
   const searchTerm = `%${query.trim()}%`;
   try {
     const [canciones, albums, artists] = await Promise.all([
-      db.all(`SELECT c.id, c.titulo, c.archivo AS url, c.portada, c.duracion, a.nombre AS artista, al.titulo AS album, c.album_id AS albumId FROM canciones c LEFT JOIN artistas a ON c.artista_id = a.id LEFT JOIN albumes al ON c.album_id = al.id WHERE c.titulo LIKE ? OR a.nombre LIKE ? OR al.titulo LIKE ? ORDER BY c.titulo ASC LIMIT 50`, [searchTerm, searchTerm, searchTerm]),
+      db.all(`SELECT c.id, c.titulo, c.archivo AS url, c.portada, c.duracion, c.bit_depth, c.sample_rate, c.bit_rate, a.nombre AS artista, al.titulo AS album, c.album_id AS albumId FROM canciones c LEFT JOIN artistas a ON c.artista_id = a.id LEFT JOIN albumes al ON c.album_id = al.id WHERE c.titulo LIKE ? OR a.nombre LIKE ? OR al.titulo LIKE ? ORDER BY c.titulo ASC LIMIT 50`, [searchTerm, searchTerm, searchTerm]),
       db.all(`SELECT al.id, al.titulo, al.portada, ar.nombre AS autor FROM albumes al LEFT JOIN artistas ar ON al.artista_id = ar.id WHERE al.titulo LIKE ? OR ar.nombre LIKE ? ORDER BY al.titulo ASC LIMIT 20`, [searchTerm, searchTerm]),
       db.all(`SELECT id, nombre, COALESCE(imagen, '/img/default-artist.png') AS imagen FROM artistas WHERE nombre LIKE ? ORDER BY nombre ASC LIMIT 20`, [searchTerm])
     ]);
@@ -432,8 +432,8 @@ export const getRecommendations = async (req, res) => {
   try {
     const current = await db.get("SELECT * FROM canciones WHERE id = ?", [songId]);
     if (!current) return res.status(404).json({ error: "Canción no encontrada" });
-    const placeholders = playedIds.length ? playedIds.map(() => "?").join(",") : "0";
-    const candidates = await db.all(`SELECT c.id, c.titulo, c.archivo AS url, c.portada, c.duracion, a.nombre AS artista, al.titulo AS album, c.album_id AS albumId FROM canciones c LEFT JOIN artistas a ON c.artista_id = a.id LEFT JOIN albumes al ON c.album_id = al.id WHERE (c.artista_id = ? OR c.album_id = ?) AND c.id != ? AND c.id NOT IN (${placeholders}) ORDER BY RANDOM() LIMIT 10`, [current.artista_id, current.album_id, songId, ...playedIds]);
+    const placeholders = playedIds.length ? playedIds.map(() => "?").join(",") : "NULL";
+    const candidates = await db.all(`SELECT c.id, c.titulo, c.archivo AS url, c.portada, c.duracion, c.bit_depth, c.sample_rate, c.bit_rate, a.nombre AS artista, al.titulo AS album, c.album_id AS albumId FROM canciones c LEFT JOIN artistas a ON c.artista_id = a.id LEFT JOIN albumes al ON c.album_id = al.id WHERE (c.artista_id = ? OR c.album_id = ?) AND c.id != ? AND c.id NOT IN (${placeholders}) ORDER BY RANDOM() LIMIT 10`, [current.artista_id, current.album_id, songId, ...playedIds]);
     res.json(candidates);
   } catch (err) {
     console.error("Error en recomendaciones:", err.message);
@@ -491,7 +491,7 @@ export const getArtistDetails = async (req, res) => {
 
 export const getHomeRecommendations = async (req, res) => {
   try {
-    const recommendations = await db.all(`SELECT c.id, c.titulo, c.archivo AS url, c.portada, c.duracion, a.nombre AS artista, al.titulo AS album FROM canciones c LEFT JOIN artistas a ON c.artista_id = a.id LEFT JOIN albumes al ON c.album_id = al.id ORDER BY RANDOM() LIMIT 10`);
+    const recommendations = await db.all(`SELECT c.id, c.titulo, c.archivo AS url, c.portada, c.duracion, c.bit_depth, c.sample_rate, c.bit_rate, a.nombre AS artista, al.titulo AS album FROM canciones c LEFT JOIN artistas a ON c.artista_id = a.id LEFT JOIN albumes al ON c.album_id = al.id ORDER BY RANDOM() LIMIT 10`);
     res.json(recommendations);
   } catch (err) { res.status(500).json({ error: "Error getting home recommendations" }); }
 };
@@ -535,7 +535,7 @@ export const getUserLikes = async (req, res) => {
   const userId = req.userId;
   if (!userId) return res.status(401).json({ error: "No autorizado" });
   try {
-    const likes = await db.all(`SELECT c.id, c.titulo, a.nombre AS artista, c.portada, c.archivo AS url, c.duracion, al.titulo AS album, c.album_id AS albumId, l.id AS likeId FROM likes l JOIN canciones c ON c.id = l.song_id JOIN artistas a ON c.artista_id = a.id LEFT JOIN albumes al ON c.album_id = al.id WHERE l.user_id = ? ORDER BY l.id DESC`, [userId]);
+    const likes = await db.all(`SELECT c.id, c.titulo, a.nombre AS artista, c.portada, c.archivo AS url, c.duracion, c.bit_depth, c.sample_rate, c.bit_rate, al.titulo AS album, c.album_id AS albumId, l.id AS likeId FROM likes l JOIN canciones c ON c.id = l.song_id JOIN artistas a ON c.artista_id = a.id LEFT JOIN albumes al ON c.album_id = al.id WHERE l.user_id = ? ORDER BY l.id DESC`, [userId]);
     res.json(likes);
   } catch (err) { res.status(500).json({ error: "Error al obtener canciones con like" }); }
 };
@@ -727,6 +727,17 @@ export const getCover = async (req, res) => {
   }
 };
 
+export const getArtistSongs = async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Ordenamos por fecha de subida para simular "lo más reciente"
+    const songs = await db.all(`SELECT c.id, c.titulo, c.archivo AS url, c.duracion, c.portada, c.bit_depth, c.sample_rate, c.bit_rate, a.nombre AS artista FROM canciones c JOIN artistas a ON c.artista_id = a.id WHERE c.artista_id = ? ORDER BY c.fecha_subida DESC`, [id]);
+    res.json(songs);
+  } catch (err) {
+    res.status(500).json({ error: "Error al obtener las canciones del artista" });
+  }
+};
+
 export default {
-  searchAll, search, searchArchive, getRecommendations, getSongs, getAlbums, getAlbumDetails, getAlbumSongs, getArtists, getArtistDetails, getHomeRecommendations, getLyricsBySong, toggleLike, checkIfLiked, getUserLikes, registerIaClick, registerComparatorRelation, registerIaComparator, toggleIaLike, checkIfIaLiked, getUserIaLikes, getCover
+  searchAll, search, searchArchive, getRecommendations, getSongs, getAlbums, getAlbumDetails, getAlbumSongs, getArtists, getArtistDetails, getArtistSongs, getHomeRecommendations, getLyricsBySong, toggleLike, checkIfLiked, getUserLikes, registerIaClick, registerComparatorRelation, registerIaComparator, toggleIaLike, checkIfIaLiked, getUserIaLikes, getCover
 };

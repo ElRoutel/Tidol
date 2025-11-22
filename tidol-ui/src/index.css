@@ -45,3 +45,26 @@ body {
     padding: 0.5rem;
   }
 }
+
+/* === PASO 1: CSS GLOBAL (Scrollbar de Cristal) === */
+/* Para navegadores Webkit (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 8px; /* Ancho de la scrollbar */
+}
+
+/* El "track" o fondo de la scrollbar */
+::-webkit-scrollbar-track {
+  background: transparent; /* Fondo totalmente transparente */
+}
+
+/* El "thumb" o la parte que se arrastra */
+::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2); /* Blanco semi-transparente */
+  border-radius: 10px; /* Bordes redondeados */
+  border: 1px solid transparent; /* Borde transparente para el efecto "flotante" */
+  background-clip: content-box; /* Asegura que el borde no tenga color de fondo */
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3); /* Un poco más visible al pasar el mouse */
+}

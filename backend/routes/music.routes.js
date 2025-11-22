@@ -12,6 +12,7 @@ import {
   getAlbumSongs,
   getArtists,
   getArtistDetails,
+  getArtistSongs,
   search,
   searchArchive,
   getHomeRecommendations,
@@ -54,6 +55,7 @@ router.get("/albums/:id/songs", authMiddleware, getAlbumSongs);
 // --- Artistas ---
 router.get("/artists", authMiddleware, getArtists);
 router.get("/artists/:id", authMiddleware, getArtistDetails);
+router.get("/artists/:id/songs", authMiddleware, getArtistSongs);
 
 // --- Búsquedas individuales ---
 router.get("/search", authMiddleware, search);

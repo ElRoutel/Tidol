@@ -1,40 +1,77 @@
-// src/components/SearchInput.jsx
 import { useState } from 'react';
-import { IoSearch } from 'react-icons/io5';
+import { Search, Loader2 } from 'lucide-react';
 
 export default function SearchInput({ onSearch, loading }) {
   const [query, setQuery] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (query) {
+    if (query.trim()) {
       onSearch(query);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="w-full max-w-md">
+    <div className="w-full">
       <div className="relative">
-        <IoSearch 
-          className="absolute left-4 top-1/2 -translate-y-1/2 text-text-subdued"
-          size={20} 
-        />
-        <input 
-          type="text" 
-          placeholder="¿Qué quieres escuchar?"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="w-full bg-interactive-bg text-text placeholder-text-subdued 
-                     py-3 pl-12 pr-4 rounded-full border-2 border-transparent 
-                     focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-        />
-        {/* Opcional: mostrar un spinner de carga */}
-        {loading && (
-            <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                <div className="w-5 h-5 border-t-2 border-primary rounded-full animate-spin"></div>
+        <div 
+          className={`
+            relative flex items-center
+            bg-gradient-to-br from-gray-900 to-black
+            rounded-full
+            shadow-lg hover:shadow-2xl
+            transition-all duration-300 ease-out
+            ${isFocused ? 'ring-2 ring-green-500 scale-[1.02]' : ''}
+            ${loading ? 'opacity-90' : ''}
+          `}
+        >
+          {/* Icono de búsqueda */}
+          <div className="absolute left-5 flex items-center pointer-events-none">
+            <Search 
+              className={`
+                transition-all duration-300
+                ${isFocused ? 'text-green-500 scale-110' : 'text-gray-400'}
+              `}
+              size={22}
+            />
+          </div>
+
+          {/* Input */}
+          <input 
+            type="text" 
+            placeholder="¿Qué quieres escuchar?"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSubmit(e)}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            disabled={loading}
+            className="
+              w-full
+              bg-transparent
+              text-white
+              placeholder-gray-400
+              text-base
+              font-semibold
+              py-3 pl-14 pr-14
+              outline-none
+              transition-all duration-300
+              disabled:cursor-not-allowed
+            "
+          />
+
+          {/* Indicador de carga */}
+          {loading && (
+            <div className="absolute right-4 flex items-center">
+              <Loader2 
+                className="text-green-500 animate-spin" 
+                size={24}
+              />
             </div>
-        )}
+          )}
+        </div>
       </div>
-    </form>
+    </div>
   );
 }
