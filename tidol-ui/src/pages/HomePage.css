@@ -212,7 +212,7 @@
    ============================================ */
 .tidol-shelf-wrapper {
   /* Fallback background */
-  background: rgba(255, 255, 255, 0.04);
+  /* background: rgba(255, 255, 255, 0.04); */ /* ELIMINADO: Para dejar pasar el fondo global */
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   padding-block: var(--space-md);
@@ -234,7 +234,7 @@
 /* Progressive enhancement */
 @supports (backdrop-filter: blur(8px)) or (-webkit-backdrop-filter: blur(8px)) {
   .tidol-shelf-wrapper {
-    background: var(--glass-bg-shelf);
+    /* background: var(--glass-bg-shelf); */ /* ELIMINADO: Para dejar pasar el fondo global */
     backdrop-filter: blur(var(--glass-blur-medium));
     -webkit-backdrop-filter: blur(var(--glass-blur-medium));
   }

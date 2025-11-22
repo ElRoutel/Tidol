@@ -9,7 +9,7 @@
   width: 100vw;
   position: relative;
   overflow: hidden;
-  background: #0A0A0A;
+  /* background: #0A0A0A; */ /* ELIMINADO: El fondo ahora lo gestiona GlobalBackground o los orbes */
   isolation: isolate;
   z-index: 0;
 }
@@ -22,6 +22,13 @@
   overflow: hidden;
   z-index: 0;
   pointer-events: none;
+  /* Lógica de transición para los orbes */
+  opacity: 0;
+  transition: opacity 0.8s ease-in-out;
+}
+
+.tidol-app-background.visible {
+  opacity: 1;
 }
 
 .tidol-app-background .tidol-app-orb {

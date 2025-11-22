@@ -1,6 +1,6 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import './AppBlur.css'; 
 import './styles/glass.css'; 
 
@@ -11,14 +11,15 @@ import MobileNav from './components/MobileNav';
 import MobileHeader from './components/MobileHeader';
 import ContextMenu from './components/ContextMenu';
 import FullScreenPlayerPortal from './components/FullScreenPlayerPortal';
-import GlobalBackground from './components/GlobalBackground'; // <-- PASO 3: IMPORTAR
+import GlobalBackground from './components/GlobalBackground'; // Aseguramos la importación
+import { usePlayer } from './context/PlayerContext';
 
 // PÁGINAS
 import HomePage from './pages/HomePage';
 import { SearchPage } from './pages/SearchPage';
 import { UploadPage } from './pages/UploadPage';
 import AlbumPage from './pages/AlbumPage';
-import ArtistPage from './pages/ArtistPage'; // <-- AÑADIR IMPORT
+import ArtistPage from './pages/ArtistPage';
 import LoginPage from './pages/LoginPage';
 import InternetArchivePage from './pages/InternetArchivePage';
 import RegisterPage from './pages/RegisterPage';
@@ -27,7 +28,6 @@ import LibraryPage from './pages/LibraryPage';
 import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
 
-// RUTA PROTEGIDA (Sin cambios)
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
 
@@ -50,68 +50,75 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
-// ==========================================================
-// --- CAMBIO 1: Eliminar rutas de AppLayout ---
-// ==========================================================
 function AppLayout() {
   const [contextItem, setContextItem] = useState(null);
   const location = useLocation();
+  const { currentSong } = usePlayer(); // 1. Obtenemos la canción actual del reproductor
 
   const handleContextAction = (action, data) => {
     if (action === "setItem") return setContextItem(data);
-    console.log("ContextMenu Action:", action, data);
     setContextItem(null);
   };
 
-  const isAlbumPage = location.pathname.startsWith('/ia-album/') || location.pathname.startsWith('/album/');
+  // 1. DETECTAR PÁGINAS INMERSIVAS
+  // Estas páginas tienen su propio fondo "Spotlight", así que ocultaremos el global.
+  const isImmersivePage = 
+    location.pathname.startsWith('/ia-album/') || 
+    location.pathname.startsWith('/album/') || 
+    location.pathname.startsWith('/artist/');
 
   return (
     <>
-      {/* PASO 3: INTEGRAR EL COMPONENTE DE FONDO */}
-      <GlobalBackground />
+      {/* RENDERIZADO CONDICIONAL DEL FONDO */}
+      {/* Si NO estamos en una página inmersiva, mostramos el fondo de la canción actual. */}
+      {!isImmersivePage && <GlobalBackground />}
+
       <div 
         className="tidol-app-container"
-        style={{ maxWidth: '100%' }} // <-- CORRECCIÓN: Evita el desbordamiento horizontal en PC/TV
+        style={{ maxWidth: '100%' }}
       >
-        {/* ... (Orbes de fondo, etc.) ... */}
-        <div className="tidol-app-background">
-          <div className="tidol-app-orb tidol-app-orb-1"></div>
-          <div className="tidol-app-orb tidol-app-orb-2"></div>
-          <div className="tidol-app-orb tidol-app-orb-3"></div>
-        </div>
+        {/* Orbes: Solo se ven si NO hay una canción cargada. */}
+        {/* La clase 'visible' controla la transición de opacidad. */}
+        <div className={`tidol-app-background ${!currentSong ? 'visible' : ''}`}>
+            <div className="tidol-app-orb tidol-app-orb-1"></div>
+            <div className="tidol-app-orb tidol-app-orb-2"></div>
+            <div className="tidol-app-orb tidol-app-orb-3"></div>
+          </div>
 
         <div className="tidol-app-grid">
-          {/* ... (Sidebar, Header, etc.) ... */}
           <aside className="tidol-sidebar-container">
             <Sidebar />
           </aside>
+          
           <div className="tidol-mobile-header">
             <MobileHeader />
           </div>
 
-          <main className={`tidol-main-content ${isAlbumPage ? 'no-padding' : ''}`}>
+          {/* 3. CLASE DINÁMICA: 'no-padding' para que el banner del álbum toque el borde */}
+          <main className={`tidol-main-content ${isImmersivePage ? 'no-padding' : ''}`}>
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/search" element={<SearchPage />} />
               <Route path="/upload" element={<UploadPage />} />
+              
+              {/* Rutas Inmersivas */}
               <Route path="/album/:id" element={<AlbumPage />} />
-              <Route path="/artist/:id" element={<ArtistPage />} /> {/* <-- AÑADIR RUTA */}
+              <Route path="/artist/:id" element={<ArtistPage />} />
               <Route path="/ia-album/:identifier" element={<InternetArchivePage />} />
+              
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/library" element={<LibraryPage />} />
-              {/* --- RUTAS MOVIDAS --- */}
-              {/* <Route path="/terms" element={<TermsPage />} /> */}
-              {/* <Route path="/privacy" element={<PrivacyPage />} /> */}
             </Routes>
           </main>
 
-          {/* ... (PlayerBar, MobileNav, etc.) ... */}
           <footer className="tidol-player-container">
             <PlayerBar />
           </footer>
+          
           <nav className="tidol-mobile-nav">
             <MobileNav />
           </nav>
+          
           <ContextMenu item={contextItem} onAction={handleContextAction} />
         </div>
       </div>
@@ -120,21 +127,14 @@ function AppLayout() {
   );
 }
 
-// ==========================================================
-// --- CAMBIO 2: Añadir rutas públicas a App() ---
-// ==========================================================
 export default function App() {
   return (
     <Routes>
-      {/* --- RUTAS PÚBLICAS --- */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
-      {/* Estas páginas no tendrán la barra lateral ni el reproductor, 
-          lo cual es correcto para páginas legales. */}
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
 
-      {/* --- RUTAS PRIVADAS --- */}
       <Route
         path="/*"
         element={
