@@ -1,6 +1,6 @@
 /* ============================================
    TIDOL HOME - PROFESSIONAL GLASSMORPHISM SYSTEM
-   Design System v2.0 - Production Ready
+   Design System v2.1 - Transparent & Immersive
    ============================================ */
 
 /* ============================================
@@ -12,12 +12,13 @@
   --glass-blur-medium: 8px;
   --glass-blur-light: 6px;
   
+  /* Transparent Backgrounds for Immersive Mode */
   --glass-bg-header: rgba(255, 255, 255, 0.03);
-  --glass-bg-shelf: rgba(255, 255, 255, 0.02);
-  --glass-bg-shelf-hover: rgba(255, 255, 255, 0.04);
+  --glass-bg-shelf: transparent; /* ✅ CAMBIO: Transparente por defecto */
+  --glass-bg-shelf-hover: rgba(255, 255, 255, 0.03); /* Sutil en hover */
   
   --glass-border: rgba(255, 255, 255, 0.06);
-  --glass-border-hover: rgba(255, 255, 255, 0.08);
+  --glass-border-hover: rgba(255, 255, 255, 0.15);
   
   /* Spacing Scale (8px base) */
   --space-xs: 0.5rem;    /* 8px */
@@ -68,13 +69,13 @@
   --card-width-large: 208px;
   
   /* Scrollbar */
-  --scrollbar-height: 8px;
-  --scrollbar-track: rgba(255, 255, 255, 0.02);
-  --scrollbar-thumb: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.3) 100%);
-  --scrollbar-thumb-hover: linear-gradient(180deg, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.5) 100%);
+  --scrollbar-height: 6px; /* Más delgada */
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.4);
 }
 
-/* Fallback tokens for browsers without custom properties */
+/* Fallback tokens */
 @supports not (--css: variables) {
   .tidol-home-header {
     background: rgba(255, 255, 255, 0.05);
@@ -83,16 +84,14 @@
 }
 
 /* ============================================
-   ACCESSIBILITY - High Contrast & Forced Colors
+   ACCESSIBILITY
    ============================================ */
 @media (prefers-contrast: more) {
   :root {
     --glass-bg-header: rgba(255, 255, 255, 0.08);
-    --glass-bg-shelf: rgba(255, 255, 255, 0.06);
-    --glass-border: rgba(255, 255, 255, 0.12);
+    --glass-bg-shelf: transparent;
+    --glass-border: rgba(255, 255, 255, 0.3); /* Más contraste */
     --color-text-secondary: #CCCCCC;
-    --font-weight-medium: 600;
-    --font-weight-semibold: 700;
   }
 }
 
@@ -110,28 +109,23 @@
     -webkit-text-fill-color: inherit;
     color: CanvasText;
   }
-  
-  .tidol-card-item:hover {
-    outline: 2px solid Highlight;
-    outline-offset: 2px;
-  }
 }
 
 /* ============================================
    BASE CONTAINER
    ============================================ */
 .tidol-home-container {
-  min-block-size: 100%; /* Logical property for internationalization */
+  min-block-size: 100%;
   padding-block-end: var(--space-lg);
-  isolation: isolate; /* Creates stacking context */
-  contain: layout style; /* Performance optimization */
+  isolation: isolate;
+  contain: layout style;
+  background: transparent;
 }
 
 /* ============================================
-   HEADER - Glassmorphism with Fallback
+   HEADER
    ============================================ */
 .tidol-home-header {
-  /* Fallback for browsers without backdrop-filter */
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
@@ -139,19 +133,16 @@
   margin-block-end: var(--space-lg);
   box-shadow: var(--shadow-md);
   
-  /* Performance optimizations */
   transform: translateZ(0);
   will-change: backdrop-filter;
-  contain: layout paint; /* Limits repaints to this element */
+  contain: layout paint;
   
-  /* Smooth glassmorphism transition */
   transition: 
     background-color var(--transition-normal),
     border-color var(--transition-normal),
     box-shadow var(--transition-normal);
 }
 
-/* Progressive enhancement: Apply backdrop-filter only if supported */
 @supports (backdrop-filter: blur(12px)) or (-webkit-backdrop-filter: blur(12px)) {
   .tidol-home-header {
     background: var(--glass-bg-header);
@@ -161,27 +152,23 @@
 }
 
 /* ============================================
-   TYPOGRAPHY - Gradient Text with Fallback
+   TYPOGRAPHY
    ============================================ */
 .tidol-home-title {
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
-  color: var(--color-text-primary); /* Fallback */
+  color: var(--color-text-primary);
   margin-block-end: var(--space-xs);
   letter-spacing: -0.02em;
   line-height: 1.2;
   
-  /* Gradient text effect */
   background: linear-gradient(135deg, #FFFFFF 0%, #B3B3B3 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  
-  /* Ensure gradient doesn't break with paint containment */
   paint-order: stroke fill;
 }
 
-/* Fallback for browsers without background-clip: text */
 @supports not (background-clip: text) {
   .tidol-home-title {
     background: none;
@@ -194,7 +181,7 @@
   color: var(--color-text-secondary);
   font-weight: var(--font-weight-medium);
   line-height: 1.5;
-  max-inline-size: 80ch; /* Optimal reading width */
+  max-inline-size: 80ch;
 }
 
 /* ============================================
@@ -204,108 +191,92 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2xl);
-  contain: layout style; /* Performance */
+  contain: layout style;
 }
 
 /* ============================================
-   SHELF WRAPPER - Advanced Glassmorphism
+   SHELF WRAPPER - TRANSPARENTE & INMERSIVO
    ============================================ */
 .tidol-shelf-wrapper {
-  /* Fallback background */
-  /* background: rgba(255, 255, 255, 0.04); */ /* ELIMINADO: Para dejar pasar el fondo global */
-  border: 1px solid var(--glass-border);
+  /* ✅ FONDO TRANSPARENTE: Clave para el efecto inmersivo */
+  background: transparent;
+  border: 1px solid transparent; /* Invisible por defecto */
   border-radius: var(--radius-lg);
   padding-block: var(--space-md);
   
-  /* Performance optimizations */
   transform: translateZ(0);
   will-change: transform;
   isolation: isolate;
-  contain: layout paint; /* Limits repaints and creates paint boundary */
+  contain: layout paint;
   
-  /* Smooth transitions */
   transition: 
     background-color var(--transition-normal),
     border-color var(--transition-normal),
-    box-shadow var(--transition-normal),
     transform var(--transition-normal);
 }
 
-/* Progressive enhancement */
 @supports (backdrop-filter: blur(8px)) or (-webkit-backdrop-filter: blur(8px)) {
   .tidol-shelf-wrapper {
-    /* background: var(--glass-bg-shelf); */ /* ELIMINADO: Para dejar pasar el fondo global */
-    backdrop-filter: blur(var(--glass-blur-medium));
-    -webkit-backdrop-filter: blur(var(--glass-blur-medium));
+    background: transparent; /* ✅ Forzar transparencia también aquí */
+    /* Opcional: Quitar el blur si quieres que sea 100% limpio, o dejarlo para efecto vidrio */
+    /* backdrop-filter: blur(var(--glass-blur-medium)); */ 
+    /* -webkit-backdrop-filter: blur(var(--glass-blur-medium)); */
   }
 }
 
+/* Efecto sutil al pasar el mouse */
 .tidol-shelf-wrapper:hover {
   background: var(--glass-bg-shelf-hover);
-  border-color: var(--glass-border-hover);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-}
-
-.tidol-shelf-wrapper:focus-within {
-  outline: 2px solid var(--glass-border-hover);
-  outline-offset: 2px;
+  border-color: var(--glass-border); /* Solo se ve el borde al hacer hover */
 }
 
 /* ============================================
-   CAROUSEL - Optimized Horizontal Scroll
+   CAROUSEL & SCROLLBAR
    ============================================ */
 .tidol-shelf-scroll {
   display: flex;
   gap: var(--space-sm);
-  
-  /* Scroll configuration */
   overflow-x: auto;
   overflow-y: hidden;
-  overscroll-behavior-x: contain; /* Prevents scroll chaining */
+  overscroll-behavior-x: contain;
   scroll-snap-type: x mandatory;
   scroll-behavior: smooth;
-  -webkit-overflow-scrolling: touch; /* iOS momentum scrolling */
+  -webkit-overflow-scrolling: touch;
   
-  /* Visual padding */
   padding-inline: var(--space-md);
   scroll-padding-inline: var(--space-md);
   
-  /* Performance: Skip rendering offscreen content */
   content-visibility: auto;
   contain-intrinsic-size: auto 250px;
   
-  /* Custom scrollbar */
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
-  scrollbar-gutter: stable; /* Prevents layout shift */
+  scrollbar-gutter: stable;
 }
 
-/* WebKit scrollbar styling */
+/* Scrollbar WebKit Transparente */
 .tidol-shelf-scroll::-webkit-scrollbar {
-  block-size: var(--scrollbar-height);
+  height: var(--scrollbar-height);
 }
 
 .tidol-shelf-scroll::-webkit-scrollbar-track {
-  background: var(--scrollbar-track);
-  border-radius: 10px;
+  background: transparent; /* ✅ Track invisible */
 }
 
 .tidol-shelf-scroll::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
+  background-color: var(--scrollbar-thumb);
   border-radius: 10px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-  transition: background var(--transition-fast);
+  border: 2px solid transparent; /* Espacio para que parezca flotar */
+  background-clip: content-box;
+  transition: background-color var(--transition-fast);
 }
 
 .tidol-shelf-scroll::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
-  box-shadow: 0 0 8px rgba(0, 0, 0, 0.3);
+  background-color: var(--scrollbar-thumb-hover);
 }
 
 /* ============================================
-   CARDS - Isolated Visual Effects
+   CARDS
    ============================================ */
 .tidol-card-item {
   inline-size: var(--card-width-desktop);
@@ -314,95 +285,44 @@
   scroll-snap-align: start;
   scroll-snap-stop: normal;
   
-  /* Performance */
   contain: layout style paint;
   content-visibility: auto;
   
-  /* Smooth entrance animation */
   animation: tidol-card-enter var(--transition-slow) cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  transition: transform var(--transition-fast), opacity var(--transition-fast);
   
-  /* Hover transitions */
-  transition: 
-    transform var(--transition-fast),
-    opacity var(--transition-fast);
-  
-  /* Prevent text selection on drag */
   user-select: none;
   -webkit-user-select: none;
-  -webkit-touch-callout: none;
 }
 
-/* Apply effects ONLY to media elements, not text */
-.tidol-card-item :is(img, picture, video, canvas, [class*="cover"], [class*="thumbnail"]) {
+.tidol-card-item :is(img, picture, video, canvas) {
   display: block;
   inline-size: 100%;
   border-radius: var(--radius-sm);
   object-fit: cover;
-  
-  /* Smooth visual transitions */
-  transition: 
-    filter var(--transition-fast),
-    transform var(--transition-fast);
-  
+  transition: filter var(--transition-fast), transform var(--transition-fast);
   will-change: filter, transform;
-  
-  /* Performance */
   contain: layout paint;
 }
 
-.tidol-card-item:hover :is(img, picture, video, canvas, [class*="cover"], [class*="thumbnail"]) {
-  filter: brightness(1.1) saturate(1.05);
-  transform: scale(1.02);
+.tidol-card-item:hover :is(img, picture, video, canvas) {
+  filter: brightness(1.1) saturate(1.1);
+  transform: scale(1.03);
 }
 
-.tidol-card-item:active :is(img, picture, video, canvas, [class*="cover"], [class*="thumbnail"]) {
-  filter: brightness(0.98);
-  transform: scale(0.99);
+.tidol-card-item:active :is(img, picture, video, canvas) {
+  filter: brightness(0.95);
+  transform: scale(0.98);
 }
 
-/* Protect text from filters */
-.tidol-card-item :is(h1, h2, h3, h4, h5, h6, p, span, small, strong, em, [class*="title"], [class*="text"]) {
-  filter: none !important;
-  transform: none !important;
-  will-change: auto;
-}
-
-/* Card entrance animation */
+/* Animation */
 @keyframes tidol-card-enter {
-  from {
-    opacity: 0;
-    transform: translateY(20px) scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  from { opacity: 0; transform: translateY(20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* ============================================
-   ACCESSIBILITY - Reduced Motion
-   ============================================ */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-  
-  .tidol-card-item {
-    animation: none;
-  }
-  
-  .tidol-shelf-wrapper {
-    transition: none;
-  }
-}
-
-/* ============================================
-   RESPONSIVE - MOBILE (< 768px)
+   RESPONSIVE
    ============================================ */
 @media (max-width: 767px) {
   :root {
@@ -410,8 +330,6 @@
     --space-2xl: 2rem;
     --font-size-2xl: 1.75rem;
     --font-size-sm: 0.875rem;
-    --glass-blur-strong: 8px;
-    --glass-blur-medium: 6px;
   }
   
   .tidol-home-header {
@@ -422,6 +340,7 @@
   .tidol-shelf-wrapper {
     padding-block: var(--space-sm);
     border-radius: var(--radius-md);
+    border: none; /* Sin bordes en móvil para más limpieza */
   }
   
   .tidol-card-item {
@@ -434,26 +353,12 @@
   }
 }
 
-/* ============================================
-   RESPONSIVE - TABLET (768px - 1024px)
-   ============================================ */
 @media (min-width: 768px) and (max-width: 1024px) {
-  :root {
-    --font-size-2xl: 2rem;
-  }
-  
-  .tidol-home-header {
-    padding: 1.75rem;
-  }
-  
-  .tidol-card-item {
-    inline-size: var(--card-width-tablet);
-  }
+  :root { --font-size-2xl: 2rem; }
+  .tidol-home-header { padding: 1.75rem; }
+  .tidol-card-item { inline-size: var(--card-width-tablet); }
 }
 
-/* ============================================
-   RESPONSIVE - LARGE DESKTOP (> 1440px)
-   ============================================ */
 @media (min-width: 1440px) {
   :root {
     --space-lg: 2.5rem;
@@ -462,91 +367,35 @@
     --font-size-2xl: 3rem;
     --font-size-sm: 1.125rem;
   }
-  
-  .tidol-home-header {
-    padding: var(--space-xl);
-    margin-block-end: var(--space-xl);
-  }
-  
-  .tidol-home-content {
-    gap: var(--space-3xl);
-  }
-  
-  .tidol-shelf-wrapper {
-    padding-block: var(--space-lg);
-  }
-  
-  .tidol-card-item {
-    inline-size: var(--card-width-large);
-  }
+  .tidol-home-header { padding: var(--space-xl); margin-block-end: var(--space-xl); }
+  .tidol-home-content { gap: var(--space-3xl); }
+  .tidol-shelf-wrapper { padding-block: var(--space-lg); }
+  .tidol-card-item { inline-size: var(--card-width-large); }
 }
 
 /* ============================================
-   QUICK PICKS GRID - Responsive Grid System
+   QUICK PICKS GRID
    ============================================ */
 .quick-picks-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
   gap: 0.75rem;
-  
-  /* Performance */
   contain: layout style;
   content-visibility: auto;
-  contain-intrinsic-size: auto 400px;
 }
 
 @media (max-width: 768px) {
-  .quick-picks-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (min-width: 1024px) {
-  .quick-picks-grid {
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-sm);
-  }
+  .quick-picks-grid { grid-template-columns: 1fr; }
 }
 
 /* ============================================
-   PERFORMANCE - GPU ACCELERATION
+   ACCESSIBILITY
    ============================================ */
-.tidol-home-header,
-.tidol-shelf-wrapper,
-.tidol-card-item {
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  perspective: 1000px;
-}
-
-/* ============================================
-   PRINT STYLES - Production Ready
-   ============================================ */
-@media print {
-  .tidol-home-header,
-  .tidol-shelf-wrapper {
-    background: transparent;
-    backdrop-filter: none;
-    border: 1px solid #000;
-  }
-  
-  .tidol-card-item {
-    page-break-inside: avoid;
-  }
-  
-  .tidol-shelf-scroll {
-    overflow: visible;
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
-
-/* ============================================
-   DARK MODE OPTIMIZATION (if needed)
-   ============================================ */
-@media (prefers-color-scheme: dark) {
-  /* Already optimized for dark backgrounds */
-  /* Add specific adjustments if needed */
-}
-
-/* ============================================
-   END OF PROFESSIONAL GLASSMORPHISM SYSTEM
-   ============================================ */
