@@ -42,14 +42,14 @@ body {
 
 @media (max-width: 768px) {
   body {
-    padding: 0.5rem;
+    padding: 0rem;
   }
 }
 
 /* === PASO 1: CSS GLOBAL (Scrollbar de Cristal) === */
 /* Para navegadores Webkit (Chrome, Safari, Edge) */
 ::-webkit-scrollbar {
-  width: 8px; /* Ancho de la scrollbar */
+  width: 0px; /* Ancho de la scrollbar */
 }
 
 /* El "track" o fondo de la scrollbar */

@@ -47,7 +47,7 @@
   
   /* Border Radius Scale */
   --radius-sm: 12px;
-  --radius-md: 8px;
+  --radius-md: 16px;
   --radius-lg: 20px;
   
   /* Shadows */
@@ -67,7 +67,7 @@
   --card-width-large: 208px;
   
   /* Scrollbar */
-  --scrollbar-height: 6px;
+  --scrollbar-height: -16px;
   --scrollbar-track: transparent;
   --scrollbar-thumb: rgba(255, 255, 255, 0.15);
   --scrollbar-thumb-hover: rgba(255, 255, 255, 0.4);
@@ -79,7 +79,7 @@
 .tidol-home-container {
   min-block-size: 100%;
   padding-inline: calc(var(--space-lg) - 16px);
-  padding-block: var(--space-lg) 1800px;
+  padding-block: var(--space-lg) 95px;
   isolation: isolate;
   contain: layout style;
   background: transparent;
