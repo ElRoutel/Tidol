@@ -3,7 +3,7 @@ import { usePlayer } from '../context/PlayerContext';
 import Shelf from '../components/HomeShelf';
 import AlbumCard from '../components/AlbumCard';
 import SongShelfCard from '../components/cards/SongShelfCard';
-import SongGridCard from '../components/cards/SongGridCard'; // <-- Nueva tarjeta para la cuadrícula
+import SongGridCard from '../components/cards/SongGridCard';
 import api from '../api/axiosConfig';
 import './HomePage.css';
 
@@ -47,7 +47,7 @@ export default function HomePage() {
   return (
     <div className="tidol-home-container">
       {/* Header con glassmorphism */}
-      <div className="tidol-home-header tidol-fade-in">
+      <div className="tidol-home-header glass-card tidol-fade-in">
         <h1 className="tidol-home-title">Inicio</h1>
         <p className="tidol-home-subtitle">Tu música, siempre contigo</p>
       </div>
@@ -56,7 +56,7 @@ export default function HomePage() {
       <div className="tidol-home-content">
         {/* Nueva Sección Rápida en formato Grid */}
         {quickPicks.length > 0 && (
-          <div className="tidol-shelf-wrapper tidol-slide-up" style={{ animationDelay: '0.05s' }}>
+          <div className="tidol-shelf-wrapper tidol-slide-up">
             <h2 className="text-3xl font-bold mb-4 text-white">Selección rápida</h2>
             <div className="quick-picks-grid">
               {quickPicks.slice(0, 6).map((song, index, songList) => (
@@ -70,7 +70,7 @@ export default function HomePage() {
           </div>
         )}
 
-        <div className="tidol-shelf-wrapper tidol-slide-up" style={{ animationDelay: '0.1s' }}>
+        <div className="tidol-shelf-wrapper tidol-slide-up">
           <Shelf
             title="Escuchado Recientemente"
             endpoint="/history"
@@ -84,7 +84,7 @@ export default function HomePage() {
           />
         </div>
 
-        <div className="tidol-shelf-wrapper tidol-slide-up" style={{ animationDelay: '0.2s' }}>
+        <div className="tidol-shelf-wrapper tidol-slide-up">
           <Shelf
             title="Para ti"
             endpoint="/music/home-recommendations"
@@ -98,7 +98,7 @@ export default function HomePage() {
           />
         </div>
 
-        <div className="tidol-shelf-wrapper tidol-slide-up" style={{ animationDelay: '0.3s' }}>
+        <div className="tidol-shelf-wrapper tidol-slide-up">
           <Shelf
             title="Álbumes Populares"
             endpoint="/music/albums"

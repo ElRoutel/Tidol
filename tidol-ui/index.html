@@ -3,20 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-<!-- Reemplaza tu meta viewport actual con esta versión más robusta -->
-<meta 
-  name="viewport" 
-  content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
-/>
+    
+    <meta 
+      name="viewport" 
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
 
     <meta name="theme-color" content="#0A0A0A" />
     <meta name="description" content="Tidol - Tu plataforma de música en streaming " />
     
-    <!-- Preconnect para mejorar performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     
-    <!-- Font Montserrat optimizada -->
     <link 
       href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" 
       rel="stylesheet"
@@ -27,62 +25,48 @@
     <style>
       /* Loading screen mientras carga React */
       #tidol-loading {
-        position: fixed;
-        inset: 0;
-        background: linear-gradient(
-          180deg,
-          #0A0A0A 0%,
-          #121212 100%
-        );
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
-        transition: opacity 0.3s ease-out;
+        position: fixed; inset: 0;
+        background: linear-gradient(180deg, #0A0A0A 0%, #121212 100%);
+        display: flex; align-items: center; justify-content: center;
+        z-index: 9999; transition: opacity 0.3s ease-out;
       }
       
-      #tidol-loading.hidden {
-        opacity: 0;
-        pointer-events: none;
-      }
+      #tidol-loading.hidden { opacity: 0; pointer-events: none; }
       
       .tidol-loader {
-        width: 50px;
-        height: 50px;
+        width: 50px; height: 50px;
         border: 4px solid rgba(29, 185, 84, 0.2);
         border-top-color: #1DB954;
         border-radius: 50%;
         animation: tidol-spin 1s linear infinite;
       }
       
-      @keyframes tidol-spin {
-        to { transform: rotate(360deg); }
-      }
+      @keyframes tidol-spin { to { transform: rotate(360deg); } }
       
       .tidol-loader-text {
-        position: absolute;
-        margin-top: 80px;
-        color: #B3B3B3;
-        font-family: 'Montserrat', sans-serif;
-        font-size: 14px;
-        font-weight: 600;
-        letter-spacing: 0.5px;
+        position: absolute; margin-top: 80px;
+        color: #B3B3B3; font-family: 'Montserrat', sans-serif;
+        font-size: 14px; font-weight: 600; letter-spacing: 0.5px;
       }
     </style>
   </head>
   
   <body>
-    <!-- Loading screen -->
     <div id="tidol-loading">
-      <div>
-        <div class="tidol-loader"></div>
-      </div>
+      <div><div class="tidol-loader"></div></div>
     </div>
     
-    <!-- App container -->
     <div id="root"></div>
+
+    <svg style="position: absolute; width: 0; height: 0; overflow: hidden;" aria-hidden="true">
+      <defs>
+        <filter id="liquid-distortion">
+          <feTurbulence type="fractalNoise" baseFrequency="0.01 0.01" numOctaves="1" result="warp" />
+          <feDisplacementMap xChannelSelector="R" yChannelSelector="G" scale="20" in="SourceGraphic" in2="warp" />
+        </filter>
+      </defs>
+    </svg>
     
-    <!-- Script para ocultar loading -->
     <script>
       window.addEventListener('load', () => {
         const loader = document.getElementById('tidol-loading');
@@ -94,37 +78,34 @@
         }
       });
     </script>
-      <!--TelMe Puedes agregar los efectos del liquid galass tipo iphone?--->
+      
     <script type="module" src="/src/main.jsx"></script>
- <script>
-  (function() {
-    'use strict';
-    
-    // 1. Prevenir pinch zoom
-    document.addEventListener('touchstart', function(event) {
-      if (event.touches.length > 1) {
-        event.preventDefault();
-      }
-    }, { passive: false });
-    
-    // 2. Prevenir gesture zoom (iOS)
-    document.addEventListener('gesturestart', function(event) {
-      event.preventDefault();
-    }, { passive: false });
-    
-    // 3. Prevenir double-tap zoom
-    let lastTouchEnd = 0;
-    document.addEventListener('touchend', function(event) {
-      const now = Date.now();
-      if (now - lastTouchEnd <= 300) {
-        event.preventDefault();
-      }
-      lastTouchEnd = now;
-    }, { passive: false });
-    
-    // 4. Reset de zoom forzado (fallback)
-    document.body.style.zoom = 1;
-  })();
-</script>
+
+    <script>
+     (function() {
+       'use strict';
+       
+       // 1. Prevenir pinch zoom
+       document.addEventListener('touchstart', function(event) {
+         if (event.touches.length > 1) { event.preventDefault(); }
+       }, { passive: false });
+       
+       // 2. Prevenir gesture zoom (iOS)
+       document.addEventListener('gesturestart', function(event) {
+         event.preventDefault();
+       }, { passive: false });
+       
+       // 3. Prevenir double-tap zoom
+       let lastTouchEnd = 0;
+       document.addEventListener('touchend', function(event) {
+         const now = Date.now();
+         if (now - lastTouchEnd <= 300) { event.preventDefault(); }
+         lastTouchEnd = now;
+       }, { passive: false });
+       
+       // 4. Reset de zoom forzado
+       document.body.style.zoom = 1;
+     })();
+    </script>
   </body>
 </html>
