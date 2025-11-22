@@ -1,4 +1,3 @@
-// FullScreenPlayer.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import './FullScreenPlayer.css';
 import './FullScreenPlayerLyrics.css';
@@ -38,34 +37,52 @@ const FullScreenPlayer = () => {
   const [mounted, setMounted] = useState(false);
   const lyricsContainerRef = useRef(null);
 
-  const [bestCover, setBestCover] = useState(null);
+  // 1. INICIALIZACIÓN: Usamos la portada que ya tenemos (la correcta)
+  const [bestCover, setBestCover] = useState(currentSong?.portada || null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Portada HD desde backend si existe identifier
+  // 2. LÓGICA CORREGIDA PARA EVITAR EL EDIFICIO DE INTERNET ARCHIVE
   useEffect(() => {
-    let mounted = true;
-    if (!currentSong?.identifier) {
-      setBestCover(currentSong?.portada || null);
-      return;
-    }
+    let isMounted = true;
+
+    // Resetear a la portada base al cambiar de canción para evitar parpadeos
+    setBestCover(currentSong?.portada || null);
+
+    if (!currentSong?.identifier) return;
+
     const fetchBestCover = async () => {
       try {
         const res = await api.get(`/music/getCover/${currentSong.identifier}`);
-        if (mounted && res.data?.portada) {
-          setBestCover(res.data.portada);
-        } else if (mounted) {
-          setBestCover(currentSong.portada || null);
+        
+        if (isMounted && res.data?.portada) {
+          const newCoverUrl = res.data.portada;
+
+          // === DETECCIÓN DE URL GENÉRICA ===
+          // Las URLs que contienen "/services/img/" son generadas automáticamente por IA.
+          // Si IA no encuentra portada, esta URL muestra el edificio/logo.
+          const isGenericUrl = newCoverUrl.includes('/services/img/');
+          
+          // Si la URL es genérica Y ya tenemos una portada válida (la que trajimos de la búsqueda),
+          // entonces IGNORAMOS la respuesta del backend para proteger la imagen correcta.
+          if (isGenericUrl && currentSong.portada) {
+             // No hacemos nada, nos quedamos con la de Tyler
+             return;
+          }
+
+          // Si no es genérica (es un .jpg directo) o no teníamos portada antes, actualizamos.
+          setBestCover(newCoverUrl);
         }
       } catch (err) {
-        console.error("Error al obtener portada desde el backend:", err);
-        if (mounted) setBestCover(currentSong.portada || null);
+        console.warn("Error buscando portada HD, manteniendo la actual.");
       }
     };
+
     fetchBestCover();
-    return () => { mounted = false; };
+    
+    return () => { isMounted = false; };
   }, [currentSong]);
 
   const handlers = useSwipeable({
@@ -76,20 +93,19 @@ const FullScreenPlayer = () => {
     trackMouse: true,
   });
 
-  // Cargar lyrics (si están disponibles). No hacemos fetch si no se pidió showLyrics.
+  // Cargar lyrics
   useEffect(() => {
     if (!currentSong || !showLyrics) return;
 
-    // si el objeto ya tiene `lyrics` o `lyricsLoaded` podríamos usarlo; si no hacemos fetch
-    let mounted = true;
+    let isMounted = true;
     setLyrics([]);
 
     const fetchLyrics = async () => {
       try {
-        // si tenemos identifier (IA) quizás las letras no existan en endpoint local, pero dejamos lógica simple:
         const id = currentSong.id || currentSong.identifier;
         const res = await api.get(`/music/songs/${id}/lyrics`);
-        if (!mounted) return;
+        if (!isMounted) return;
+        
         const payload = res.data;
         if (payload?.success && Array.isArray(payload.lyrics)) {
           setLyrics(payload.lyrics);
@@ -99,16 +115,15 @@ const FullScreenPlayer = () => {
           setLyrics([]);
         }
       } catch (err) {
-        console.error("Error cargando letras:", err);
-        if (mounted) setLyrics([]);
+        if (isMounted) setLyrics([]);
       }
     };
 
     fetchLyrics();
-    return () => { mounted = false; };
+    return () => { isMounted = false; };
   }, [currentSong, showLyrics]);
 
-  // Calcular currentLineIndex de forma segura
+  // Calcular línea actual
   const currentLineIndex = (() => {
     if (!lyrics || lyrics.length === 0) return -1;
     try {
@@ -124,7 +139,7 @@ const FullScreenPlayer = () => {
     }
   })();
 
-  // Auto-scroll a la línea activa
+  // Scroll Lyrics
   useEffect(() => {
     if (!lyricsContainerRef.current) return;
     const activeLine = lyricsContainerRef.current.querySelector('.fsp-active');
@@ -158,22 +173,21 @@ const FullScreenPlayer = () => {
 
   const handleToggleLike = () => {
     if (!currentSong) return;
-    
-    // Pasamos todos los datos de la canción al contexto
     toggleLike(currentSong.id, {
-      // Datos para identificar la canción
       identifier: currentSong.identifier,
       source: currentSong.source,
-      
-      // Datos para GUARDAR si la canción no existe en la DB
       titulo: currentSong.titulo,
       artista: currentSong.artista,
-      url: currentSong.url,           // <-- AÑADIDO
-      portada: currentSong.portada,   // <-- AÑADIDO
-      duration: currentSong.duration  // <-- AÑADIDO
+      url: currentSong.url,
+      portada: currentSong.portada,
+      duration: currentSong.duration
     });
   };
+  
   const liked = currentSong ? isSongLiked(currentSong.id) : false;
+
+  // Usar la mejor portada disponible
+  const displayCover = bestCover || currentSong.portada || '/default_cover.png';
 
   return (
     <>
@@ -194,7 +208,7 @@ const FullScreenPlayer = () => {
           <div className="flex-grow flex flex-col items-center justify-center text-center pt-10">
             <div className={`relative w-full max-w-md aspect-square shadow-2xl shadow-black/50 rounded-lg overflow-hidden transition-all duration-700 delay-200 ${mounted ? 'opacity-100 scale-100 rotate-0' : 'opacity-0 scale-90 rotate-3'}`}>
               <img
-                src={bestCover || currentSong.portada || '/default_cover.png'}
+                src={displayCover}
                 alt="cover"
                 className="w-full h-full object-cover transition-all duration-[20s] ease-linear hover:scale-110"
               />
@@ -240,7 +254,6 @@ const FullScreenPlayer = () => {
               <button
                 onClick={handleToggleLike}
                 className="text-white/80 hover:text-white transition-all duration-200 hover:scale-110 active:scale-95"
-                aria-label="Like"
               >
                 {liked ? <IoHeart size={30} color="red" /> : <IoHeartOutline size={30} />}
               </button>
@@ -248,7 +261,6 @@ const FullScreenPlayer = () => {
               <button
                 onClick={previousSong}
                 className="text-white/80 hover:text-white transition-all duration-200 hover:scale-110 active:scale-95"
-                aria-label="Previous"
               >
                 <IoPlaySkipBackSharp size={32} />
               </button>
@@ -256,7 +268,6 @@ const FullScreenPlayer = () => {
               <button
                 onClick={togglePlayPause}
                 className="bg-white text-black rounded-full p-4 shadow-lg hover:shadow-white/50 hover:scale-110 active:scale-95 transition-all duration-200"
-                aria-label="PlayPause"
               >
                 {isPlaying ? <IoPauseSharp size={40} /> : <IoPlaySharp size={40} />}
               </button>
@@ -264,7 +275,6 @@ const FullScreenPlayer = () => {
               <button
                 onClick={nextSong}
                 className="text-white/80 hover:text-white transition-all duration-200 hover:scale-110 active:scale-95"
-                aria-label="Next"
               >
                 <IoPlaySkipForwardSharp size={32} />
               </button>
@@ -272,7 +282,6 @@ const FullScreenPlayer = () => {
               <button
                 onClick={handleToggleLyrics}
                 className="text-white/80 hover:text-white transition-all duration-200 hover:scale-110 active:scale-95"
-                aria-label="Lyrics"
               >
                 <IoText size={28} />
               </button>
