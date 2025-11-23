@@ -28,7 +28,6 @@
   z-index: auto;
   padding: 0 12px;
   background: transparent;
-  /* El sheet ya tiene fondo si se quiere */
   box-shadow: none;
 }
 
@@ -44,7 +43,6 @@
 /* Ajuste para in-sheet */
 .player-container.in-sheet .player-left {
   flex: 1;
-  /* Ocupar espacio disponible */
   max-width: none;
 }
 
@@ -76,9 +74,7 @@
   gap: 2px;
   overflow: hidden;
   flex: 1;
-  /* Asegurar que ocupe espacio para el truncate */
   min-width: 0;
-  /* Necesario para text-overflow en flex items */
 }
 
 .track-title {
@@ -294,26 +290,22 @@
   transition: width 0.1s linear;
 }
 
-
 /* ==================== FULLSCREEN PLAYER (FIXED FOR PC) ==================== */
 .fullscreen-player {
   position: fixed;
   top: 0;
   left: 0;
-  /* CAMBIOS CLAVE PARA PC: */
   width: 100vw;
   height: 100vh;
   margin: 0;
   padding: 0;
   z-index: 2147483647;
-  /* Máximo z-index posible */
 
   display: flex;
   align-items: center;
   justify-content: center;
   animation: fadeIn 0.3s ease;
   background: #000;
-  /* Fondo base seguro */
   box-sizing: border-box;
 }
 
@@ -336,7 +328,6 @@
   background-size: cover;
   background-position: center;
   filter: blur(60px) brightness(0.6);
-  /* Brillo reducido para mejor lectura */
   transform: scale(1.1);
 }
 
@@ -592,22 +583,31 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-/* ==================== RESPONSIVE ==================== */
+/* ==================== RESPONSIVE MOBILE ==================== */
 @media (max-width: 768px) {
+
+  /* OCULTAR CONTROLES CENTRALES EN MOBILE */
   .player-center {
     display: none;
   }
 
+  /* PLAYER COMPACTO SOBRE EL BOTTOM NAV */
   .player-container {
     height: 64px;
-    padding: 0 12px;
+    padding: 0 16px;
+    /* 
+      Bottom Nav = 64px (h-16)
+      Player debe estar justo encima 
+    */
+    bottom: 64px;
+    /* Safe area para notch */
     bottom: calc(64px + env(safe-area-inset-bottom));
   }
 
   /* Reset para in-sheet en móvil */
   .player-container.in-sheet {
     bottom: auto;
-    padding: 0 12px;
+    padding: 0 16px;
     height: 100%;
   }
 
@@ -674,13 +674,19 @@
     color: #fff;
   }
 
-  /* --- FULLSCREEN EN MÓVIL (Restaurado) --- */
+  /* FULLSCREEN EN MÓVIL - Respeta Header + Bottom Nav */
   .fullscreen-player {
-    /* Aquí revertimos los cambios de PC para que en móvil SÍ respete el Bottom Nav */
-    height: auto;
+    /* 
+      Top: MobileHeader = 64px (h-16)
+      Bottom: BottomNav = 64px (h-16)
+    */
+    top: 64px;
+    height: calc(100vh - 128px - env(safe-area-inset-bottom));
     width: 100%;
     right: 0;
-    bottom: calc(64px + env(safe-area-inset-bottom));
+    bottom: auto;
+    left: 0;
+    /* z-index más alto que todo excepto modales críticos */
     z-index: 9999;
   }
 
@@ -707,5 +713,22 @@
 
   .fullscreen-content {
     padding: 20px;
+  }
+}
+
+/* ==================== SAFE AREA EXTRA (iPhone con notch) ==================== */
+@supports (padding: max(0px)) {
+  @media (max-width: 768px) {
+    .player-container {
+      /* Garantiza que nunca se oculte bajo gestos o notches */
+      bottom: max(64px, calc(64px + env(safe-area-inset-bottom)));
+    }
+
+    .fullscreen-player {
+      /* Espacio superior para notch */
+      top: max(64px, env(safe-area-inset-top));
+      /* Espacio inferior para gestos home */
+      height: calc(100vh - 128px - max(0px, env(safe-area-inset-bottom)) - max(0px, env(safe-area-inset-top)));
+    }
   }
 }

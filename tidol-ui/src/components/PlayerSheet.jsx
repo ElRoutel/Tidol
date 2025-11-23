@@ -16,7 +16,7 @@ const PlayerSheet = () => {
             // Mobile: BottomNav (64px) + Player (64px) = 128px total
             return {
                 collapsed: {
-                    y: 'calc(100vh - 64px - 64px - env(safe-area-inset-bottom))', // BottomNav + PlayerBar
+                    y: 'calc(101vh - 64px - 64px - env(safe-area-inset-bottom))', // BottomNav + PlayerBar
                     height: '64px',
                     width: '100%',
                     left: '0%',
