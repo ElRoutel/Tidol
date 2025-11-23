@@ -1,8 +1,8 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { useState, useEffect } from 'react';
-import './AppBlur.css'; 
-import './styles/glass.css'; 
+import './AppBlur.css';
+import './styles/glass.css';
 
 // COMPONENTES DE LAYOUT
 import Sidebar from './components/Sidebar';
@@ -10,7 +10,8 @@ import PlayerBar from './components/PlayerBar';
 import MobileNav from './components/MobileNav';
 import MobileHeader from './components/MobileHeader';
 import ContextMenu from './components/ContextMenu';
-import FullScreenPlayerPortal from './components/FullScreenPlayerPortal';
+// import FullScreenPlayerPortal from './components/FullScreenPlayerPortal'; // Ya no se usa
+import PlayerSheet from './components/PlayerSheet'; // <--- NUEVO
 import GlobalBackground from './components/GlobalBackground'; // Aseguramos la importación
 import { usePlayer } from './context/PlayerContext';
 
@@ -62,9 +63,9 @@ function AppLayout() {
 
   // 1. DETECTAR PÁGINAS INMERSIVAS
   // Estas páginas tienen su propio fondo "Spotlight", así que ocultaremos el global.
-  const isImmersivePage = 
-    location.pathname.startsWith('/ia-album/') || 
-    location.pathname.startsWith('/album/') || 
+  const isImmersivePage =
+    location.pathname.startsWith('/ia-album/') ||
+    location.pathname.startsWith('/album/') ||
     location.pathname.startsWith('/artist/');
 
   return (
@@ -73,56 +74,55 @@ function AppLayout() {
       {/* Si NO estamos en una página inmersiva, mostramos el fondo de la canción actual. */}
       {!isImmersivePage && <GlobalBackground />}
 
-      <div 
+      <div
         className="tidol-app-container"
         style={{ maxWidth: '100%' }}
       >
         {/* Orbes: Solo se ven si NO hay una canción cargada. */}
         {/* La clase 'visible' controla la transición de opacidad. */}
         <div className={`tidol-app-background ${!currentSong ? 'visible' : ''}`}>
-            <div className="tidol-app-orb tidol-app-orb-1"></div>
-            <div className="tidol-app-orb tidol-app-orb-2"></div>
-            <div className="tidol-app-orb tidol-app-orb-3"></div>
-          </div>
+          <div className="tidol-app-orb tidol-app-orb-1"></div>
+          <div className="tidol-app-orb tidol-app-orb-2"></div>
+          <div className="tidol-app-orb tidol-app-orb-3"></div>
+        </div>
 
         <div className="tidol-app-grid">
           <aside className="tidol-sidebar-container">
             <Sidebar />
           </aside>
-          
+
           <div className="tidol-mobile-header">
             <MobileHeader />
           </div>
 
           {/* 3. CLASE DINÁMICA: 'no-padding' para que el banner del álbum toque el borde */}
-          <main className={`tidol-main-content ${isImmersivePage ? 'no-padding' : ''}`}>
+          <main className={`tidol-main-content ${isImmersivePage ? 'no-padding' : ''} ${currentSong ? 'has-player' : ''}`}>
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/search" element={<SearchPage />} />
               <Route path="/upload" element={<UploadPage />} />
-              
+
               {/* Rutas Inmersivas */}
               <Route path="/album/:id" element={<AlbumPage />} />
               <Route path="/artist/:id" element={<ArtistPage />} />
               <Route path="/ia-album/:identifier" element={<InternetArchivePage />} />
-              
+
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/library" element={<LibraryPage />} />
             </Routes>
           </main>
 
-          <footer className="tidol-player-container">
-            <PlayerBar />
-          </footer>
-          
+          {/* PLAYER SHEET (Reemplaza al PlayerBar y FullScreenPlayerPortal) */}
+          <PlayerSheet />
+
           <nav className="tidol-mobile-nav">
             <MobileNav />
           </nav>
-          
+
           <ContextMenu item={contextItem} onAction={handleContextAction} />
         </div>
       </div>
-      <FullScreenPlayerPortal />
+      {/* <FullScreenPlayerPortal /> YA NO ES NECESARIO */}
     </>
   );
 }

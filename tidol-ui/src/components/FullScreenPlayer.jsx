@@ -15,7 +15,7 @@ import {
   IoHeartOutline
 } from 'react-icons/io5';
 
-const FullScreenPlayer = () => {
+const FullScreenPlayer = ({ isEmbedded = false }) => {
   const {
     currentSong,
     isPlaying,
@@ -40,9 +40,27 @@ const FullScreenPlayer = () => {
   // 1. INICIALIZACIÓN: Usamos la portada que ya tenemos (la correcta)
   const [bestCover, setBestCover] = useState(currentSong?.portada || null);
 
+  // Sync mounted state with visibility when embedded
+  const { isFullScreenOpen } = usePlayer();
+
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    if (isEmbedded) {
+      if (isFullScreenOpen) {
+        setMounted(true);
+      } else {
+        // Optional: setMounted(false) if we want to reset animations every time
+        // But to fix the "black screen" issue, we likely need to ensure it STAYS mounted or re-mounts correctly.
+        // The issue is likely that 'mounted' stays false or gets set to false incorrectly.
+        // Let's just keep it true once mounted, or sync it.
+        // Actually, the CSS classes depend on 'mounted'.
+        // If isEmbedded is true, we might want to force 'mounted' to true always, 
+        // OR sync it with isFullScreenOpen to trigger the entry animations.
+        setMounted(isFullScreenOpen);
+      }
+    } else {
+      setMounted(true);
+    }
+  }, [isEmbedded, isFullScreenOpen]);
 
   // 2. LÓGICA CORREGIDA PARA EVITAR EL EDIFICIO DE INTERNET ARCHIVE
   useEffect(() => {
@@ -56,7 +74,7 @@ const FullScreenPlayer = () => {
     const fetchBestCover = async () => {
       try {
         const res = await api.get(`/music/getCover/${currentSong.identifier}`);
-        
+
         if (isMounted && res.data?.portada) {
           const newCoverUrl = res.data.portada;
 
@@ -64,12 +82,12 @@ const FullScreenPlayer = () => {
           // Las URLs que contienen "/services/img/" son generadas automáticamente por IA.
           // Si IA no encuentra portada, esta URL muestra el edificio/logo.
           const isGenericUrl = newCoverUrl.includes('/services/img/');
-          
+
           // Si la URL es genérica Y ya tenemos una portada válida (la que trajimos de la búsqueda),
           // entonces IGNORAMOS la respuesta del backend para proteger la imagen correcta.
           if (isGenericUrl && currentSong.portada) {
-             // No hacemos nada, nos quedamos con la de Tyler
-             return;
+            // No hacemos nada, nos quedamos con la de Tyler
+            return;
           }
 
           // Si no es genérica (es un .jpg directo) o no teníamos portada antes, actualizamos.
@@ -81,7 +99,7 @@ const FullScreenPlayer = () => {
     };
 
     fetchBestCover();
-    
+
     return () => { isMounted = false; };
   }, [currentSong]);
 
@@ -105,7 +123,7 @@ const FullScreenPlayer = () => {
         const id = currentSong.id || currentSong.identifier;
         const res = await api.get(`/music/songs/${id}/lyrics`);
         if (!isMounted) return;
-        
+
         const payload = res.data;
         if (payload?.success && Array.isArray(payload.lyrics)) {
           setLyrics(payload.lyrics);
@@ -151,8 +169,12 @@ const FullScreenPlayer = () => {
   }, [currentLineIndex]);
 
   const handleClose = () => {
-    setMounted(false);
-    setTimeout(() => closeFullScreenPlayer(), 300);
+    if (isEmbedded) {
+      closeFullScreenPlayer();
+    } else {
+      setMounted(false);
+      setTimeout(() => closeFullScreenPlayer(), 300);
+    }
   };
 
   const handleToggleLyrics = () => {
@@ -183,7 +205,7 @@ const FullScreenPlayer = () => {
       duration: currentSong.duration
     });
   };
-  
+
   const liked = currentSong ? isSongLiked(currentSong.id) : false;
 
   // Usar la mejor portada disponible
@@ -194,7 +216,7 @@ const FullScreenPlayer = () => {
       {!showLyrics ? (
         <div
           {...handlers}
-          className={`fsp-container fixed inset-0 bg-black bg-opacity-90 backdrop-blur-xl z-[9999] flex flex-col text-white p-4 pb-20 md:pb-4 transition-all duration-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full'}`}
+          className={`fsp-container ${isEmbedded ? 'w-full h-full relative' : 'fixed inset-0 z-[9999]'} bg-black bg-opacity-90 backdrop-blur-xl flex flex-col text-white p-4 pb-20 md:pb-4 transition-all duration-300 ${!isEmbedded && (mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full')}`}
         >
           <div className={`absolute top-4 left-4 transition-all duration-500 delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
             <button

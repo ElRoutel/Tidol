@@ -45,14 +45,19 @@ export const generarEspectrograma = (filePath) => {
   });
 };
 
-/**
- * Clasifica la calidad según bit depth y sample rate
- */
 export const clasificarCalidad = ({ bitDepth, sampleRate, codec }) => {
+  // Hi-Res: 24-bit o superior con 48kHz+
   if (bitDepth >= 24 && sampleRate >= 48000) return "Hi-Res";
+
+  // CD Quality: 16-bit con 44.1kHz+ (típicamente FLAC, WAV)
   if (bitDepth >= 16 && sampleRate >= 44100) return "CD";
-  if (codec === "mp3") return "Standard";
-  return "Standard";
+
+  // Lossy: MP3, AAC, etc.
+  const lossyCodecs = ["mp3", "aac", "vorbis", "opus"];
+  if (lossyCodecs.includes(codec.toLowerCase())) return "Lossy";
+
+  // Por defecto, si no coincide con nada, probablemente sea lossy
+  return "Lossy";
 };
 
 /**

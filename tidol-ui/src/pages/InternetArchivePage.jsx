@@ -20,7 +20,7 @@ export default function InternetArchivePage() {
   const [album, setAlbum] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   const [allFiles, setAllFiles] = useState([]);
   const [groupedTracks, setGroupedTracks] = useState([]);
   const [filteredTracks, setFilteredTracks] = useState([]);
@@ -57,27 +57,27 @@ export default function InternetArchivePage() {
         setLoading(true);
         const metaRes = await api.get(`https://archive.org/metadata/${identifier}`);
         const metaData = metaRes.data;
-        
+
         try {
-            const likedRes = await api.get('/music/ia/likes');
-            if (likedRes.data) setLikedSongs(new Set(likedRes.data.map(s => s.identifier)));
+          const likedRes = await api.get('/music/ia/likes');
+          if (likedRes.data) setLikedSongs(new Set(likedRes.data.map(s => s.identifier)));
         } catch (e) { console.log("Info: No logueado o sin likes"); }
 
         if (!metaData || !metaData.metadata) throw new Error('No se encontraron metadatos.');
 
         const highQualityCover = findBestCover(metaData.files || {}, identifier);
-        
+
         const albumInfo = {
           titulo: metaData.metadata?.title || identifier,
           autor: metaData.metadata?.creator || 'Autor desconocido',
           portada: highQualityCover,
           year: metaData.metadata?.year || metaData.metadata?.date || null,
           description: metaData.metadata?.description || null,
-          totalDuration: 0 
+          totalDuration: 0
         };
 
         const audioFiles = Object.values(metaData.files || {})
-          .filter(f => f.name.match(/\.(mp3|flac|wav|m4a|ogg)$/i))
+          .filter(f => f.name.match(/\.(mp3|flac|wav|m4a|ogg|MPEG-4)$/i))
           .map(f => {
             const format = (f.format || 'unknown').replace('Audio', '').trim().toUpperCase();
             const duration = parseFloat(f.length) || 0;
@@ -97,7 +97,7 @@ export default function InternetArchivePage() {
               duracion: duration,
             };
           });
-        
+
         setAlbum(albumInfo);
         if (audioFiles.length === 0) setError('No se encontraron archivos de audio.');
         setAllFiles(audioFiles);
@@ -129,9 +129,9 @@ export default function InternetArchivePage() {
     });
     setGroupedTracks(finalGroupedTracks);
 
-    let tracksToShow = formatFilter === 'best' 
-        ? finalGroupedTracks.map(track => track.best)
-        : finalGroupedTracks.map(track => track.formats.find(f => f.format === formatFilter)).filter(Boolean);
+    let tracksToShow = formatFilter === 'best'
+      ? finalGroupedTracks.map(track => track.best)
+      : finalGroupedTracks.map(track => track.formats.find(f => f.format === formatFilter)).filter(Boolean);
 
     setFilteredTracks(tracksToShow);
 
@@ -152,10 +152,10 @@ export default function InternetArchivePage() {
   };
 
   const formatTotalDuration = (seconds) => {
-      if (!seconds) return "";
-      const h = Math.floor(seconds / 3600);
-      const m = Math.floor((seconds % 3600) / 60);
-      return h > 0 ? `${h} h ${m} min` : `${m} min`;
+    if (!seconds) return "";
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return h > 0 ? `${h} h ${m} min` : `${m} min`;
   };
 
   if (loading) return <div className="ia-loading"><div className="loading-spinner" /></div>;
@@ -163,115 +163,115 @@ export default function InternetArchivePage() {
 
   return (
     <div className="yt-album-page">
-      
+
       {/* FONDO INMERSIVO */}
-      <div 
-        className="ambient-background" 
-        style={{ backgroundImage: `url(${album?.portada})` }} 
+      <div
+        className="ambient-background"
+        style={{ backgroundImage: `url(${album?.portada})` }}
       />
       <div className="ambient-overlay" />
 
       <div className="content-wrapper">
-        
+
         {/* HERO SECTION */}
         <div className="album-hero">
-            <div className="cover-container">
-                <img src={album?.portada} alt={album?.titulo} className="hero-cover" />
+          <div className="cover-container">
+            <img src={album?.portada} alt={album?.titulo} className="hero-cover" />
+          </div>
+
+          <div className="hero-details">
+            <h1 className="album-title">{album?.titulo}</h1>
+
+            <div className="album-meta-row">
+              <span className="artist-name">{album?.autor}</span>
+              <span className="meta-dot">•</span>
+              <span className="meta-text">Internet Archive</span>
+              <span className="meta-dot">•</span>
+              <span className="meta-text">{album?.year || 'Año desc.'}</span>
             </div>
 
-            <div className="hero-details">
-                <h1 className="album-title">{album?.titulo}</h1>
-                
-                <div className="album-meta-row">
-                    <span className="artist-name">{album?.autor}</span>
-                    <span className="meta-dot">•</span>
-                    <span className="meta-text">Internet Archive</span>
-                    <span className="meta-dot">•</span>
-                    <span className="meta-text">{album?.year || 'Año desc.'}</span>
-                </div>
-
-                <div className="album-stats">
-                    {groupedTracks.length} canciones • {formatTotalDuration(album?.totalDuration)}
-                </div>
-
-                {/* Descripción Expandible */}
-                {album?.description && (
-                    <div className={`description-box ${isDescriptionExpanded ? 'expanded' : ''}`}>
-                        <div className="description-content" dangerouslySetInnerHTML={{ __html: album.description }} />
-                        <button onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)} className="desc-toggle">
-                            {isDescriptionExpanded ? 'Menos' : 'Más'}
-                        </button>
-                    </div>
-                )}
-
-                {/* BARRA DE ACCIONES */}
-                <div className="action-bar">
-                    <button onClick={() => playSongList(filteredTracks, 0)} className="btn-primary-white">
-                        <IoPlaySharp /> <span>Reproducir</span>
-                    </button>
-                    
-                    <button className="btn-circle-glass">
-                        <IoShuffle />
-                    </button>
-                    
-                    {/* Selector de Calidad */}
-                    <div className="quality-wrapper">
-                        <select 
-                            value={formatFilter} 
-                            onChange={(e) => setFormatFilter(e.target.value)}
-                            className="quality-select-glass"
-                        >
-                            <option value="best">Calidad</option>
-                            {availableFormats.map(f => <option key={f} value={f}>{f}</option>)}
-                        </select>
-                    </div>
-                </div>
+            <div className="album-stats">
+              {groupedTracks.length} canciones • {formatTotalDuration(album?.totalDuration)}
             </div>
+
+            {/* Descripción Expandible */}
+            {album?.description && (
+              <div className={`description-box ${isDescriptionExpanded ? 'expanded' : ''}`}>
+                <div className="description-content" dangerouslySetInnerHTML={{ __html: album.description }} />
+                <button onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)} className="desc-toggle">
+                  {isDescriptionExpanded ? 'Menos' : 'Más'}
+                </button>
+              </div>
+            )}
+
+            {/* BARRA DE ACCIONES */}
+            <div className="action-bar">
+              <button onClick={() => playSongList(filteredTracks, 0)} className="btn-primary-white">
+                <IoPlaySharp /> <span>Reproducir</span>
+              </button>
+
+              <button className="btn-circle-glass">
+                <IoShuffle />
+              </button>
+
+              {/* Selector de Calidad */}
+              <div className="quality-wrapper">
+                <select
+                  value={formatFilter}
+                  onChange={(e) => setFormatFilter(e.target.value)}
+                  className="quality-select-glass"
+                >
+                  <option value="best">Calidad</option>
+                  {availableFormats.map(f => <option key={f} value={f}>{f}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* LISTA DE CANCIONES */}
         <div className="tracks-container">
-            {groupedTracks.map((track, index) => {
-                const song = (formatFilter === 'best') ? track.best : track.formats.find(f => f.format === formatFilter);
-                if (!song) return null;
-                
-                const isPlaying = currentSong?.id === song.id;
-                
-                return (
-                    <div 
-                        key={song.id} 
-                        className={`track-row ${isPlaying ? 'playing' : ''}`}
-                        onClick={() => handleSongClick(song)}
-                    >
-                        <div className="track-col-index">
-                            <span className="number">{index + 1}</span>
-                            <span className="icon"><IoPlaySharp /></span>
-                        </div>
+          {groupedTracks.map((track, index) => {
+            const song = (formatFilter === 'best') ? track.best : track.formats.find(f => f.format === formatFilter);
+            if (!song) return null;
 
-                        <div className="track-col-info">
-                            <div className="track-title">{song.titulo}</div>
-                            <div className="track-artist">{song.artista}</div>
-                        </div>
+            const isPlaying = currentSong?.id === song.id;
 
-                        <div className="track-col-meta mobile-hide">
-                            <span className="format-badge">{song.format}</span>
-                        </div>
+            return (
+              <div
+                key={song.id}
+                className={`track-row ${isPlaying ? 'playing' : ''}`}
+                onClick={() => handleSongClick(song)}
+              >
+                <div className="track-col-index">
+                  <span className="number">{index + 1}</span>
+                  <span className="icon"><IoPlaySharp /></span>
+                </div>
 
-                        <div className="track-col-duration mobile-hide">
-                             {Math.floor(song.duracion / 60)}:{Math.floor(song.duracion % 60).toString().padStart(2, '0')}
-                        </div>
+                <div className="track-col-info">
+                  <div className="track-title">{song.titulo}</div>
+                  <div className="track-artist">{song.artista}</div>
+                </div>
 
-                        <div className="track-col-actions" onClick={(e) => e.stopPropagation()}>
-                            <LikeButton 
-                                song={song}
-                                isLiked={likedSongs.has(song.identifier)}
-                                onLikeToggle={handleLikeToggle}
-                                isArchive={true}
-                            />
-                        </div>
-                    </div>
-                );
-            })}
+                <div className="track-col-meta mobile-hide">
+                  <span className="format-badge">{song.format}</span>
+                </div>
+
+                <div className="track-col-duration mobile-hide">
+                  {Math.floor(song.duracion / 60)}:{Math.floor(song.duracion % 60).toString().padStart(2, '0')}
+                </div>
+
+                <div className="track-col-actions" onClick={(e) => e.stopPropagation()}>
+                  <LikeButton
+                    song={song}
+                    isLiked={likedSongs.has(song.identifier)}
+                    onLikeToggle={handleLikeToggle}
+                    isArchive={true}
+                  />
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

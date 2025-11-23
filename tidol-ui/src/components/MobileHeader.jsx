@@ -17,9 +17,9 @@ const MobileHeader = () => {
   };
 
   return (
-    <header className="md:hidden flex justify-between items-center px-4 h-16 bg-background/80 backdrop-blur-md sticky top-0 z-40">
+    <header className="md:hidden fixed top-0 left-0 right-0 flex justify-between items-center px-4 h-16 bg-background/80 backdrop-blur-md z-40">
       {/* Secciones de navegación a la izquierda */}
-     {/*Descomentrar cuando este listo todo 
+      {/*Descomentrar cuando este listo todo 
         ( <nav className="flex items-center gap-4">
         <NavLink
           to="/"

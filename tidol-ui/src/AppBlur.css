@@ -9,7 +9,6 @@
   width: 100vw;
   position: relative;
   overflow: hidden;
-  /* background: #0A0A0A; */ /* El fondo lo manejan los orbes/global */
   isolation: isolate;
   z-index: 0;
 }
@@ -23,7 +22,7 @@
   overflow: hidden;
   z-index: 0;
   pointer-events: none;
-  background: #0A0A0A; /* Fondo base */
+  background: #0A0A0A;
   opacity: 0;
   transition: opacity 0.8s ease-in-out;
 }
@@ -35,53 +34,82 @@
 .tidol-app-orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(120px); /* Blur intenso para efecto líquido */
+  filter: blur(120px);
   opacity: 0.35;
   will-change: transform;
   animation: tidolFloating 40s ease-in-out infinite;
 }
 
 .tidol-app-orb-1 {
-  width: 60vw; height: 60vw;
+  width: 60vw;
+  height: 60vw;
   background: radial-gradient(circle, #1DB954 0%, transparent 70%);
-  top: -20%; left: -10%;
+  top: -20%;
+  left: -10%;
   animation-delay: 0s;
 }
 
 .tidol-app-orb-2 {
-  width: 50vw; height: 50vw;
+  width: 50vw;
+  height: 50vw;
   background: radial-gradient(circle, #169c46 0%, transparent 70%);
-  bottom: -10%; right: -10%;
+  bottom: -10%;
+  right: -10%;
   animation-delay: -15s;
 }
 
 .tidol-app-orb-3 {
-  width: 400px; height: 400px;
+  width: 400px;
+  height: 400px;
   background: linear-gradient(135deg, #169c46 0%, #1DB954 100%);
-  top: 50%; left: 50%;
+  top: 50%;
+  left: 50%;
   transform: translate(-50%, -50%);
   animation-delay: 14s;
-  animation-name: tidolAppFloating; /* Mantiene la animación original para el centro */
+  animation-name: tidolAppFloating;
   animation-duration: 25s;
 }
 
 @keyframes tidolFloating {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(30px, -50px) scale(1.1); }
-  66% { transform: translate(-20px, 40px) scale(0.95); }
+
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  33% {
+    transform: translate(30px, -50px) scale(1.1);
+  }
+
+  66% {
+    transform: translate(-20px, 40px) scale(0.95);
+  }
 }
 
 @keyframes tidolAppFloating {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(40px, -40px) scale(1.15); }
-  50% { transform: translate(-30px, 30px) scale(0.9); }
-  75% { transform: translate(20px, -20px) scale(1.05); }
+
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  25% {
+    transform: translate(40px, -40px) scale(1.15);
+  }
+
+  50% {
+    transform: translate(-30px, 30px) scale(0.9);
+  }
+
+  75% {
+    transform: translate(20px, -20px) scale(1.05);
+  }
 }
 
 /* ============================================
    LAYOUT GRID
    ============================================ */
-.tidol-app-container > .tidol-app-grid {
+.tidol-app-container>.tidol-app-grid {
   position: relative;
   z-index: 1;
   height: 100vh;
@@ -98,19 +126,19 @@
 }
 
 @media (min-width: 768px) {
-  .tidol-app-container > .tidol-app-grid {
+  .tidol-app-container>.tidol-app-grid {
     display: grid;
-    grid-template-columns: 280px 1fr; 
-    grid-template-rows: 1fr auto; 
+    grid-template-columns: 280px 1fr;
+    grid-template-rows: 1fr auto;
   }
 
   .tidol-app-container .tidol-sidebar-container {
     display: block;
-    grid-row: 1 / 2; 
+    grid-row: 1 / 2;
     grid-column: 1;
     height: 100%;
-    overflow: hidden; 
-    background: transparent !important; 
+    overflow: hidden;
+    background: transparent !important;
     border-right: 1px solid rgba(255, 255, 255, 0.08);
     animation: tidolSlideInLeft 0.4s ease-out;
     z-index: 50;
@@ -119,8 +147,15 @@
 }
 
 @keyframes tidolSlideInLeft {
-  from { opacity: 0; transform: translateX(-20px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 /* ============================================
@@ -129,21 +164,30 @@
 .tidol-app-container .tidol-mobile-header {
   grid-row: 1;
   grid-column: 1;
-  background: rgba(18, 18, 18, 0.95);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(18, 18, 18, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   z-index: 20;
   animation: tidolSlideDown 0.3s ease-out;
 }
 
 @media (min-width: 768px) {
-  .tidol-app-container .tidol-mobile-header { display: none; }
+  .tidol-app-container .tidol-mobile-header {
+    display: none;
+  }
 }
 
 @keyframes tidolSlideDown {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ============================================
@@ -155,7 +199,7 @@
   overflow-y: auto;
   overflow-x: hidden;
   background: transparent;
-  padding: 1rem;
+  padding: 0;
   animation: tidolFadeIn 0.5s ease-out;
 }
 
@@ -164,25 +208,40 @@
     grid-row: 1;
     grid-column: 2;
     padding: 1.5rem;
+    padding-bottom: 110px;
   }
 }
 
 @keyframes tidolFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
-.tidol-app-container .tidol-main-content.no-padding { padding: 0 !important; }
+.tidol-app-container .tidol-main-content.no-padding {
+  padding: 0 !important;
+}
 
 /* Scrollbar Main Content */
-.tidol-app-container .tidol-main-content::-webkit-scrollbar { width: 0px; }
-.tidol-app-container .tidol-main-content::-webkit-scrollbar-track { background: transparent; }
+.tidol-app-container .tidol-main-content::-webkit-scrollbar {
+  width: 0px;
+}
+
+.tidol-app-container .tidol-main-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .tidol-app-container .tidol-main-content::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 6px;
   border: 3px solid transparent;
   background-clip: padding-box;
 }
+
 .tidol-app-container .tidol-main-content::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.25);
 }
@@ -193,7 +252,7 @@
 .tidol-app-container .tidol-player-container {
   grid-row: 3;
   grid-column: 1;
-  height: 80px;
+  height: 90px;
   background: rgba(15, 15, 15, 0.98);
   backdrop-filter: blur(32px);
   -webkit-backdrop-filter: blur(32px);
@@ -212,87 +271,177 @@
 }
 
 @keyframes tidolSlideUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ============================================
    MOBILE NAV WRAPPER
    ============================================ */
 .tidol-app-container .tidol-mobile-nav-wrapper {
-  position: fixed; bottom: 0; left: 0; right: 0;
-  z-index: 40; pointer-events: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  pointer-events: none;
 }
-.tidol-app-container .tidol-mobile-nav-wrapper > * { pointer-events: auto; }
+
+.tidol-app-container .tidol-mobile-nav-wrapper>* {
+  pointer-events: auto;
+}
+
 @media (min-width: 768px) {
-  .tidol-app-container .tidol-mobile-nav-wrapper { display: none; }
+  .tidol-app-container .tidol-mobile-nav-wrapper {
+    display: none;
+  }
 }
 
 /* ============================================
    LOADING SCREEN
    ============================================ */
 .tidol-loading-screen {
-  height: 100vh; width: 100vw;
-  display: flex; justify-content: center; align-items: center;
-  position: relative; background: #0A0A0A; overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  background: #0A0A0A;
+  overflow: hidden;
 }
 
 .tidol-loading-screen::before {
-  content: ''; position: absolute; width: 400px; height: 400px;
+  content: '';
+  position: absolute;
+  width: 400px;
+  height: 400px;
   background: radial-gradient(circle, rgba(29, 185, 84, 0.15) 0%, transparent 70%);
-  border-radius: 50%; filter: blur(80px);
+  border-radius: 50%;
+  filter: blur(80px);
   animation: tidolPulse 3s ease-in-out infinite;
 }
 
 @keyframes tidolPulse {
-  0%, 100% { transform: scale(1); opacity: 0.5; }
-  50% { transform: scale(1.2); opacity: 0.8; }
+
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
+  }
 }
 
-.tidol-loading-screen .tidol-loading-content { text-align: center; position: relative; z-index: 1; }
+.tidol-loading-screen .tidol-loading-content {
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
 .tidol-loading-screen .tidol-loading-spinner {
-  width: 60px; height: 60px;
+  width: 60px;
+  height: 60px;
   border: 4px solid rgba(29, 185, 84, 0.2);
   border-top-color: #1DB954;
   border-radius: 50%;
   margin: 0 auto 24px;
   animation: tidolSpin 1s linear infinite;
 }
-@keyframes tidolSpin { to { transform: rotate(360deg); } }
+
+@keyframes tidolSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 .tidol-loading-screen .tidol-loading-title {
-  font-size: 1.5rem; font-weight: 700; color: #FFFFFF; margin-bottom: 8px; letter-spacing: -0.02em;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #FFFFFF;
+  margin-bottom: 8px;
+  letter-spacing: -0.02em;
 }
-.tidol-loading-screen .tidol-loading-subtitle { font-size: 0.875rem; color: #B3B3B3; font-weight: 500; }
+
+.tidol-loading-screen .tidol-loading-subtitle {
+  font-size: 0.875rem;
+  color: #B3B3B3;
+  font-weight: 500;
+}
 
 /* ============================================
    RESPONSIVE & PERFORMANCE
    ============================================ */
 @media (max-width: 767px) {
-  .tidol-app-container .tidol-main-content { padding: 0; }
-  .tidol-app-container .tidol-player-container { height: 64px; }
+
+  /* Main Content Padding for Fixed Elements */
+  .tidol-app-container .tidol-main-content {
+    padding-top: 64px;
+    padding-bottom: 64px;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .tidol-app-container .tidol-main-content.no-padding {
+    padding-top: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .tidol-app-container .tidol-main-content.has-player {
+    padding-bottom: 128px;
+  }
+
   .tidol-app-container .tidol-sidebar-container,
   .tidol-app-container .tidol-mobile-header,
   .tidol-app-container .tidol-player-container {
-    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
   }
-  .tidol-app-background .tidol-app-orb { filter: blur(60px); opacity: 0.2; }
-}
 
-@media (min-width: 768px) and (max-width: 1024px) {
-  .tidol-app-container .tidol-main-content { padding: 1.25rem; }
-  .tidol-app-container .tidol-player-container { height: 85px; }
+  .tidol-app-background .tidol-app-orb {
+    filter: blur(60px);
+    opacity: 0.2;
+  }
 }
 
 @media (min-width: 1440px) {
-  .tidol-app-container > .tidol-app-grid { grid-template-columns: 280px 1fr; }
-  .tidol-app-container .tidol-main-content { padding: 2rem; }
-  .tidol-app-container .tidol-player-container { height: 100px; }
-  .tidol-app-container .tidol-sidebar-container { backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px); }
-  .tidol-app-container .tidol-player-container { backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); }
+  .tidol-app-container>.tidol-app-grid {
+    grid-template-columns: 280px 1fr;
+  }
+
+  .tidol-app-container .tidol-main-content {
+    padding: 2rem;
+    padding-bottom: 120px;
+  }
+
+  .tidol-app-container .tidol-player-container {
+    height: 100px;
+  }
+
+  .tidol-app-container .tidol-sidebar-container {
+    backdrop-filter: blur(28px);
+    -webkit-backdrop-filter: blur(28px);
+  }
+
+  .tidol-app-container .tidol-player-container {
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   .tidol-app-background .tidol-app-orb,
   .tidol-app-container .tidol-sidebar-container,
   .tidol-app-container .tidol-mobile-header,
@@ -307,6 +456,10 @@
 .tidol-app-container .tidol-sidebar-container,
 .tidol-app-container .tidol-mobile-header,
 .tidol-app-container .tidol-player-container {
-  transform: translateZ(0); will-change: backdrop-filter;
+  transform: translateZ(0);
+  will-change: backdrop-filter;
 }
-.tidol-app-background .tidol-app-orb { will-change: transform, opacity; }
+
+.tidol-app-background .tidol-app-orb {
+  will-change: transform, opacity;
+}

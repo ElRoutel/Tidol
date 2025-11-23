@@ -28,7 +28,8 @@ const AlbumCover = memo(({ src, alt, onClick }) => (
 
 AlbumCover.displayName = 'AlbumCover';
 
-export default function PlayerBar() {
+export default function PlayerBar({ isSheetMode = false }) {
+  // ... (hooks)
   const {
     currentSong,
     isPlaying,
@@ -47,10 +48,13 @@ export default function PlayerBar() {
     isFullScreenOpen
   } = usePlayer();
 
+  // ... (rest of the logic)
+
   // Refs para tracking y evitar actualizaciones innecesarias
   const lastPositionUpdateRef = useRef(0);
   const mediaSessionInitializedRef = useRef(false);
 
+  // ... (useEffect logic for MediaSession - keep as is)
   // Configurar Metadata de Media Session (solo cuando cambia la canción)
   useEffect(() => {
     if (!currentSong || !('mediaSession' in navigator)) return;
@@ -171,7 +175,7 @@ export default function PlayerBar() {
     const timeSinceLastUpdate = now - lastPositionUpdateRef.current;
 
     // Solo actualizar cada 10 segundos o en momentos críticos
-    const shouldUpdate = 
+    const shouldUpdate =
       !mediaSessionInitializedRef.current || // Primera vez
       currentTime === 0 || // Inicio
       Math.abs(currentTime - duration) < 0.5 || // Casi al final
@@ -235,89 +239,90 @@ export default function PlayerBar() {
   };
   if (!currentSong) return null;
 
+  // Si estamos en modo Sheet, siempre renderizamos (el padre controla la visibilidad/opacidad)
+  // Si NO estamos en modo Sheet, usamos la lógica antigua (!isFullScreenOpen)
+  const shouldRender = isSheetMode || !isFullScreenOpen;
+
+  if (!shouldRender) return null;
+
   return (
-    <>
-      {/* SOLO MOSTRAR PLAYER CHICO SI FULLSCREEN NO ESTÁ ABIERTO */}
-      {!isFullScreenOpen && (
-        <footer className="player-container" {...handlers}>
-          {/* NUEVA BARRA DE PROGRESO (Estilo YT Music) - Solo móvil */}
-          <div className="progress-line-container md:hidden">
-            <div className="progress-line-bar" style={{ width: `${progress || 0}%` }}></div>
-          </div>
+    <footer className={`player-container ${isSheetMode ? 'in-sheet' : ''}`} {...handlers}>
+      {/* NUEVA BARRA DE PROGRESO (Estilo YT Music) - Solo móvil */}
+      <div className="progress-line-container md:hidden">
+        <div className="progress-line-bar" style={{ width: `${progress || 0}%` }}></div>
+      </div>
 
-          {/* Left section (Siempre visible) */}
-          <div className="player-left">
-            <AlbumCover 
-              src={currentSong.portada}
-              alt={currentSong.titulo}
-              onClick={toggleFullScreenPlayer}
-            />
-            <div className="track-info">
-              <span className="track-title">{currentSong.titulo}</span>
-              <span className="track-artist">{currentSong.artista}</span>
-              {/* Info solo para escritorio */}
-              <span className="track-album hidden md:block">{currentSong.album || 'Desconocido'}</span>
-              <span className="track-quality hidden md:block">{quality}</span>
-            </div>
-          </div>
+      {/* Left section (Siempre visible) */}
+      <div className="player-left">
+        <AlbumCover
+          src={currentSong.portada}
+          alt={currentSong.titulo}
+          onClick={toggleFullScreenPlayer}
+        />
+        <div className="track-info">
+          <span className="track-title">{currentSong.titulo}</span>
+          <span className="track-artist">{currentSong.artista}</span>
+          {/* Info solo para escritorio */}
+          <span className="track-album hidden md:block">{currentSong.album || 'Desconocido'}</span>
+          <span className="track-quality hidden md:block">{quality}</span>
+        </div>
+      </div>
 
-          {/* Center section (Solo escritorio) */}
-          <div className="player-center hidden md:flex">
-            <div className="controls">
-              <button onClick={previousSong} className="control-btn" title="Anterior">
-                <IoPlaySkipBackSharp />
-              </button>
-              <button onClick={togglePlayPause} className="control-btn play-pause" title={isPlaying ? 'Pausar' : 'Reproducir'}>
-                {isPlaying ? <IoPauseSharp /> : <IoPlaySharp />}
-              </button>
-              <button onClick={nextSong} className="control-btn" title="Siguiente">
-                <IoPlaySkipForwardSharp />
-              </button>
-            </div>
-            <div className="progress-container">
-              <span className="time-current">{formatTime(currentTime)}</span>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={progress || 0}
-                onChange={(e) => seek((e.target.value / 100) * duration)}
-                className="progress-bar"
-              />
-              <span className="time-duration">{formatTime(duration)}</span>
-            </div>
-          </div>
+      {/* Center section (Solo escritorio) */}
+      <div className="player-center hidden md:flex">
+        <div className="controls">
+          <button onClick={previousSong} className="control-btn" title="Anterior">
+            <IoPlaySkipBackSharp />
+          </button>
+          <button onClick={togglePlayPause} className="control-btn play-pause" title={isPlaying ? 'Pausar' : 'Reproducir'}>
+            {isPlaying ? <IoPauseSharp /> : <IoPlaySharp />}
+          </button>
+          <button onClick={nextSong} className="control-btn" title="Siguiente">
+            <IoPlaySkipForwardSharp />
+          </button>
+        </div>
+        <div className="progress-container">
+          <span className="time-current">{formatTime(currentTime)}</span>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={progress || 0}
+            onChange={(e) => seek((e.target.value / 100) * duration)}
+            className="progress-bar"
+          />
+          <span className="time-duration">{formatTime(duration)}</span>
+        </div>
+      </div>
 
-          {/* Right section (Contenido cambia) */}
-          <div className="player-right">
-            {/* Controles de volumen (Solo escritorio) */}
-            <div className="hidden md:flex items-center gap-2">
-              <button onClick={toggleMute} className="volume-btn" title="Silenciar">
-                <VolumeIcon />
-              </button>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={isMuted ? 0 : volume}
-                onChange={(e) => changeVolume(parseFloat(e.target.value))}
-                className="volume-slider"
-              />
-            </div>
+      {/* Right section (Contenido cambia) */}
+      <div className="player-right">
+        {/* Controles de volumen (Solo escritorio) */}
+        <div className="hidden md:flex items-center gap-2">
+          <button onClick={toggleMute} className="volume-btn" title="Silenciar">
+            <VolumeIcon />
+          </button>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={isMuted ? 0 : volume}
+            onChange={(e) => changeVolume(parseFloat(e.target.value))}
+            className="volume-slider"
+          />
+        </div>
 
-            {/* Controles de reproducción (Solo móvil) */}
-            <div className="flex md:hidden items-center gap-3">
-              <button onClick={togglePlayPause} className="control-btn play-pause-mobile" title={isPlaying ? 'Pausar' : 'Reproducir'}>
-                {isPlaying ? <IoPauseSharp size={22} /> : <IoPlaySharp size={22} />}
-              </button>
-              <button onClick={nextSong} className="control-btn" title="Siguiente">
-                <IoPlaySkipForwardSharp size={22} />
-              </button>
-            </div>
-          </div>
-        </footer>
-      )}
-    </>
+        {/* Controles de reproducción (Solo móvil) */}
+        <div className="flex md:hidden items-center gap-3">
+          <button onClick={togglePlayPause} className="control-btn play-pause-mobile" title={isPlaying ? 'Pausar' : 'Reproducir'}>
+            {isPlaying ? <IoPauseSharp size={22} /> : <IoPlaySharp size={22} />}
+          </button>
+          <button onClick={nextSong} className="control-btn" title="Siguiente">
+            <IoPlaySkipForwardSharp size={22} />
+          </button>
+        </div>
+      </div>
+    </footer>
   );
 }
