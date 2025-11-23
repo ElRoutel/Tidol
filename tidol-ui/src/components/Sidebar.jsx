@@ -7,17 +7,15 @@ import api from '../api/axiosConfig';
 import { 
   IoHomeSharp, 
   IoSearch, 
-  IoLibrary, 
   IoCloudUploadOutline,
   IoAdd,
   IoHeartOutline,
-  IoDocumentTextOutline
 } from "react-icons/io5";
 
-// ✅ Logo
+// ✅ Logo (Ajustado padding para alinearse al nuevo diseño)
 function Logo() {
   return (
-    <NavLink to="/" className="flex items-center gap-2 px-2 mb-6">
+    <NavLink to="/" className="flex items-center gap-4 px-7 py-10">
       <img src="/logo.svg" alt="Tidol Logo" className="h-8 w-8 drop-shadow-md" />
       <span className="text-xl font-bold text-white tracking-wide">Tidol</span>
     </NavLink>
@@ -26,15 +24,16 @@ function Logo() {
 
 // ✅ Navegación principal
 function MainNav() {
+  // Quitamos bordes redondeados extremos y ajustamos el hover para que llene el ancho
   const linkClass = ({ isActive }) => 
-    `flex items-center gap-4 px-4 py-3 rounded-lg transition-all duration-200 font-bold ${
+    `flex items-center gap-4 px-6 py-3 transition-all duration-200 font-bold border-l-4 ${
       isActive 
-        ? 'text-white bg-white/10 shadow-lg backdrop-blur-md border border-white/5' 
-        : 'text-gray-400 hover:text-white hover:bg-white/5'
+        ? 'text-white bg-white/10 border-green-500' // Borde verde activo a la izquierda
+        : 'text-gray-400 hover:text-white hover:bg-white/5 border-transparent'
     }`;
 
   return (
-    <nav className="flex flex-col gap-1">
+    <nav className="flex flex-col">
       <NavLink to="/" className={linkClass}>
         <IoHomeSharp size={24} />
         <span>Inicio</span>
@@ -71,25 +70,25 @@ function UserLibrary() {
   }, []);
 
   const linkClass = ({ isActive }) => 
-    `flex items-center gap-4 px-4 py-3 rounded-lg transition-all duration-200 font-bold ${
+    `flex items-center gap-4 px-6 py-3 transition-all duration-200 font-bold border-l-4 ${
       isActive 
-        ? 'text-white bg-white/10' 
-        : 'text-gray-400 hover:text-white hover:bg-white/5'
+        ? 'text-white bg-white/10 border-green-500' 
+        : 'text-gray-400 hover:text-white hover:bg-white/5 border-transparent'
     }`;
 
   return (
-    <div className="flex flex-col mt-2 h-full">
+    <div className="flex flex-col mt-4 h-full">
       {/* FAVORITOS */}
       <NavLink to="/library" className={linkClass}>
         <IoHeartOutline size={24} />
         <span>Favoritos</span>
       </NavLink>
 
-      {/* SEPARADOR */}
-      <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent my-4"></div>
+      {/* SEPARADOR SUTIL */}
+      <div className="h-px bg-white/10 mx-6 my-4"></div>
 
       {/* CABECERA PLAYLISTS */}
-      <div className="flex justify-between items-center px-4 mb-2">
+      <div className="flex justify-between items-center px-6 mb-2">
         <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">
           Tus playlists
         </span>
@@ -99,14 +98,14 @@ function UserLibrary() {
       </div>
 
       {/* LISTA SCROLLABLE */}
-      <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-2">
         {playlists.length > 0 ? (
           <ul className="space-y-1">
             {playlists.map(playlist => (
               <li key={playlist.id}>
                 <NavLink 
                   to={`/playlist/${playlist.id}`} 
-                  className="block px-4 py-2 rounded-md text-sm text-gray-400 hover:text-white hover:bg-white/5 truncate transition-colors"
+                  className="block px-4 py-2 mx-2 rounded-md text-sm text-gray-400 hover:text-white hover:bg-white/5 truncate transition-colors"
                 >
                   {playlist.nombre}
                 </NavLink>
@@ -114,11 +113,8 @@ function UserLibrary() {
             ))}
           </ul>
         ) : (
-          <div className="p-4 rounded-lg bg-white/5 border border-white/5 text-center mt-2">
-            <p className="text-sm font-semibold text-white">Crea tu primera playlist</p>
-            <button className="mt-3 px-4 py-1.5 bg-white text-black font-bold rounded-full text-xs hover:scale-105 transition-transform">
-              Crear ahora
-            </button>
+          <div className="px-6 mt-4">
+             <p className="text-sm text-gray-500">Aún no tienes playlists.</p>
           </div>
         )}
       </div>
@@ -126,7 +122,7 @@ function UserLibrary() {
   );
 }
 
-// ✅ Sidebar Principal (CORREGIDO Z-INDEX)
+// ✅ Sidebar Principal
 export default function Sidebar() {
   const [username, setUsername] = useState("Cargando...");
 
@@ -142,51 +138,50 @@ export default function Sidebar() {
   }, []);
 
   return (
-    // CLASE CLAVE: z-50 para estar encima del fondo fixed de las páginas
-    <aside className="hidden md:flex flex-col h-full w-full relative z-50">
+    // CAMBIOS CLAVE:
+    // 1. 'h-screen': Fuerza altura completa de la pantalla.
+    // 2. 'w-64' (o el ancho que prefieras): Ancho fijo.
+    // 3. 'fixed left-0 top-0': Se queda pegado a la izquierda.
+    // 4. Fondo aplicado directamente aquí, sin bordes redondeados.
+    <aside className="hidden md:flex flex-col w-full h-screen fixed left-0 top-0 z-50 bg-black border-r border-white/10">
       
-      {/* FONDO GLASS SIDEBAR: Un negro sutil para que el texto se lea sobre el fondo de colores */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/60 to-black/80 backdrop-blur-2xl border-r border-white/5" />
+      {/* Efecto de fondo sutil (opcional, si quieres que no sea negro plano) */}
+      <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
 
-      <div className="relative flex flex-col h-full p-3 gap-3 z-10">
+      {/* Contenedor de contenido (z-10 para estar sobre el fondo) */}
+      <div className="relative flex flex-col h-full z-10">
         
-        {/* BLOQUE 1: NAVEGACIÓN */}
-        <div className="sidebar-panel">
+        {/* SECCIÓN SUPERIOR */}
+        <div>
           <Logo />
           <MainNav />
         </div>
 
-        {/* BLOQUE 2: BIBLIOTECA */}
-        <div className="sidebar-panel flex-1 min-h-0 overflow-hidden flex flex-col">
+        {/* SECCIÓN CENTRAL (Expandible) */}
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
           <UserLibrary />
         </div>
 
-        {/* BLOQUE 3: USUARIO */}
-        <NavLink 
-          to="/profile"
-          className="sidebar-panel flex items-center gap-3 p-3 cursor-pointer hover:bg-white/5 transition-colors group"
-        >
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center font-bold text-black shadow-lg group-hover:scale-105 transition-transform">
-            {username.charAt(0).toUpperCase()}
-          </div>
-          <div className="flex flex-col overflow-hidden">
-            <span className="font-bold text-white text-sm truncate">{username}</span>
-            <span className="text-xs text-green-400">Ver perfil</span>
-          </div>
-        </NavLink>
+        {/* SECCIÓN INFERIOR (Usuario) - Pegado al fondo */}
+        <div className="border-t border-white/10 bg-black/20">
+          <NavLink 
+            to="/profile"
+            className="flex items-center gap-3 p-4 cursor-pointer hover:bg-white/5 transition-colors group"
+          >
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center font-bold text-black shadow-lg group-hover:scale-105 transition-transform">
+              {username.charAt(0).toUpperCase()}
+            </div>
+            <div className="flex flex-col overflow-hidden">
+              <span className="font-bold text-white text-sm truncate">{username}</span>
+              <span className="text-xs text-green-400">Ver perfil</span>
+            </div>
+          </NavLink>
+        </div>
 
       </div>
 
-      {/* ESTILOS */}
+      {/* ESTILOS SCROLLBAR */}
       <style jsx>{`
-        .sidebar-panel {
-            background: rgba(255, 255, 255, 0.03); /* Casi transparente */
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 12px;
-            padding: 12px;
-        }
-
-        /* Scrollbar fina */
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { 

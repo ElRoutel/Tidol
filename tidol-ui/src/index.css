@@ -7,7 +7,30 @@
 * {
   touch-action: manipulation; /* Deshabilita double-tap zoom pero mantiene pinch */
 }
+/* ============================================
+   GLOBAL RESET - ELIMINAR MARGENES DEL BODY
+   ============================================ */
+html, body {
+  margin: -16px;
+  padding: -8px;
+  width: 100%;
+  height: 100%;
+}
+@media (max-width: 768px) {
+  html, body {
+    margin: 0;
+    padding: 0;
+  }
+}
 
+*, *::before, *::after {
+  box-sizing: border-box; /* Asegura que el padding no aumente el tamaño de los elementos */
+}
+
+/* ============================================
+   APP BLUR STYLES - SOLO PARA LAYOUT PRINCIPAL
+   ... (Aquí continúa tu código original)
+   ============================================ */
 /* Alternativa más específica para elementos interactivos */
 button, a, input, textarea, select, [role="button"] {
   touch-action: manipulation;

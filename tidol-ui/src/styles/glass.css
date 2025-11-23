@@ -1,349 +1,161 @@
 :root {
+  /* Variables ajustadas para mayor profundidad */
   --glass-bg: rgba(255, 255, 255, 0.03);
-  --glass-bg-2: rgba(255, 255, 255, 0.02);
-  --glass-border: rgba(255, 255, 255, 0.06);
-  --glass-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-  --glass-radius: 12px;
-  --glass-accent: rgba(255, 255, 255, 0.06);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  --glass-radius: 16px; /* Más redondeado estilo Apple */
 }
 
-/* ============================================ GLASS CARD - CON EFECTO DEFORMACION LIQUIDA ============================================= */
+/* ============================================ 
+   GLASS CARD - LIQUID EDITION 
+   ============================================ */
 .glass-card {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   border-radius: var(--glass-radius);
   box-shadow: var(--glass-shadow);
 
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  /* El blur estándar */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 
+  /* Isolation crea un nuevo stacking context */
   isolation: isolate;
-  background-clip: padding-box;
-  -webkit-background-clip: padding-box;
-  overflow: hidden;
   position: relative;
+  overflow: hidden;
 
-  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
-  will-change: transform;
+  /* Transiciones suaves */
+  transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), 
+              background 0.3s ease,
+              box-shadow 0.3s ease;
 }
 
+/* El efecto LIQUIDO se aplica aquí.
+   Usamos ::before para crear una capa que se distorsiona 
+   sin afectar el texto dentro de la tarjeta.
+*/
 .glass-card::before {
   content: "";
   position: absolute;
-  top: -10%;
-  left: -10%;
-  width: 120%;
-  height: 120%;
-  background: inherit;
-  border-radius: inherit;
+  inset: -20%; /* Extendemos el área para evitar cortes bruscos al deformar */
+  width: 140%;
+  height: 140%;
+  
+  /* Un gradiente sutil ayuda a que la distorsión sea visible */
+  background: radial-gradient(
+    circle at center, 
+    rgba(255, 255, 255, 0.05) 0%, 
+    transparent 60%
+  );
+  
+  /* AQUI ESTÁ LA MAGIA DEL VIDEO */
   filter: url(#liquid-distortion);
-  animation: liquidMove 10s infinite alternate ease-in-out;
+  opacity: 0.7;
   pointer-events: none;
-  z-index: 1;
+  z-index: -1; /* Detrás del contenido */
+  
+  /* Animación lenta y fluida */
+  animation: liquidBreathing 15s ease-in-out infinite alternate;
 }
 
 .glass-card:hover {
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
-  background: rgba(255, 255, 255, 0.05);
-  transform: translateY(-1px);
-}
-
-/* Animación para deformación líquida */
-@keyframes liquidMove {
-  0% {
-    transform: translate(0, 0) scale(1);
-  }
-  100% {
-    transform: translate(5%, 5%) scale(1.05);
-  }
-}
-
-/* ----------------------------- / / El resto queda igual que tienes */
-
-.song-card-local {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.song-card-local.playing {
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
-  transform: translateY(-2px);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
   background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-4px) scale(1.01);
 }
 
-.song-cover {
-  width: 56px;
-  height: 56px;
-  object-fit: cover;
-  border-radius: 8px;
-  flex: 0 0 56px;
+/* Hacemos que el líquido se mueva un poco más rápido al hacer hover */
+.glass-card:hover::before {
+  opacity: 1;
+  transition: opacity 0.3s ease;
 }
 
-.song-card-local h4 {
-  margin: 0;
-  font-size: 14px;
-  color: #fff;
-}
-.song-card-local p {
-  margin: 0;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
+@keyframes liquidBreathing {
+  0% { transform: translate(-2%, -2%) rotate(0deg); }
+  50% { transform: translate(2%, 2%) rotate(1deg); }
+  100% { transform: translate(-1%, 1%) rotate(-1deg); }
 }
 
-.context-menu {
-  min-width: 150px;
-}
-.context-menu ul {
-  margin: 0;
-  padding: 6px;
-  list-style: none;
-}
-.context-menu li {
-  padding: 8px 10px;
-  border-radius: 6px;
-}
-.context-menu li:hover {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-@media (max-width: 768px) {
-  .song-cover {
-    width: 48px;
-    height: 48px;
-  }
-  .song-card-local {
-    padding: 8px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .glass-card {
-    transition: none;
-    transform: none;
-  }
-}
-
-.album-card {
-  width: 12rem;
-  flex-shrink: 0;
-}
-.album-cover {
-  width: 100%;
-  height: 10rem;
-  object-fit: cover;
-  border-radius: 8px;
-}
-
-.archive-album-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.result-info {
-  padding-top: 6px;
-}
-
-/* ============================================
-   GLASS COMPACT - CORREGIDO
+/* ============================================ 
+   COMPONENTES MENORES 
    ============================================ */
+
+/* Compact Card (Listas, etc) - Sin distorsión pesada para performance */
 .glass-compact {
-  /* ✅ CORREGIDO: Fondo consistente sin gradiente complejo */
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 8px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
-
-  /* ✅ Sin saturate para evitar cambios de color */
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-
-  isolation: isolate;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: background 0.2s ease;
 }
 
 .glass-compact:hover {
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.45);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.05);
 }
 
-/* ============================================
-   SONG CARDS - COMPACT & LIST
-   ============================================ */
-.song-card-compact {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.song-card-compact.glass-compact {
-  padding: 8px;
-}
-
-.song-card-compact .song-cover {
-  width: 40px;
-  height: 40px;
-  border-radius: 6px;
-  flex-shrink: 0;
-}
-
-.song-card-compact .song-play-icon {
-  display: none;
-}
-
+/* Song List Styling */
 .song-list-item {
   display: grid;
-  grid-template-columns: 40px 1fr auto;
+  grid-template-columns: 44px 1fr auto; /* Ajustado para mejor espaciado */
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 12px;
+  padding: 8px 12px;
   border-radius: 8px;
-  transition: background-color 0.2s ease;
-  cursor: pointer;
-  user-select: none;
+  transition: background 0.2s ease;
   border-bottom: 1px solid transparent;
 }
 
 .song-list-item:hover {
-  background-color: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.06);
 }
 
-.song-list-cover {
-  width: 40px;
-  height: 40px;
-  border-radius: 4px;
-  object-fit: cover;
-}
-
-.song-list-info {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+.song-list-item.active {
+  background: rgba(29, 185, 84, 0.15); /* Tidol Green tint */
 }
 
 .song-list-info .title {
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600; /* Un poco más grueso */
   color: #fff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  margin-bottom: 2px;
 }
 
-.song-list-info .artist {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.7);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.song-list-duration {
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.6);
-  font-variant-numeric: tabular-nums;
-}
-
-/* ============================================
-   CARRUSEL CON FADE EDGES - SOLUCIÓN PROFESIONAL
+/* ============================================ 
+   SHELF / CAROUSEL FADING 
    ============================================ */
 .tidol-shelf-wrapper {
   position: relative;
-  /* ✅ NO usar overflow: hidden aquí si quieres que el scroll funcione */
-  /* En su lugar, el overflow lo maneja .tidol-shelf-scroll */
-  isolation: isolate; /* Crea stacking context limpio */
+  isolation: isolate;
 }
 
-/* ✅ SOLUCIÓN: Usar mask-image en lugar de pseudo-elementos con backdrop-filter */
 .tidol-shelf-scroll {
-  /* Gradiente de máscara que oculta los bordes suavemente */
+  /* Mask-image suavizado */
   -webkit-mask-image: linear-gradient(
     to right,
     transparent 0%,
-    black 30px,
-    black calc(100% - 30px),
+    black 24px,
+    black calc(100% - 24px),
     transparent 100%
   );
-  mask-image: linear-gradient(
-    to right,
-    transparent 0%,
-    black 30px,
-    black calc(100% - 30px),
-    transparent 100%
-  );
+  mask-image: linear-gradient(to right, transparent 0%, black 24px, black calc(100% - 24px), transparent 100%);
+  
+  /* Scroll behavior */
+  overflow-x: auto;
+  overflow-y: hidden;
+  display: flex;
+  gap: 16px;
+  padding: 4px 24px; /* Padding lateral para compensar la máscara */
+  scroll-behavior: smooth;
 }
 
-/* ✅ ALTERNATIVA: Si necesitas el efecto de vidrio en los bordes */
-/* Usa pseudo-elementos SIN backdrop-filter, solo con gradiente */
-.tidol-shelf-wrapper::before,
-.tidol-shelf-wrapper::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 40px;
-  z-index: 2;
-  pointer-events: none;
+/* Ocultar scrollbar en el carrusel pero permitir scroll */
+.tidol-shelf-scroll::-webkit-scrollbar { display: none; }
+.tidol-shelf-scroll { -ms-overflow-style: none; scrollbar-width: none; }
 
-  /* ✅ CORREGIDO: Solo gradiente, SIN backdrop-filter */
-  /* Esto evita el doble blur y los cambios de color */
-}
-
-.tidol-shelf-wrapper::before {
-  left: 0;
-  /* ✅ Gradiente que coincide EXACTAMENTE con el fondo del wrapper */
-  background: linear-gradient(
-    to right,
-    rgba(255, 255, 255, 0.02) 0%,
-    rgba(255, 255, 255, 0.00) 100%
-  );
-}
-
-.tidol-shelf-wrapper::after {
-  right: 0;
-  background: linear-gradient(
-    to left,
-    rgba(255, 255, 255, 0.02) 0%,
-    rgba(255, 255, 255, 0.00) 100%
-  );
-}
-
-@media (max-width: 767px) {
-  .tidol-shelf-wrapper::before,
-  .tidol-shelf-wrapper::after {
-    width: 20px;
-  }
-
-  /* Máscara más pequeña en móvil */
-  .tidol-shelf-scroll {
-    -webkit-mask-image: linear-gradient(
-      to right,
-      transparent 0%,
-      black 15px,
-      black calc(100% - 15px),
-      transparent 100%
-    );
-    mask-image: linear-gradient(
-      to right,
-      transparent 0%,
-      black 15px,
-      black calc(100% - 15px),
-      transparent 100%
-    );
-  }
-}
-
-/* ============================================
-   FALLBACK PARA NAVEGADORES SIN SOPORTE
-   ============================================ */
+/* Fallback para navegadores antiguos */
 @supports not (backdrop-filter: blur(10px)) {
-  .glass-card,
-  .glass-compact {
-    background: rgba(255, 255, 255, 0.08); /* Fondo más opaco como fallback */
-  }
+  .glass-card { background: rgba(30, 30, 30, 0.9); }
 }

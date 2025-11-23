@@ -261,7 +261,7 @@
   .cover-container { width: 180px; height: 180px; }
   .album-title { font-size: clamp(1.3rem, 7vw, 2rem); line-height: 1.2; }
   .album-meta-row { font-size: 0.85rem; gap: 6px; }
-  .artist-name { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .artist-name { max-width: 450px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .btn-primary-white { max-width: 160px; padding: 0 20px; height: 38px; font-size: 13px; }
   .btn-primary-white span { display: none; } /* Ocultar texto "Reproducir" en muy pequeños */
   .btn-circle-glass { width: 38px; height: 38px; font-size: 18px; }

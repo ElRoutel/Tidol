@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams, Link } from 'react-router-dom'; // ✅ NUEVO: Importamos Link
 import api from '../api/axiosConfig'; 
 import { usePlayer } from '../context/PlayerContext';
 import { IoPlaySharp, IoPauseSharp, IoShuffle, IoEllipsisHorizontal } from 'react-icons/io5';
 import LikeButton from '../components/LikeButton';
-
-// ✅ REUTILIZAMOS EL CSS DEL DISLOD DE INTERNET ARCHIVE
 import './ImmersiveLayout.css';
 
 export default function AlbumPage() {
@@ -22,7 +20,6 @@ export default function AlbumPage() {
   const { playSongList, currentSong } = usePlayer();
   const [totalDuration, setTotalDuration] = useState(0);
 
-  // --- EFECTOS DE CARGA ---
   useEffect(() => {
     const fetchAlbum = async () => {
       try {
@@ -42,11 +39,9 @@ export default function AlbumPage() {
         const songsRes = await api.get(`/music/albums/${id}/songs`);
         setSongs(songsRes.data);
 
-        // Calcular duración total
         const total = songsRes.data.reduce((acc, curr) => acc + (curr.duracion || 0), 0);
         setTotalDuration(total);
 
-        // 4. Auto-play si viene en URL
         if (songId && songsRes.data.length > 0) {
           const songIndex = songsRes.data.findIndex(s => s.id == songId);
           if (songIndex !== -1) playSongList(songsRes.data, songIndex);
@@ -63,7 +58,6 @@ export default function AlbumPage() {
     if (id) fetchAlbum();
   }, [id, songId]);
 
-  // --- HANDLERS ---
   const handleSongClick = (index) => {
     playSongList(songs, index);
   };
@@ -76,7 +70,6 @@ export default function AlbumPage() {
     });
   };
 
-  // --- HELPERS ---
   const formatQuality = (song) => {
     if (song.bit_depth === 24 || song.bit_depth === 32) return 'Hi-Res';
     if (song.format && song.format.toLowerCase().includes('flac')) return 'FLAC';
@@ -96,7 +89,6 @@ export default function AlbumPage() {
   return (
     <div className="yt-album-page">
       
-      {/* 1. FONDO INMERSIVO (Mismo estilo que IA Page) */}
       <div 
         className="ambient-background" 
         style={{ backgroundImage: `url(${album?.portada || '/default_cover.png'})` }} 
@@ -105,7 +97,6 @@ export default function AlbumPage() {
 
       <div className="content-wrapper">
         
-        {/* 2. HERO SECTION */}
         <div className="album-hero">
             <div className="cover-container">
                 <img 
@@ -119,7 +110,23 @@ export default function AlbumPage() {
                 <h1 className="album-title">{album?.titulo}</h1>
                 
                 <div className="album-meta-row">
-                    <span className="artist-name">{album?.autor || 'Desconocido'}</span>
+                    {/* ✅ MODIFICACIÓN: Hipervínculo al Artista */}
+                    {/* Asumimos que tu backend devuelve 'artist_id' o 'artista_id' dentro del objeto album */}
+                    {/* Si tu ruta frontend es '/artists/:id' ajusta el 'to' abajo */}
+                    
+                    {album?.artista_id ? (
+                        <Link 
+                            to={`/artist/${album.artista_id}`} 
+                            className="artist-name hover-link"
+                            style={{ textDecoration: 'none', color: 'inherit' }} // Estilo inline para asegurar que no se vea azul feo
+                        >
+                            {album?.autor || 'Desconocido'}
+                        </Link>
+                    ) : (
+                        /* Fallback si no hay ID */
+                        <span className="artist-name">{album?.autor || 'Desconocido'}</span>
+                    )}
+
                     <span className="meta-dot">•</span>
                     <span className="meta-text">Álbum</span>
                     <span className="meta-dot">•</span>
@@ -130,7 +137,6 @@ export default function AlbumPage() {
                     {songs.length} canciones • {formatTotalDuration(totalDuration)}
                 </div>
 
-                {/* BOTONES DE ACCIÓN */}
                 <div className="action-bar">
                     <button onClick={() => playSongList(songs, 0)} className="btn-primary-white">
                         <IoPlaySharp /> <span>Reproducir</span>
@@ -145,7 +151,6 @@ export default function AlbumPage() {
             </div>
         </div>
 
-        {/* 3. LISTA DE CANCIONES */}
         <div className="tracks-container">
             {songs.map((song, index) => {
                 const isPlaying = currentSong?.id === song.id;
@@ -157,29 +162,24 @@ export default function AlbumPage() {
                         className={`track-row ${isPlaying ? 'playing' : ''}`}
                         onClick={() => handleSongClick(index)}
                     >
-                        {/* Col 1: Índice / Play Icon */}
                         <div className="track-col-index">
                             <span className="number">{index + 1}</span>
                             <span className="icon"><IoPlaySharp /></span>
                         </div>
 
-                        {/* Col 2: Info */}
                         <div className="track-col-info">
                             <div className="track-title">{song.titulo}</div>
                             <div className="track-artist">{song.artista}</div>
                         </div>
 
-                        {/* Col 3: Calidad */}
                         <div className="track-col-meta mobile-hide">
                             {qualityBadge && <span className="format-badge">{qualityBadge}</span>}
                         </div>
 
-                        {/* Col 4: Duración */}
                         <div className="track-col-duration mobile-hide">
                              {Math.floor(song.duracion / 60)}:{(song.duracion % 60).toString().padStart(2, '0')}
                         </div>
 
-                        {/* Col 5: Acciones */}
                         <div className="track-col-actions" onClick={(e) => e.stopPropagation()}>
                             <LikeButton 
                                 song={song}

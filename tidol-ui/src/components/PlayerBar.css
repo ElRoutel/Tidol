@@ -22,7 +22,7 @@
   align-items: center;
   gap: 15px;
   flex: 0 0 300px;
-  min-width: 0; /* Importante para truncar texto */
+  min-width: 0;
 }
 
 .player-cover {
@@ -247,66 +247,66 @@
 /* ==================== THIN PROGRESS BAR (YT STYLE) ==================== */
 .progress-line-container {
   position: absolute;
-  top: 0; /* Se alinea arriba */
+  top: 0;
   left: 0;
   right: 0;
   height: 2px;
   background: rgba(255, 255, 255, 0.2);
-  /* Oculto por defecto, se muestra en media query */
-  display: none; 
+  display: none;
 }
 
 .progress-line-bar {
   height: 100%;
-  background: #1db954; /* Color de acento */
-  width: 0%; /* Se actualiza con 'style' */
+  background: #1db954;
+  width: 0%;
   transition: width 0.1s linear;
 }
 
 
-/* ==================== FULLSCREEN PLAYER ==================== */
-/* ... (Todo tu CSS de FullScreen sin cambios) ... */
+/* ==================== FULLSCREEN PLAYER (FIXED FOR PC) ==================== */
 .fullscreen-player {
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 9999;
+  /* CAMBIOS CLAVE PARA PC: */
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  z-index: 2147483647; /* Máximo z-index posible */
+  
   display: flex;
   align-items: center;
   justify-content: center;
   animation: fadeIn 0.3s ease;
+  background: #000; /* Fondo base seguro */
+  box-sizing: border-box;
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .fullscreen-bg {
   position: absolute;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
+  width: 100%;
+  height: 100%;
   background-size: cover;
   background-position: center;
-  filter: blur(60px);
-  transform: scale(1.2);
+  filter: blur(60px) brightness(0.6); /* Brillo reducido para mejor lectura */
+  transform: scale(1.1);
 }
 
 .fullscreen-overlay {
   position: absolute;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.9));
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.95));
 }
 
 .fullscreen-content {
@@ -551,37 +551,36 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-/* ==================== RESPONSIVE (MODIFICADO) ==================== */
+/* ==================== RESPONSIVE ==================== */
 @media (max-width: 768px) {
   .player-center {
-    display: none; /* Oculta los controles centrales (progreso, botones grandes) en móvil */
+    display: none;
   }
   
   .player-container {
-    height: 64px; /* Barra más pequeña */
-    padding: 0 12px; /* Menos padding */
-    /* Ajuste para el BottomNav + safe area del navegador móvil */
+    height: 64px;
+    padding: 0 12px;
     bottom: calc(64px + env(safe-area-inset-bottom)); 
   }
   
   .progress-line-container {
-    display: block; /* Mostrar la barra de progreso fina */
+    display: block;
   }
 
   .player-left {
-    flex: 1; /* ¡Importante! Permite que crezca */
-    min-width: 0; /* ¡Importante! Permite que se encoja y trunque el texto */
+    flex: 1;
+    min-width: 0;
     gap: 12px;
   }
 
   .player-cover {
-    width: 44px; /* Portada más pequeña */
+    width: 44px;
     height: 44px;
-    border-radius: 4px; /* Bordes más sutiles */
+    border-radius: 4px;
   }
   
   .track-info {
-    gap: 0; /* Información de texto más junta */
+    gap: 0;
   }
   
   .track-title {
@@ -592,25 +591,22 @@
     font-size: 12px;
   }
 
-  /* Ocultos por clases 'hidden' en JSX, pero por si acaso */
   .track-album,
   .track-quality {
     display: none;
   }
   
   .player-right {
-    flex: 0 0 auto; /* No crecer */
-    justify-content: flex-end; /* Alinear a la derecha */
+    flex: 0 0 auto;
+    justify-content: flex-end;
     gap: 8px;
   }
 
-  /* Ocultar control de volumen en móvil */
   .player-right .volume-btn,
   .player-right .volume-slider {
     display: none;
   }
   
-  /* Estilos para los botones de control móviles */
   .player-right .control-btn {
     font-size: 20px;
     width: 36px;
@@ -621,17 +617,25 @@
     width: 38px;
     height: 38px;
     font-size: 22px;
-    background: #fff; /* Re-aplicar estilos de play-pause */
+    background: #fff;
     color: #000;
   }
 
   .play-pause-mobile:hover {
-    background: #1db954; /* Re-aplicar estilos de play-pause */
+    background: #1db954;
     color: #fff;
   }
 
+  /* --- FULLSCREEN EN MÓVIL (Restaurado) --- */
+  .fullscreen-player {
+    /* Aquí revertimos los cambios de PC para que en móvil SÍ respete el Bottom Nav */
+    height: auto; 
+    width: 100%;
+    right: 0;
+    bottom: calc(64px + env(safe-area-inset-bottom));
+    z-index: 9999;
+  }
 
-  /* --- Ajustes FullScreen --- */
   .fullscreen-album-container {
     width: 280px;
     height: 280px;
@@ -655,9 +659,5 @@
 
   .fullscreen-content {
     padding: 20px;
-  }
-
-  .fullscreen-player {
-    bottom: 64px; /* Ajuste para el BottomNav */
   }
 }

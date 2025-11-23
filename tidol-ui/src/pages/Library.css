@@ -444,7 +444,7 @@
 @media (max-width: 480px) {
   .library-container {
     padding: 0.5rem;
-    padding-bottom: 95px;
+    padding-bottom: 123px;
   }
 
   .library-tabs {
