@@ -1,14 +1,17 @@
 /* ============================================
-   FULLSCREEN PLAYER - MÁXIMA PRIORIDAD
+   FULLSCREEN PLAYER - ESTILOS BASE
    ============================================ */
 
 .fsp-container,
 .fsp-lyrics-container {
-  position: fixed !important;
-  z-index: 9999 !important;
-  inset: 0 !important;
-  isolation: isolate; /* Crear nuevo stacking context aislado */
-  transform: translateZ(0); /* Forzar GPU layer */
+  /* ELIMINADO: position: fixed !important; */
+  /* ELIMINADO: inset: 0 !important; */
+  /* Dejamos que React controle el posicionamiento (fixed vs relative/absolute) */
+
+  isolation: isolate;
+  /* Crear nuevo stacking context aislado */
+  transform: translateZ(0);
+  /* Forzar GPU layer */
 }
 
 /* Backdrop blur mejorado con fallback */
@@ -22,7 +25,8 @@
 /* Asegurar que nada del layout interfiera */
 .fsp-container *,
 .fsp-lyrics-container * {
-  z-index: auto; /* Resetear z-index de hijos */
+  z-index: auto;
+  /* Resetear z-index de hijos */
 }
 
 /* Controles con z-index relativo al contenedor */
@@ -37,6 +41,7 @@
   0% {
     transform: translateX(-100%) translateY(-100%) rotate(30deg);
   }
+
   100% {
     transform: translateX(100%) translateY(100%) rotate(30deg);
   }
@@ -47,6 +52,7 @@
     opacity: 0;
     transform: translateY(30px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -58,6 +64,7 @@
     opacity: 0;
     transform: scale(0.9);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
@@ -65,9 +72,12 @@
 }
 
 @keyframes fsp-pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.5;
   }
@@ -78,6 +88,7 @@
     transform: translateY(100%);
     opacity: 0;
   }
+
   to {
     transform: translateY(0);
     opacity: 1;
@@ -94,6 +105,8 @@
   -webkit-appearance: none;
   appearance: none;
   outline: none;
+  background: transparent;
+  /* Importante para que el gradiente JS se vea bien */
 }
 
 .fsp-container input[type="range"]::-webkit-slider-thumb {
@@ -152,7 +165,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
   transform: scale(0);
   transition: transform 0.5s ease;
 }
@@ -184,6 +197,7 @@
     transform: translateY(100%);
     opacity: 0;
   }
+
   to {
     transform: translateY(0);
     opacity: 1;
@@ -218,13 +232,16 @@
 
 /* Efecto de resplandor en el botón principal */
 @keyframes fsp-glow {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 20px rgba(255, 255, 255, 0.3),
-                0 0 40px rgba(255, 255, 255, 0.1);
+      0 0 40px rgba(255, 255, 255, 0.1);
   }
+
   50% {
     box-shadow: 0 0 30px rgba(255, 255, 255, 0.5),
-                0 0 60px rgba(255, 255, 255, 0.2);
+      0 0 60px rgba(255, 255, 255, 0.2);
   }
 }
 

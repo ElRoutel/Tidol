@@ -208,7 +208,7 @@
     grid-row: 1;
     grid-column: 2;
     padding: 1.5rem;
-    padding-bottom: 110px;
+    padding-bottom: 130px;
   }
 }
 
@@ -253,7 +253,7 @@
   grid-row: 3;
   grid-column: 1;
   height: 90px;
-  background: rgba(15, 15, 15, 0.98);
+  background: rgba(15, 15, 15, 0.9);
   backdrop-filter: blur(32px);
   -webkit-backdrop-filter: blur(32px);
   border-top: 1px solid rgba(255, 255, 255, 0.08);

@@ -13,27 +13,48 @@ const PlayerSheet = () => {
     // Función para calcular posiciones según el viewport actual
     const getPositions = useCallback((mobile = isMobile) => {
         if (mobile) {
-            // Mobile: BottomNav (64px) + Player (64px) = 128px
+            // Mobile: BottomNav (64px) + Player (64px) = 128px total
             return {
                 collapsed: {
-                    y: 'calc(100vh - 128px - env(safe-area-inset-bottom))',
-                    height: '64px'
+                    y: 'calc(100vh - 64px - 64px - env(safe-area-inset-bottom))', // BottomNav + PlayerBar
+                    height: '64px',
+                    width: '100%',
+                    left: '0%',
+                    x: '0%',
+                    borderRadius: '0px'
                 },
                 expanded: {
                     y: '64px', // Después del MobileHeader
-                    height: 'calc(100vh - 128px - env(safe-area-inset-bottom))'
+                    height: 'calc(100vh - 128px - env(safe-area-inset-bottom))',
+                    width: '100%',
+                    left: '0%',
+                    x: '0%',
+                    borderRadius: '0px'
                 }
             };
         } else {
-            // Desktop: Solo Player (90px)
+            // Desktop: Lógica de cápsula flotante
             return {
                 collapsed: {
-                    y: 'calc(100vh - 90px)',
-                    height: '90px'
+                    // Flotante: 90px altura + 24px margen bottom
+                    y: 'calc(100vh - 114px)',
+                    height: '90px',
+                    // Centrado tipo cápsula
+                    width: '95%',
+                    maxWidth: '1200px',
+                    left: '50%',
+                    x: '-50%',
+                    borderRadius: '16px'
                 },
                 expanded: {
+                    // Pantalla completa
                     y: 0,
-                    height: '100vh'
+                    height: '100vh',
+                    width: '100%',
+                    maxWidth: 'none',
+                    left: '0%',
+                    x: '0%',
+                    borderRadius: '0px'
                 }
             };
         }
@@ -60,7 +81,7 @@ const PlayerSheet = () => {
         controls.start(targetPosition);
     }, [isFullScreenOpen, isMobile, controls, getPositions]);
 
-    // Handler de drag con lógica corregida
+    // Handler de drag
     const handleDragEnd = useCallback((event, info) => {
         const threshold = 150;
         const velocityThreshold = -500;
@@ -83,7 +104,6 @@ const PlayerSheet = () => {
 
     if (!currentSong) return null;
 
-    // Posiciones iniciales correctas según viewport
     const initialPositions = getPositions(isMobile);
 
     return (
@@ -100,16 +120,14 @@ const PlayerSheet = () => {
             style={{
                 position: "fixed",
                 top: 0,
-                left: 0,
-                right: 0,
                 zIndex: 9000,
-                willChange: "transform",
+                willChange: "transform, width, left, border-radius",
+                overflow: "hidden"
             }}
             className="player-sheet-container shadow-2xl"
             onPointerDown={(e) => {
-                // Solo permitir drag si no es un elemento interactivo
                 const target = e.target;
-                const isInteractive = target.closest('button, input, a, [role="button"]');
+                const isInteractive = target.closest('button, input, a, [role="button"], .progress-bar, .volume-slider');
 
                 if (!isInteractive) {
                     dragControls.start(e);
@@ -117,16 +135,18 @@ const PlayerSheet = () => {
             }}
         >
             {/* CONTENIDO */}
-            <div className="w-full h-full relative overflow-hidden flex flex-col bg-black">
+            <div className="w-full h-full relative flex flex-col bg-black">
 
                 {/* MINI PLAYER (Visible cuando colapsado) */}
                 <motion.div
-                    className="absolute top-0 left-0 right-0 z-20"
+                    className="absolute top-0 left-0 right-0 z-20 h-full"
+                    initial={{ opacity: 1, visibility: 'visible' }}
                     animate={{
                         opacity: isFullScreenOpen ? 0 : 1,
+                        visibility: isFullScreenOpen ? 'hidden' : 'visible',
                         pointerEvents: isFullScreenOpen ? 'none' : 'auto'
                     }}
-                    transition={{ duration: 0.2 }}
+                    transition={{ duration: 0.3, delay: isFullScreenOpen ? 0 : 0.1 }}
                 >
                     <PlayerBar isSheetMode={true} />
                 </motion.div>
