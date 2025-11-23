@@ -1,4 +1,3 @@
-// tidol-ui/src/components/HomeShelf.jsx
 import React, { useState, useEffect } from 'react';
 import api from '../api/axiosConfig';
 
@@ -7,7 +6,6 @@ const Shelf = ({ title, endpoint, items: propItems, renderItem }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Si se pasa un endpoint, cargar datos. Si no, usar propItems.
     if (!endpoint) {
       setLoading(false);
       return;
@@ -19,34 +17,37 @@ const Shelf = ({ title, endpoint, items: propItems, renderItem }) => {
         setItems(response.data);
       } catch (error) {
         console.error(`Error cargando la shelf "${title}":`, error);
-        setItems([]); // Asegurarse de que items sea un array en caso de error
+        setItems([]); 
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [endpoint, title]); // No incluir propItems aquí para evitar re-fetches
+  }, [endpoint, title]); 
 
   if (loading) {
     return (
       <div className="mb-8">
         <h2 className="text-3xl font-bold mb-4 text-white">{title}</h2>
-        <p className="text-text-subdued">Cargando...</p>
+        <div className="h-48 animate-pulse bg-white/5 rounded-xl w-full"></div>
       </div>
     );
   }
 
-  if (items.length === 0) {
-    return null; // No renderizar nada si no hay items
-  }
+  if (items.length === 0) return null;
 
   return (
-    <div className="mb-8">
-      <h2 className="text-3xl font-bold mb-4 text-white">{title}</h2>
-      <div className="flex overflow-x-auto gap-8 pb-4 tidol-shelf-scroll">
-        {items.map((item, index) => renderItem(item, index, items))}
+    <div className="mb-12"> {/* Margen inferior aumentado para espacio */}
+      <h2 className="text-2xl md:text-3xl font-bold mb-4 text-white pl-2">{title}</h2>
+      
+      {/* ENVOLTORIO CLAVE PARA EL EFECTO */}
+      <div className="tidol-shelf-wrapper">
+        <div className="flex gap-6 pb-4 tidol-shelf-scroll">
+          {items.map((item, index) => renderItem(item, index, items))}
+        </div>
       </div>
+      
     </div>
   );
 };

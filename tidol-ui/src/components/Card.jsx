@@ -3,7 +3,7 @@ import { IoPlay } from "react-icons/io5";
 
 export default function Card({ image, title, subtitle }) {
   return (
-    <div className="group relative glass-card transition-colors duration-200 rounded-lg p-3 cursor-pointer">
+    <div className="group relative transition-colors duration-200 rounded-lg p-3 cursor-pointer bg-neutral-800/50 hover:bg-neutral-700/70">
       
       <div className="relative w-full mb-4">
         <img 
@@ -13,7 +13,7 @@ export default function Card({ image, title, subtitle }) {
         />
         
         {/* Overlay and Play Button */}
-        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 
+        <div className="absolute inset-0 bg-black bg-opacity-0 
                         flex items-center justify-center transition-all duration-300">
           <button className="w-14 h-14 bg-primary rounded-full text-black flex items-center justify-center
                            opacity-0 group-hover:opacity-100 transform scale-90 group-hover:scale-100

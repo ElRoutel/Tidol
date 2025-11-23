@@ -38,18 +38,14 @@ const Shelf = ({ title, endpoint, items: propItems, renderItem }) => {
   if (items.length === 0) return null;
 
   return (
-    <div className="mb-8">
+    <>
       <h2 className="text-3xl font-bold mb-4 text-white">{title}</h2>
-      
-      {/* --- NUEVO WRAPPER AQUI --- */}
-      <div className="tidol-shelf-wrapper">
+      <div className="mb-8 tidol-shelf-wrapper">
         <div className="flex overflow-x-auto gap-8 pb-4 tidol-shelf-scroll">
           {items.map((item, index) => renderItem(item, index, items))}
         </div>
       </div>
-      {/* -------------------------- */}
-      
-    </div>
+    </>
   );
 };
 

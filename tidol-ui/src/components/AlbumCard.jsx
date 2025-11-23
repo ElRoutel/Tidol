@@ -51,7 +51,6 @@ const AlbumCard = ({ album }) => {
             rgba(255, 255, 255, 0.05) 0%,
             rgba(255, 255, 255, 0.02) 100%
           );
-          backdrop-filter: blur(10px);
           border-radius: 12px;
           padding: 16px;
           transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -152,7 +151,6 @@ const AlbumCard = ({ album }) => {
             rgba(0, 0, 0, 0.3) 0%,
             rgba(0, 0, 0, 0.5) 100%
           );
-          backdrop-filter: blur(4px);
           opacity: 0;
           transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
@@ -200,24 +198,6 @@ const AlbumCard = ({ album }) => {
           margin-left: 3px;
         }
 
-        /* Efecto de brillo que cruza la imagen */
-        .shine-effect {
-          position: absolute;
-          top: -50%;
-          left: -100%;
-          width: 60%;
-          height: 200%;
-          background: linear-gradient(
-            90deg,
-            transparent 0%,
-            rgba(255, 255, 255, 0.15) 50%,
-            transparent 100%
-          );
-          transform: skewX(-25deg);
-          opacity: 0;
-          transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
         .album-card:hover .shine-effect {
           left: 150%;
           opacity: 1;
@@ -258,20 +238,12 @@ const AlbumCard = ({ album }) => {
           color: rgba(255, 255, 255, 0.8);
         }
 
-        /* Efecto de glow alrededor de la card */
-        .card-glow {
-          position: absolute;
-          inset: -20px;
-          background: radial-gradient(
-            circle at center,
-            rgba(59, 130, 246, 0.15) 0%,
-            transparent 70%
-          );
+
+          border-radius: 14px;
           opacity: 0;
           transition: opacity 0.4s;
           pointer-events: none;
           z-index: -1;
-          filter: blur(20px);
         }
 
         .album-card:hover .card-glow {
