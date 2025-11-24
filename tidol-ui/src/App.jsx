@@ -15,6 +15,7 @@ import GlobalBackground from './components/GlobalBackground';
 import AddToPlaylistModal from './components/AddToPlaylistModal';
 import { usePlayer } from './context/PlayerContext';
 import LiquidFilter from './components/LiquidFilter';
+import { ContextMenuProvider } from './context/ContextMenuContext';
 
 // PÁGINAS (Lazy Loading)
 const HomePage = lazy(() => import('./pages/HomePage'));
@@ -54,34 +55,8 @@ function ProtectedRoute({ children }) {
 }
 
 function AppLayout() {
-  const [contextItem, setContextItem] = useState(null);
   const location = useLocation();
-  const { currentSong, addToQueue, playNext } = usePlayer();
-
-  const handleContextAction = (action, data) => {
-    if (action === "setItem") return setContextItem(data);
-
-    const song = {
-      id: data.id,
-      titulo: data.titulo || data.title,
-      artista: data.artista || data.artist,
-      album: data.album,
-      url: data.url,
-      portada: data.portada || data.image || data.cover,
-      duracion: data.duration,
-      source: data.source,
-      format: data.format,
-      quality: data.quality
-    };
-
-    if (action === "addToQueue") {
-      addToQueue(song);
-    } else if (action === "queueNext") {
-      playNext(song);
-    }
-
-    setContextItem(null);
-  };
+  const { currentSong } = usePlayer();
 
   // 1. DETECTAR PÁGINAS INMERSIVAS
   // Estas páginas tienen su propio fondo "Spotlight", así que ocultaremos el global.
@@ -150,7 +125,7 @@ function AppLayout() {
             <MobileNav />
           </nav>
 
-          <ContextMenu item={contextItem} onAction={handleContextAction} />
+          <ContextMenu />
           <AddToPlaylistModal />
         </div>
       </div>
@@ -161,36 +136,38 @@ function AppLayout() {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login" element={
-        <Suspense fallback={<div className="tidol-loading-screen"><div className="tidol-loading-spinner"></div></div>}>
-          <LoginPage />
-        </Suspense>
-      } />
-      <Route path="/register" element={
-        <Suspense fallback={<div className="tidol-loading-screen"><div className="tidol-loading-spinner"></div></div>}>
-          <RegisterPage />
-        </Suspense>
-      } />
-      <Route path="/terms" element={
-        <Suspense fallback={<div className="tidol-loading-screen"><div className="tidol-loading-spinner"></div></div>}>
-          <TermsPage />
-        </Suspense>
-      } />
-      <Route path="/privacy" element={
-        <Suspense fallback={<div className="tidol-loading-screen"><div className="tidol-loading-spinner"></div></div>}>
-          <PrivacyPage />
-        </Suspense>
-      } />
+    <ContextMenuProvider>
+      <Routes>
+        <Route path="/login" element={
+          <Suspense fallback={<div className="tidol-loading-screen"><div className="tidol-loading-spinner"></div></div>}>
+            <LoginPage />
+          </Suspense>
+        } />
+        <Route path="/register" element={
+          <Suspense fallback={<div className="tidol-loading-screen"><div className="tidol-loading-spinner"></div></div>}>
+            <RegisterPage />
+          </Suspense>
+        } />
+        <Route path="/terms" element={
+          <Suspense fallback={<div className="tidol-loading-screen"><div className="tidol-loading-spinner"></div></div>}>
+            <TermsPage />
+          </Suspense>
+        } />
+        <Route path="/privacy" element={
+          <Suspense fallback={<div className="tidol-loading-screen"><div className="tidol-loading-spinner"></div></div>}>
+            <PrivacyPage />
+          </Suspense>
+        } />
 
-      <Route
-        path="/*"
-        element={
-          <ProtectedRoute>
-            <AppLayout />
-          </ProtectedRoute>
-        }
-      />
-    </Routes>
+        <Route
+          path="/*"
+          element={
+            <ProtectedRoute>
+              <AppLayout />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </ContextMenuProvider>
   );
 }

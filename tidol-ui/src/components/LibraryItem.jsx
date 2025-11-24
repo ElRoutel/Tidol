@@ -1,7 +1,6 @@
-import React, { useState } from "react";
-import { usePlaylist } from "../context/PlaylistContext";
-import { usePlayer } from "../context/PlayerContext";
-import { useNavigate } from "react-router-dom";
+import React from "react";
+import { useContextMenu } from "../context/ContextMenuContext";
+import { FaEllipsisH } from 'react-icons/fa';
 
 export default function LibraryItem({
     title,
@@ -12,122 +11,57 @@ export default function LibraryItem({
     item = null, // Full item object for context menu
     type = "song" // song, playlist, album, artist
 }) {
-    const [contextMenu, setContextMenu] = useState(null);
-    const { openAddToPlaylistModal } = usePlaylist();
-    const { addToQueue, playNext, toggleLike, isSongLiked } = usePlayer();
-    const navigate = useNavigate();
+    const { openContextMenu } = useContextMenu();
 
     const handleContextMenu = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
         if (item && type === 'song') {
-            setContextMenu({ x: e.clientX, y: e.clientY });
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Normalize data for context menu
+            const data = {
+                id: item.id || item.identifier,
+                titulo: item.titulo || item.title || title,
+                artista: item.artista || item.artist || subtitle,
+                album: item.album || item.album_name,
+                portada: item.portada || item.cover_url || image,
+                url: item.url,
+                duracion: item.duracion || item.duration,
+                artistId: item.artistId || item.artista_id,
+                albumId: item.albumId || item.album_id,
+                format: item.format,
+                quality: item.quality
+            };
+
+            openContextMenu(e, type, data);
         }
     };
 
-    const handleAction = (action) => {
-        if (!item) return;
-
-        switch (action) {
-            case 'queue':
-                addToQueue(item);
-                break;
-            case 'next':
-                playNext(item);
-                break;
-            case 'like':
-                toggleLike(item.id, item);
-                break;
-            case 'playlist':
-                openAddToPlaylistModal(item);
-                break;
-            case 'artist':
-                if (item.artistId || item.artista_id) {
-                    navigate(`/artist/${item.artistId || item.artista_id}`);
-                }
-                break;
-            case 'album':
-                if (item.albumId || item.album_id) {
-                    navigate(`/album/${item.albumId || item.album_id}`);
-                }
-                break;
-        }
-        setContextMenu(null);
+    const handleMenuClick = (e) => {
+        handleContextMenu(e);
     };
-
-    React.useEffect(() => {
-        const handleClickOutside = () => setContextMenu(null);
-        if (contextMenu) {
-            document.addEventListener('click', handleClickOutside);
-            return () => document.removeEventListener('click', handleClickOutside);
-        }
-    }, [contextMenu]);
-
-    const isLiked = item && type === 'song' ? isSongLiked(item.id) : false;
 
     return (
-        <>
-            <div
-                className={`lib-item ${viewMode}`}
-                onClick={onClick}
-                onContextMenu={handleContextMenu}
-            >
-                <img src={image} className="lib-item-img" alt={title} />
-                <div className="lib-item-info">
-                    <h4>{title}</h4>
-                    <p>{subtitle}</p>
-                </div>
+        <div
+            className={`lib-item ${viewMode} ${type === 'song' ? 'song-item' : ''}`}
+            onClick={onClick}
+            onContextMenu={handleContextMenu}
+            data-id={item?.id || item?.identifier}
+        >
+            <img src={image} className="lib-item-img" alt={title} />
+            <div className="lib-item-info">
+                <h4>{title}</h4>
+                <p>{subtitle}</p>
             </div>
 
-            {contextMenu && type === 'song' && (
-                <div
-                    className="fixed bg-[#2a2a2a] rounded-lg shadow-2xl border border-white/10 py-2 min-w-[200px] z-[9999]"
-                    style={{ top: contextMenu.y, left: contextMenu.x }}
-                    onClick={(e) => e.stopPropagation()}
+            {type === 'song' && (
+                <button
+                    className="lib-item-menu-btn"
+                    onClick={handleMenuClick}
                 >
-                    <button
-                        className="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition-colors flex items-center gap-2"
-                        onClick={() => handleAction('next')}
-                    >
-                        Reproducir siguiente
-                    </button>
-                    <button
-                        className="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition-colors flex items-center gap-2"
-                        onClick={() => handleAction('queue')}
-                    >
-                        Agregar a cola
-                    </button>
-                    <button
-                        className="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition-colors flex items-center gap-2"
-                        onClick={() => handleAction('like')}
-                    >
-                        {isLiked ? 'Quitar de favoritos' : 'Agregar a favoritos'}
-                    </button>
-                    <button
-                        className="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition-colors flex items-center gap-2"
-                        onClick={() => handleAction('playlist')}
-                    >
-                        Agregar a playlist
-                    </button>
-                    <div className="h-px bg-white/10 my-1"></div>
-                    {(item?.artistId || item?.artista_id) && (
-                        <button
-                            className="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition-colors flex items-center gap-2"
-                            onClick={() => handleAction('artist')}
-                        >
-                            Ir al artista
-                        </button>
-                    )}
-                    {(item?.albumId || item?.album_id) && (
-                        <button
-                            className="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition-colors flex items-center gap-2"
-                            onClick={() => handleAction('album')}
-                        >
-                            Ir al álbum
-                        </button>
-                    )}
-                </div>
+                    <FaEllipsisH />
+                </button>
             )}
-        </>
+        </div>
     );
 }

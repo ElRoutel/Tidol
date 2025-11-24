@@ -2,8 +2,10 @@
    ESTILOS COMPARTIDOS PARA TARJETAS DE CARRUSEL (SHELF)
    =================================================================== */
 
-.song-shelf-card, .album-card {
-  width: 12rem; /* Ancho fijo para consistencia en el carrusel */
+.song-shelf-card,
+.album-card {
+  width: 12rem;
+  /* Ancho fijo para consistencia en el carrusel */
   flex-shrink: 0;
   cursor: pointer;
   display: flex;
@@ -15,7 +17,8 @@
 .card-cover-container {
   position: relative;
   width: 100%;
-  padding-top: 100%; /* Aspect ratio 1:1 */
+  padding-top: 100%;
+  /* Aspect ratio 1:1 */
   border-radius: 8px;
   overflow: hidden;
 }
@@ -47,7 +50,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   opacity: 0;
   transform: translateY(10px);
   transition: all 0.25s ease;
@@ -72,7 +75,7 @@
 
 .card-subtitle {
   font-size: 12px;
-  color: rgba(255,255,255,0.7);
+  color: rgba(255, 255, 255, 0.7);
 }
 
 /* ===================================================================
@@ -108,7 +111,8 @@
 
 .song-grid-info {
   flex-grow: 1;
-  min-width: 0; /* Clave para que el texto se trunque correctamente */
+  min-width: 0;
+  /* Clave para que el texto se trunque correctamente */
 }
 
 .song-grid-play-icon {
@@ -120,4 +124,65 @@
 .song-grid-card:hover .song-grid-play-icon,
 .song-grid-card.playing .song-grid-play-icon {
   opacity: 1;
+}
+
+/* ========== MENU BUTTONS ========== */
+.song-grid-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.song-grid-menu-btn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 0.2s ease;
+}
+
+.song-grid-card:hover .song-grid-menu-btn {
+  opacity: 1;
+}
+
+.song-grid-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.card-menu-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.song-shelf-card:hover .card-menu-button {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.card-menu-button:hover {
+  background: rgba(0, 0, 0, 0.7);
+  transform: scale(1.1);
 }

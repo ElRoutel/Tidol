@@ -1,7 +1,9 @@
 import React from 'react';
 import { usePlayer } from '../../context/PlayerContext';
-import { FaPlay, FaPause } from 'react-icons/fa';
+import { useContextMenu } from '../../context/ContextMenuContext';
+import { FaPlay, FaPause, FaEllipsisH } from 'react-icons/fa';
 import '../../styles/glass.css';
+import '../../styles/cards.css';
 
 /**
  * Tarjeta de canción local
@@ -10,7 +12,26 @@ import '../../styles/glass.css';
  */
 export default function LocalSongCard({ song, onPlay }) {
   const { currentSong } = usePlayer();
+  const { openContextMenu } = useContextMenu();
   const isPlaying = currentSong?.id === song.id;
+
+  const handleMenuClick = (e) => {
+    e.stopPropagation();
+    const data = {
+      id: song.id || song.identifier,
+      titulo: song.titulo || song.title,
+      artista: song.artista || song.artist,
+      album: song.album || song.album_name,
+      portada: song.portada || song.cover_url,
+      url: song.url,
+      duracion: song.duracion || song.duration,
+      artistId: song.artistId || song.artista_id,
+      albumId: song.albumId || song.album_id,
+      format: song.format,
+      quality: song.quality
+    };
+    openContextMenu(e, 'song', data);
+  };
 
   return (
     <div
@@ -41,13 +62,22 @@ export default function LocalSongCard({ song, onPlay }) {
         </p>
       </div>
 
-      <span className="song-play-icon">
-        {isPlaying ? (
-          <FaPause size={14} className="text-primary" />
-        ) : (
-          <FaPlay size={14} />
-        )}
-      </span>
+      <div className="flex items-center gap-2">
+        <button
+          className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+          onClick={handleMenuClick}
+        >
+          <FaEllipsisH size={14} />
+        </button>
+
+        <span className="song-play-icon">
+          {isPlaying ? (
+            <FaPause size={14} className="text-primary" />
+          ) : (
+            <FaPlay size={14} />
+          )}
+        </span>
+      </div>
     </div>
   );
 }
