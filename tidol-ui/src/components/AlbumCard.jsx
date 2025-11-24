@@ -6,7 +6,7 @@ const AlbumCard = ({ album }) => {
   return (
     <Link to={`/album/${album.id}`} className="album-card-wrapper">
       <div className="album-card">
-        
+
         {/* Imagen del álbum con efectos */}
         <div className="album-image-container">
           <div className="image-wrapper">
@@ -17,11 +17,11 @@ const AlbumCard = ({ album }) => {
             />
             <div className="image-gradient" />
           </div>
-          
+
           {/* Overlay con degradado y botón de play */}
           <div className="play-overlay">
             <div className="play-button">
-              <IoPlay size={24} className="play-icon"/>
+              <IoPlay size={24} className="play-icon" />
             </div>
           </div>
 

@@ -34,15 +34,11 @@
   margin-bottom: 2.5rem;
   overflow-x: auto;
   padding: 0.5rem;
-  scrollbar-width: none;
-  /* Firefox */
-  -ms-overflow-style: none;
-  /* IE/Edge */
-}
-
-.lib-chips-row::-webkit-scrollbar {
-  display: none;
-  /* Chrome/Safari */
+  font-weight: 500;
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .lib-chip {
@@ -99,9 +95,7 @@
   border-radius: 32px;
   position: relative;
   overflow: hidden;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  /* Background handled by glass-card */
 }
 
 .lib-header::before {
@@ -113,6 +107,7 @@
   height: 100%;
   background: radial-gradient(circle at top left, rgba(255, 255, 255, 0.1), transparent 70%);
   pointer-events: none;
+  z-index: 0;
 }
 
 .lib-header-img-wrapper {
@@ -166,6 +161,16 @@
   color: rgba(255, 255, 255, 0.6);
   font-weight: 500;
   margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lib-count {
+  font-size: 1.1rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+  margin: 0;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -385,10 +390,308 @@
   animation-delay: 0.4s;
 }
 
+
+/* LIST VIEW */
+.lib-grid.list {
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+
+/* ============================================
+   LOADER & EMPTY STATES
+   ============================================ */
+.lib-loader {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 5rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 1.2rem;
+  font-weight: 400;
+  letter-spacing: 1px;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.5;
+  }
+}
+
+.lib-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 6rem 2rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 20px;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.lib-empty-text {
+  font-size: 1.5rem;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 600;
+}
+
+/* ============================================
+   RESPONSIVE DESIGN
+   ============================================ */
+
+/* Large Tablets / Small Laptops */
+@media (max-width: 1200px) {
+  .lib-header {
+    padding: 2.5rem;
+  }
+
+  .lib-title {
+    font-size: 3.5rem;
+  }
+
+  .lib-header-img-wrapper {
+    width: 200px;
+    height: 200px;
+  }
+}
+
+/* Tablets */
+@media (max-width: 900px) {
+  .lib-container {
+    padding: 1.5rem;
+  }
+
+  .lib-header {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 2rem;
+    gap: 1.5rem;
+  }
+
+  .lib-header-img-wrapper {
+    width: 180px;
+    height: 180px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  }
+
+  .lib-header-text {
+    align-items: center;
+  }
+
+  .lib-title {
+    font-size: 2.5rem;
+  }
+
+  .lib-grid.grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 1.5rem;
+  }
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  .lib-container {
+    padding: 1rem;
+    padding-bottom: 180px;
+    /* Extra space for mobile nav */
+  }
+
+  .lib-header {
+    padding: 1.5rem;
+    border-radius: 24px;
+    margin-bottom: 2rem;
+  }
+
+  .lib-header-img-wrapper {
+    width: 140px;
+    height: 140px;
+  }
+
+  .lib-title {
+    font-size: 2rem;
+  }
+
+  .lib-chips-row {
+    margin-bottom: 1.5rem;
+  }
+
+  .lib-chip {
+    padding: 0.6rem 1.2rem;
+    font-size: 0.85rem;
+  }
+
+  .lib-grid.grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+}
+
+/* ============================================
+   ANIMATIONS FOR GRID ITEMS
+   ============================================ */
+.lib-grid>* {
+  opacity: 0;
+  animation: slideUpFade 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Staggered animation delays */
+.lib-grid>*:nth-child(1) {
+  animation-delay: 0.05s;
+}
+
+.lib-grid>*:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.lib-grid>*:nth-child(3) {
+  animation-delay: 0.15s;
+}
+
+.lib-grid>*:nth-child(4) {
+  animation-delay: 0.2s;
+}
+
+.lib-grid>*:nth-child(5) {
+  animation-delay: 0.25s;
+}
+
+.lib-grid>*:nth-child(6) {
+  animation-delay: 0.3s;
+}
+
+.lib-grid>*:nth-child(7) {
+  animation-delay: 0.35s;
+}
+
+.lib-grid>*:nth-child(8) {
+  animation-delay: 0.4s;
+}
+
 .lib-grid>*:nth-child(9) {
   animation-delay: 0.45s;
 }
 
-.lib-grid>*:nth-child(10) {
-  animation-delay: 0.5s;
+/* ============================================
+   LIBRARY ITEMS (SONGS / PLAYLISTS)
+   ============================================ */
+.lib-item {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+
+}
+
+.lib-item:hover {
+  transform: translateY(-8px);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+}
+
+.lib-item-img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  transition: transform 0.5s ease;
+}
+
+.lib-item:hover .lib-item-img {
+  transform: scale(1.08);
+}
+
+.lib-item-info {
+  padding: 1rem;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  transform: translateY(10px);
+  transition: transform 0.3s ease;
+}
+
+.lib-item:hover .lib-item-info {
+  transform: translateY(0);
+}
+
+.lib-item-info h4 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+
+.lib-item-info p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* LIST VIEW OVERRIDES */
+.lib-grid.list .lib-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem;
+  height: 72px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+
+.lib-grid.list .lib-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  transform: none;
+  box-shadow: none;
+}
+
+.lib-grid.list .lib-item-img {
+  width: 56px;
+  height: 56px;
+  border-radius: 6px;
+  aspect-ratio: 1;
+}
+
+.lib-grid.list .lib-item:hover .lib-item-img {
+  transform: none;
+}
+
+.lib-grid.list .lib-item-info {
+  position: static;
+  background: none;
+  padding: 0;
+  transform: none;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
