@@ -3,6 +3,7 @@ import { motion, useAnimation, useDragControls } from 'framer-motion';
 import { usePlayer } from '../context/PlayerContext';
 import PlayerBar from './PlayerBar';
 import FullScreenPlayer from './FullScreenPlayer';
+import ReactDOM from 'react-dom';
 
 const PlayerSheet = () => {
     const { isFullScreenOpen, openFullScreenPlayer, closeFullScreenPlayer, currentSong } = usePlayer();
@@ -52,10 +53,10 @@ const PlayerSheet = () => {
                     // Pantalla completa
                     y: 0,
                     height: '100vh',
-                    width: '100%',
-                    maxWidth: 'none',
-                    left: '0%',
-                    x: '0%',
+                    width: '100vw',
+                    maxWidth: '100vw',
+                    left: '50%',
+                    x: '-50%',
                     borderRadius: '0px'
                 }
             };
@@ -108,7 +109,7 @@ const PlayerSheet = () => {
 
     const initialPositions = getPositions(isMobile);
 
-    return (
+    return ReactDOM.createPortal(
         <motion.div
             drag="y"
             dragListener={false}
@@ -166,7 +167,8 @@ const PlayerSheet = () => {
                 </motion.div>
 
             </div>
-        </motion.div>
+        </motion.div>,
+        document.body
     );
 };
 

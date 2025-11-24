@@ -25,18 +25,19 @@
   background: #0A0A0A;
   opacity: 0;
   transition: opacity 0.8s ease-in-out;
-}
-
-.tidol-app-background.visible {
-  opacity: 1;
+  background: radial-gradient(circle, #169c46 0%, transparent 70%);
+  bottom: -10%;
+  right: -10%;
+  animation-delay: -15s;
 }
 
 .tidol-app-orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(120px);
+  filter: blur(80px);
   opacity: 0.35;
   will-change: transform;
+  transform: translateZ(0);
   animation: tidolFloating 40s ease-in-out infinite;
 }
 

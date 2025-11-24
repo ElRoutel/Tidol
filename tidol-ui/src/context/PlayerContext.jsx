@@ -257,6 +257,17 @@ export function PlayerProvider({ children }) {
     }
   }, [currentIndex, originalQueue, likedSongs]);
 
+  // --- Queue Management ---
+  const addToQueue = useCallback((song) => {
+    setOriginalQueue(prev => [...prev, song]);
+  }, []);
+
+  const playNext = useCallback((song) => {
+    setOriginalQueue(prev => {
+      const newQueue = [...prev];
+    });
+  }, [currentIndex]);
+
   const togglePlayPause = useCallback(() => {
     if (!audioRef.current) return;
     if (isPlaying) {
@@ -475,6 +486,8 @@ export function PlayerProvider({ children }) {
         togglePlayPause,
         nextSong,
         previousSong,
+        addToQueue,
+        playNext,
         changeVolume,
         toggleMute,
         seek,
