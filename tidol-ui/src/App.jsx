@@ -1,33 +1,32 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
-import { useState, useEffect } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import './AppBlur.css';
 import './styles/glass.css';
 
 // COMPONENTES DE LAYOUT
 import Sidebar from './components/Sidebar';
-import PlayerBar from './components/PlayerBar';
+// import PlayerBar from './components/PlayerBar'; // Reemplazado por PlayerSheet
 import MobileNav from './components/MobileNav';
 import MobileHeader from './components/MobileHeader';
 import ContextMenu from './components/ContextMenu';
-// import FullScreenPlayerPortal from './components/FullScreenPlayerPortal'; // Ya no se usa
-import PlayerSheet from './components/PlayerSheet'; // <--- NUEVO
-import GlobalBackground from './components/GlobalBackground'; // Aseguramos la importación
+import PlayerSheet from './components/PlayerSheet';
+import GlobalBackground from './components/GlobalBackground';
 import { usePlayer } from './context/PlayerContext';
 
-// PÁGINAS
-import HomePage from './pages/HomePage';
-import { SearchPage } from './pages/SearchPage';
-import { UploadPage } from './pages/UploadPage';
-import AlbumPage from './pages/AlbumPage';
-import ArtistPage from './pages/ArtistPage';
-import LoginPage from './pages/LoginPage';
-import InternetArchivePage from './pages/InternetArchivePage';
-import RegisterPage from './pages/RegisterPage';
-import ProfilePage from './pages/ProfilePage';
-import LibraryPage from './pages/LibraryPage';
-import TermsPage from './pages/TermsPage';
-import PrivacyPage from './pages/PrivacyPage';
+// PÁGINAS (Lazy Loading)
+const HomePage = lazy(() => import('./pages/HomePage'));
+const SearchPage = lazy(() => import('./pages/SearchPage').then(module => ({ default: module.SearchPage })));
+const UploadPage = lazy(() => import('./pages/UploadPage').then(module => ({ default: module.UploadPage })));
+const AlbumPage = lazy(() => import('./pages/AlbumPage'));
+const ArtistPage = lazy(() => import('./pages/ArtistPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const InternetArchivePage = lazy(() => import('./pages/InternetArchivePage'));
+const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const LibraryPage = lazy(() => import('./pages/LibraryPage'));
+const TermsPage = lazy(() => import('./pages/TermsPage'));
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -97,19 +96,27 @@ function AppLayout() {
 
           {/* 3. CLASE DINÁMICA: 'no-padding' para que el banner del álbum toque el borde */}
           <main className={`tidol-main-content ${isImmersivePage ? 'no-padding' : ''} ${currentSong ? 'has-player' : ''}`}>
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/search" element={<SearchPage />} />
-              <Route path="/upload" element={<UploadPage />} />
+            <Suspense fallback={
+              <div className="tidol-loading-screen">
+                <div className="tidol-loading-content">
+                  <div className="tidol-loading-spinner"></div>
+                </div>
+              </div>
+            }>
+              <Routes>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/search" element={<SearchPage />} />
+                <Route path="/upload" element={<UploadPage />} />
 
-              {/* Rutas Inmersivas */}
-              <Route path="/album/:id" element={<AlbumPage />} />
-              <Route path="/artist/:id" element={<ArtistPage />} />
-              <Route path="/ia-album/:identifier" element={<InternetArchivePage />} />
+                {/* Rutas Inmersivas */}
+                <Route path="/album/:id" element={<AlbumPage />} />
+                <Route path="/artist/:id" element={<ArtistPage />} />
+                <Route path="/ia-album/:identifier" element={<InternetArchivePage />} />
 
-              <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/library" element={<LibraryPage />} />
-            </Routes>
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/library" element={<LibraryPage />} />
+              </Routes>
+            </Suspense>
           </main>
 
           {/* PLAYER SHEET (Reemplaza al PlayerBar y FullScreenPlayerPortal) */}
@@ -130,10 +137,26 @@ function AppLayout() {
 export default function App() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
-      <Route path="/terms" element={<TermsPage />} />
-      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/login" element={
+        <Suspense fallback={<div className="tidol-loading-screen"><div className="tidol-loading-spinner"></div></div>}>
+          <LoginPage />
+        </Suspense>
+      } />
+      <Route path="/register" element={
+        <Suspense fallback={<div className="tidol-loading-screen"><div className="tidol-loading-spinner"></div></div>}>
+          <RegisterPage />
+        </Suspense>
+      } />
+      <Route path="/terms" element={
+        <Suspense fallback={<div className="tidol-loading-screen"><div className="tidol-loading-spinner"></div></div>}>
+          <TermsPage />
+        </Suspense>
+      } />
+      <Route path="/privacy" element={
+        <Suspense fallback={<div className="tidol-loading-screen"><div className="tidol-loading-spinner"></div></div>}>
+          <PrivacyPage />
+        </Suspense>
+      } />
 
       <Route
         path="/*"

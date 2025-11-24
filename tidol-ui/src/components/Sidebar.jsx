@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import api from '../api/axiosConfig';
 
 // Iconos
-import { 
-  IoHomeSharp, 
-  IoSearch, 
+import {
+  IoHomeSharp,
+  IoSearch,
   IoCloudUploadOutline,
   IoAdd,
   IoHeartOutline,
@@ -25,11 +25,10 @@ function Logo() {
 // ✅ Navegación principal
 function MainNav() {
   // Quitamos bordes redondeados extremos y ajustamos el hover para que llene el ancho
-  const linkClass = ({ isActive }) => 
-    `flex items-center gap-4 px-6 py-3 transition-all duration-200 font-bold border-l-4 ${
-      isActive 
-        ? 'text-white bg-white/10 border-green-500' // Borde verde activo a la izquierda
-        : 'text-gray-400 hover:text-white hover:bg-white/5 border-transparent'
+  const linkClass = ({ isActive }) =>
+    `flex items-center gap-4 px-6 py-3 transition-all duration-200 font-bold border-l-4 ${isActive
+      ? 'text-white bg-white/10 border-green-500' // Borde verde activo a la izquierda
+      : 'text-gray-400 hover:text-white hover:bg-white/5 border-transparent'
     }`;
 
   return (
@@ -69,11 +68,10 @@ function UserLibrary() {
     if (token) fetchPlaylists();
   }, []);
 
-  const linkClass = ({ isActive }) => 
-    `flex items-center gap-4 px-6 py-3 transition-all duration-200 font-bold border-l-4 ${
-      isActive 
-        ? 'text-white bg-white/10 border-green-500' 
-        : 'text-gray-400 hover:text-white hover:bg-white/5 border-transparent'
+  const linkClass = ({ isActive }) =>
+    `flex items-center gap-4 px-6 py-3 transition-all duration-200 font-bold border-l-4 ${isActive
+      ? 'text-white bg-white/10 border-green-500'
+      : 'text-gray-400 hover:text-white hover:bg-white/5 border-transparent'
     }`;
 
   return (
@@ -103,8 +101,8 @@ function UserLibrary() {
           <ul className="space-y-1">
             {playlists.map(playlist => (
               <li key={playlist.id}>
-                <NavLink 
-                  to={`/playlist/${playlist.id}`} 
+                <NavLink
+                  to={`/playlist/${playlist.id}`}
                   className="block px-4 py-2 mx-2 rounded-md text-sm text-gray-400 hover:text-white hover:bg-white/5 truncate transition-colors"
                 >
                   {playlist.nombre}
@@ -114,7 +112,7 @@ function UserLibrary() {
           </ul>
         ) : (
           <div className="px-6 mt-4">
-             <p className="text-sm text-gray-500">Aún no tienes playlists.</p>
+            <p className="text-sm text-gray-500">Aún no tienes playlists.</p>
           </div>
         )}
       </div>
@@ -144,13 +142,13 @@ export default function Sidebar() {
     // 3. 'fixed left-0 top-0': Se queda pegado a la izquierda.
     // 4. Fondo aplicado directamente aquí, sin bordes redondeados.
     <aside className="hidden md:flex flex-col w-full h-screen fixed left-0 top-0 z-50 bg-black border-r border-white/10">
-      
+
       {/* Efecto de fondo sutil (opcional, si quieres que no sea negro plano) */}
       <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
 
       {/* Contenedor de contenido (z-10 para estar sobre el fondo) */}
       <div className="relative flex flex-col h-full z-10">
-        
+
         {/* SECCIÓN SUPERIOR */}
         <div>
           <Logo />
@@ -164,7 +162,7 @@ export default function Sidebar() {
 
         {/* SECCIÓN INFERIOR (Usuario) - Pegado al fondo */}
         <div className="border-t border-white/10 bg-black/20">
-          <NavLink 
+          <NavLink
             to="/profile"
             className="flex items-center gap-3 p-4 cursor-pointer hover:bg-white/5 transition-colors group"
           >
@@ -181,7 +179,7 @@ export default function Sidebar() {
       </div>
 
       {/* ESTILOS SCROLLBAR */}
-      <style jsx>{`
+      <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { 

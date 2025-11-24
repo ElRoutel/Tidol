@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import ReactDOM from 'react-dom';
+// import ReactDOM from 'react-dom'; // Ya no se usa Portal aquí
 import './FullScreenPlayer.css';
 import './FullScreenPlayerLyrics.css';
 import { usePlayer } from '../context/PlayerContext';
@@ -129,7 +129,7 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
   };
 
   const handleToggleLike = () => {
-    toggleLike({
+    toggleLike(currentSong.id, {
       id: currentSong.id,
       source: currentSong.source,
       titulo: currentSong.titulo,
@@ -153,10 +153,18 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
   // Usar la mejor portada disponible
   const displayCover = bestCover || currentSong.portada || '/default_cover.png';
 
+  // Si es embedded, renderizamos DIRECTAMENTE en el contenedor padre (PlayerSheet)
+  // para que siga la animación de expansión/colapso.
+  // Quitamos 'fixed' y usamos 'w-full h-full' o 'absolute inset-0'.
+
+  const containerClass = isEmbedded
+    ? `fsp-container w-full h-full absolute inset-0 bg-black bg-opacity-90 backdrop-blur-xl flex flex-col text-white p-4 pb-20 md:pb-4 transition-all duration-300 ${mounted ? 'opacity-100' : 'opacity-0 pointer-events-none'}`
+    : `fsp-container fixed inset-0 z-[99999] bg-black bg-opacity-90 backdrop-blur-xl flex flex-col text-white p-4 pb-20 md:pb-4 transition-all duration-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full'}`;
+
   const playerContent = (
     <div
       {...handlers}
-      className={`fsp-container fixed inset-0 z-[99999] bg-black bg-opacity-90 backdrop-blur-xl flex flex-col text-white p-4 pb-20 md:pb-4 transition-all duration-300 ${!isEmbedded && (mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full')} ${isEmbedded && (mounted ? 'opacity-100' : 'opacity-0 pointer-events-none')}`}
+      className={containerClass}
       style={{ pointerEvents: (isEmbedded && !mounted) ? 'none' : 'auto' }}
     >
       <div className={`absolute top-4 left-4 transition-all duration-500 delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
@@ -256,7 +264,7 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
   const lyricsContent = (
     <div
       {...handlers}
-      className={`fsp-lyrics-container fixed inset-0 z-[9999] bg-black bg-opacity-90 backdrop-blur-xl flex flex-col text-white p-4 pb-20 md:pb-4 transition-all duration-400 ${showLyrics && !isAnimating ? 'opacity-100' : 'opacity-0'}`}
+      className={`fsp-lyrics-container ${isEmbedded ? 'absolute w-full h-full' : 'fixed'} inset-0 z-[9999] bg-black bg-opacity-90 backdrop-blur-xl flex flex-col text-white p-4 pb-20 md:pb-4 transition-all duration-400 ${showLyrics && !isAnimating ? 'opacity-100' : 'opacity-0'}`}
     >
       <div className={`absolute top-4 left-4 transition-all duration-500 ${showLyrics && !isAnimating ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'}`}>
         <button
@@ -290,17 +298,6 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
     </div>
   );
 
-  // Si es embedded, usamos Portal para salir del stacking context del PlayerSheet
-  if (isEmbedded) {
-    return ReactDOM.createPortal(
-      <>
-        {!showLyrics ? playerContent : lyricsContent}
-      </>,
-      document.body
-    );
-  }
-
-  // Si no es embedded (uso antiguo), render normal
   return (
     <>
       {!showLyrics ? playerContent : lyricsContent}

@@ -43,57 +43,44 @@ export function PlayerProvider({ children }) {
     setPlayedHistory(prev => prev.includes(songId) ? prev : [...prev, songId]);
   }, []);
 
-  // ==================================================================
-  // --- SECCIÓN CORREGIDA ---
   // Cargar TODOS los liked songs (locales y de IA) al inicio
-  // ==================================================================
   useEffect(() => {
     let mounted = true;
     const fetchAllLikedSongs = async () => {
       try {
-        // 1. Pedir ambos endpoints en paralelo
         const [localRes, iaRes] = await Promise.all([
           api.get('/music/songs/likes'),
-          api.get('/music/ia/likes') // <-- LLAMADA AÑADIDA
+          api.get('/music/ia/likes')
         ]);
 
-        // 2. Procesar likes locales
         const localData = localRes.data;
         const localArr = Array.isArray(localData) ? localData : [];
         const localLikedIds = localArr.map(song => song.id || song.songId).filter(Boolean);
 
-        // 3. Procesar likes de IA
         const iaData = iaRes.data;
         const iaArr = Array.isArray(iaData) ? iaData : [];
-        // Usamos el ID de la base de datos (ce.id o song.id) que es lo que devuelve getUserIaLikes
         const iaLikedIds = iaArr.map(song => song.id).filter(Boolean);
 
-        // 4. Combinarlos en un solo Set
         const allLikedIds = new Set([...localLikedIds, ...iaLikedIds]);
 
         if (mounted) {
           setLikedSongs(allLikedIds);
         }
-        
+
       } catch (err) {
         console.error("Error al cargar todos los likes:", err);
       }
     };
-    
+
     fetchAllLikedSongs();
     return () => { mounted = false; };
-  }, []); // Se ejecuta solo una vez al inicio
-  // ==================================================================
-  // --- FIN DE LA SECCIÓN CORREGIDA ---
-  // ==================================================================
+  }, []);
 
   const toggleLike = useCallback(async (songId, songData = null) => {
     if (!songId) return;
 
-    // Determinar si es de IA o local
     const isIa = songData?.identifier || songData?.source === 'internet_archive' || typeof songId === 'string' && songId.includes('-');
 
-    // Optimistic UI
     setLikedSongs(prev => {
       const newSet = new Set(prev);
       const wasLiked = newSet.has(songId);
@@ -107,26 +94,23 @@ export function PlayerProvider({ children }) {
 
     try {
       if (isIa) {
-        // ✅ Usar endpoint de IA (con todos los datos)
         await api.post(`/music/ia/likes/toggle`, {
           identifier: songData?.identifier || songId,
           title: songData?.titulo || songData?.title || '',
           artist: songData?.artista || songData?.artist || '',
           source: songData?.source || 'internet_archive',
-          url: songData?.url,                // <-- Corregido
-          portada: songData?.portada,          // <-- Corregido
-          duration: songData?.duration         // <-- Corregido
+          url: songData?.url,
+          portada: songData?.portada,
+          duration: songData?.duration
         }, {
           headers: { Authorization: `Bearer ${token}` }
         });
       } else {
-        // ✅ Usar endpoint local
         await api.post(`/music/songs/${songId}/like`, null, {
           headers: { Authorization: `Bearer ${token}` }
         });
       }
 
-      // sincronizar currentSong.isLiked si es la pista actual
       setCurrentSong(cs => {
         if (!cs) return cs;
         if (cs.id === songId) {
@@ -136,7 +120,6 @@ export function PlayerProvider({ children }) {
       });
       prevLikeRef.current = null;
     } catch (err) {
-      // rollback
       const prev = prevLikeRef.current;
       if (prev && prev.songId === songId) {
         setLikedSongs(curr => {
@@ -154,7 +137,6 @@ export function PlayerProvider({ children }) {
     return likedSongs.has(songId);
   }, [likedSongs]);
 
-  // Gesto del usuario para autoplay
   useEffect(() => {
     const handleFirstInteraction = () => {
       if (!hasUserInteracted.current) {
@@ -166,7 +148,6 @@ export function PlayerProvider({ children }) {
     return () => window.removeEventListener('click', handleFirstInteraction, true);
   }, []);
 
-  // Sincronizar isLiked en currentSong
   useEffect(() => {
     setCurrentSong(prev => {
       if (!prev) return prev;
@@ -182,7 +163,8 @@ export function PlayerProvider({ children }) {
     setOriginalQueue(songs);
     const mainSong = songs[startIndex];
     setCurrentIndex(startIndex);
-    setCurrentSong({ ...mainSong, isLiked: likedSongs.has(mainSong.id) });
+    // Added playRequestId
+    setCurrentSong({ ...mainSong, isLiked: likedSongs.has(mainSong.id), playRequestId: Date.now() });
     addToHistory(mainSong.id);
   }, [addToHistory, likedSongs]);
 
@@ -216,7 +198,7 @@ export function PlayerProvider({ children }) {
             }
           }
           return {
-            id: item.identifier || item.id || `ia_${idx}_${Math.random().toString(36).slice(2,8)}`,
+            id: item.identifier || item.id || `ia_${idx}_${Math.random().toString(36).slice(2, 8)}`,
             url: item.url || item.file || item.playbackUrl || (`https://archive.org/download/${item.identifier}/${item.filename || ''}`),
             titulo: item.title || item.titulo || 'Sin título',
             artista: item.artist || item.creator || item.artista || 'Internet Archive',
@@ -227,7 +209,8 @@ export function PlayerProvider({ children }) {
         if (songs.length > 0) {
           setOriginalQueue(songs);
           setCurrentIndex(0);
-          setCurrentSong({ ...songs[0], isLiked: likedSongs.has(songs[0].id) });
+          // Added playRequestId
+          setCurrentSong({ ...songs[0], isLiked: likedSongs.has(songs[0].id), playRequestId: Date.now() });
           addToHistory(songs[0].id);
         } else {
           setIsPlaying(false);
@@ -248,7 +231,8 @@ export function PlayerProvider({ children }) {
       const nextIndex = currentIndex + 1;
       const nextSongData = originalQueue[nextIndex];
       setCurrentIndex(nextIndex);
-      setCurrentSong({ ...nextSongData, isLiked: likedSongs.has(nextSongData.id) });
+      // Added playRequestId
+      setCurrentSong({ ...nextSongData, isLiked: likedSongs.has(nextSongData.id), playRequestId: Date.now() });
       addToHistory(nextSongData.id);
     } else {
       await fetchRecommendations(currentSong);
@@ -267,7 +251,8 @@ export function PlayerProvider({ children }) {
       const prevSongData = originalQueue[prevIndex];
       if (prevSongData) {
         setCurrentIndex(prevIndex);
-        setCurrentSong({ ...prevSongData, isLiked: likedSongs.has(prevSongData.id) });
+        // Added playRequestId
+        setCurrentSong({ ...prevSongData, isLiked: likedSongs.has(prevSongData.id), playRequestId: Date.now() });
       }
     }
   }, [currentIndex, originalQueue, likedSongs]);
@@ -308,8 +293,22 @@ export function PlayerProvider({ children }) {
   }, []);
 
   // Actualiza audio.src y gatea autoplay por interacción del usuario
+  const currentSongIdRef = useRef(null);
+  const lastPlayRequestIdRef = useRef(null);
+
   useEffect(() => {
     if (!currentSong) return;
+
+    const isSameSong = currentSongIdRef.current === currentSong.id;
+    const isNewPlayRequest = currentSong.playRequestId !== lastPlayRequestIdRef.current;
+
+    if (isSameSong && !isNewPlayRequest) {
+      return;
+    }
+
+    currentSongIdRef.current = currentSong.id;
+    lastPlayRequestIdRef.current = currentSong.playRequestId;
+
     if (!audioRef.current) {
       audioRef.current = new Audio();
       audioRef.current.preload = 'auto';
@@ -340,7 +339,6 @@ export function PlayerProvider({ children }) {
       setIsPlaying(false);
     }
 
-    // Historial no bloqueante
     api.post('/history/add', {
       songId: currentSong.id,
       titulo: currentSong.titulo,
@@ -348,7 +346,6 @@ export function PlayerProvider({ children }) {
       url: currentSong.url,
       portada: currentSong.portada,
     }).catch(err => console.error("DB Historial error:", err));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSong]);
 
   // Eventos del audio
@@ -454,7 +451,6 @@ export function PlayerProvider({ children }) {
     }
   }, [currentSong, previousSong, nextSong]);
 
-  // Update Media Session playback state
   useEffect(() => {
     if ('mediaSession' in navigator) {
       navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
