@@ -7,6 +7,7 @@ import './index.css'
 // 1. Importa AMBOS cerebros
 import { AuthProvider } from './context/AuthContext'
 import { PlayerProvider } from './context/PlayerContext' // <--- ASEGÚRATE DE IMPORTARLO
+import { PlaylistProvider } from './context/PlaylistContext'
 
 import App from './App'
 
@@ -16,7 +17,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <BrowserRouter>
       <AuthProvider>
         <PlayerProvider> {/* <--- 2. ENVUELVE LA APP CON EL PLAYER */}
-          <App />
+          <PlaylistProvider>
+            <App />
+          </PlaylistProvider>
         </PlayerProvider>
       </AuthProvider>
     </BrowserRouter>

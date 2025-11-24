@@ -160,17 +160,23 @@ try {
     );
   `);
 
-  // ========== PLAYLIST_CANCIONES ==========
+  // ========== PLAYLIST_CANCIONES (Soporta IDs mixtos) ==========
+  // Primero eliminar la tabla antigua si existe (para recrearla sin constraints)
+  await db.exec(`DROP TABLE IF EXISTS playlist_canciones;`);
+
+  // Recrear con cancion_id como TEXT para soportar IDs de IA y locales
   await db.exec(`
-    CREATE TABLE IF NOT EXISTS playlist_canciones (
+    CREATE TABLE playlist_canciones (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
       playlist_id INTEGER NOT NULL,
-      cancion_id INTEGER NOT NULL,
+      cancion_id TEXT NOT NULL,
+      song_source TEXT NOT NULL DEFAULT 'local',
       fecha_agregada DATETIME DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (playlist_id, cancion_id),
-      FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE ON UPDATE CASCADE,
-      FOREIGN KEY (cancion_id) REFERENCES canciones(id) ON DELETE CASCADE ON UPDATE CASCADE
+      UNIQUE(playlist_id, cancion_id),
+      FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE ON UPDATE CASCADE
     );
   `);
+  console.log("✅ Tabla playlist_canciones recreada con soporte para IDs mixtos");
 
   // ========== CALIDAD AUDIO ==========
   await db.exec(`

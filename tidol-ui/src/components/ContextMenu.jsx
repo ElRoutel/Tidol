@@ -1,7 +1,9 @@
 // src/components/ContextMenu.jsx
 import { useEffect, useState } from "react";
+import { usePlaylist } from "../context/PlaylistContext";
 
 export default function ContextMenu({ item, onAction }) {
+  const { openAddToPlaylistModal } = usePlaylist();
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [visible, setVisible] = useState(false);
 
@@ -19,8 +21,8 @@ export default function ContextMenu({ item, onAction }) {
       const type = targetItem.classList.contains("song-item")
         ? "song"
         : targetItem.classList.contains("album-item")
-        ? "album"
-        : "artist";
+          ? "album"
+          : "artist";
 
       setVisible(true);
       onAction("setItem", { type, data: targetItem.dataset });
@@ -46,6 +48,7 @@ export default function ContextMenu({ item, onAction }) {
       { label: "Reproducir ahora", action: "playSong" },
       { label: "Reproducir siguiente", action: "queueNext" },
       { label: "Agregar a favoritos", action: "addFavorite" },
+      { label: "Agregar a playlist", action: "addToPlaylist" },
       { label: "Ir al álbum", action: "goAlbum" },
       { label: "Ir al artista", action: "goArtist" }
     );
@@ -71,7 +74,11 @@ export default function ContextMenu({ item, onAction }) {
           key={opt.label}
           className="px-3 py-1 hover:bg-gray-700 cursor-pointer"
           onClick={() => {
-            onAction(opt.action, item.data);
+            if (opt.action === "addToPlaylist") {
+              openAddToPlaylistModal(item.data);
+            } else {
+              onAction(opt.action, item.data);
+            }
             setVisible(false); // cerrar menú al hacer click
           }}
         >

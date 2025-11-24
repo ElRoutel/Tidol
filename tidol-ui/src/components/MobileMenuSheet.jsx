@@ -1,12 +1,14 @@
 import React from 'react';
 import { useSwipeable } from 'react-swipeable';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MdQueueMusic, MdPlaylistPlay, MdFavorite, MdFavoriteBorder, MdAlbum, MdPerson } from 'react-icons/md';
+import { MdQueueMusic, MdPlaylistPlay, MdFavorite, MdFavoriteBorder, MdAlbum, MdPerson, MdPlaylistAdd } from 'react-icons/md';
 import { usePlayer } from '../context/PlayerContext';
+import { usePlaylist } from '../context/PlaylistContext';
 import { useNavigate } from 'react-router-dom';
 
 export default function MobileMenuSheet({ isOpen, onClose, item }) {
     const { addToQueue, playNext, toggleLike, isSongLiked } = usePlayer();
+    const { openAddToPlaylistModal } = usePlaylist();
     const navigate = useNavigate();
 
     const handlers = useSwipeable({
@@ -29,6 +31,9 @@ export default function MobileMenuSheet({ isOpen, onClose, item }) {
                 break;
             case 'like':
                 toggleLike(item.id, item);
+                break;
+            case 'playlist':
+                openAddToPlaylistModal(item);
                 break;
             case 'artist':
                 if (item.artistId) navigate(`/artist/${item.artistId}`);
@@ -89,6 +94,11 @@ export default function MobileMenuSheet({ isOpen, onClose, item }) {
                                 icon={isLiked ? <MdFavorite size={24} className="text-green-500" /> : <MdFavoriteBorder size={24} />}
                                 label={isLiked ? "Quitar de favoritos" : "Agregar a favoritos"}
                                 onClick={() => handleAction('like')}
+                            />
+                            <MenuItem
+                                icon={<MdPlaylistAdd size={24} />}
+                                label="Agregar a playlist"
+                                onClick={() => handleAction('playlist')}
                             />
 
                             {!isIa && (

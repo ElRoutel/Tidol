@@ -93,15 +93,16 @@ CREATE TABLE IF NOT EXISTS playlists (
 
 
 -- =======================================
--- 6️⃣ PLAYLIST_CANCIONES
+-- 6️⃣ PLAYLIST_CANCIONES (Soporta IDs mixtos: local + IA)
 -- =======================================
 CREATE TABLE IF NOT EXISTS playlist_canciones (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     playlist_id INTEGER NOT NULL,
-    cancion_id INTEGER NOT NULL,
+    cancion_id TEXT NOT NULL,
+    song_source TEXT NOT NULL DEFAULT 'local',
     fecha_agregada DATETIME DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (playlist_id, cancion_id),
-    FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (cancion_id) REFERENCES canciones(id) ON DELETE CASCADE ON UPDATE CASCADE
+    UNIQUE(playlist_id, cancion_id),
+    FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 

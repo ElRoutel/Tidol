@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   createContext,
   useContext,
   useState,
@@ -163,6 +163,7 @@ export function PlayerProvider({ children }) {
     setOriginalQueue(songs);
     const mainSong = songs[startIndex];
     setCurrentIndex(startIndex);
+    // Added playRequestId
     setCurrentSong({ ...mainSong, isLiked: likedSongs.has(mainSong.id), playRequestId: Date.now() });
     addToHistory(mainSong.id);
   }, [addToHistory, likedSongs]);
@@ -199,7 +200,7 @@ export function PlayerProvider({ children }) {
           return {
             id: item.identifier || item.id || `ia_${idx}_${Math.random().toString(36).slice(2, 8)}`,
             url: item.url || item.file || item.playbackUrl || (`https://archive.org/download/${item.identifier}/${item.filename || ''}`),
-            titulo: item.title || item.titulo || 'Sin título',
+            titulo: item.title || item.titulo || 'Sin t├¡tulo',
             artista: item.artist || item.creator || item.artista || 'Internet Archive',
             portada: highResCover || item.thumbnail || item.thumbnail_url || item.image || (`https://archive.org/services/img/${item.identifier}`),
             duracion: item.duration || 0
@@ -208,6 +209,7 @@ export function PlayerProvider({ children }) {
         if (songs.length > 0) {
           setOriginalQueue(songs);
           setCurrentIndex(0);
+          // Added playRequestId
           setCurrentSong({ ...songs[0], isLiked: likedSongs.has(songs[0].id), playRequestId: Date.now() });
           addToHistory(songs[0].id);
         } else {
@@ -229,6 +231,7 @@ export function PlayerProvider({ children }) {
       const nextIndex = currentIndex + 1;
       const nextSongData = originalQueue[nextIndex];
       setCurrentIndex(nextIndex);
+      // Added playRequestId
       setCurrentSong({ ...nextSongData, isLiked: likedSongs.has(nextSongData.id), playRequestId: Date.now() });
       addToHistory(nextSongData.id);
     } else {
@@ -248,6 +251,7 @@ export function PlayerProvider({ children }) {
       const prevSongData = originalQueue[prevIndex];
       if (prevSongData) {
         setCurrentIndex(prevIndex);
+        // Added playRequestId
         setCurrentSong({ ...prevSongData, isLiked: likedSongs.has(prevSongData.id), playRequestId: Date.now() });
       }
     }
@@ -261,8 +265,6 @@ export function PlayerProvider({ children }) {
   const playNext = useCallback((song) => {
     setOriginalQueue(prev => {
       const newQueue = [...prev];
-      newQueue.splice(currentIndex + 1, 0, song);
-      return newQueue;
     });
   }, [currentIndex]);
 
@@ -301,7 +303,7 @@ export function PlayerProvider({ children }) {
     setVolume(audio.volume);
   }, []);
 
-  // Actualiza audio.src y gatea autoplay por interacción del usuario
+  // Actualiza audio.src y gatea autoplay por interacci├│n del usuario
   const currentSongIdRef = useRef(null);
   const lastPlayRequestIdRef = useRef(null);
 
@@ -335,7 +337,7 @@ export function PlayerProvider({ children }) {
       const playPromise = audio.play();
       if (playPromise !== undefined) {
         playPromise.catch(() => {
-          console.warn("🔇 Autoplay bloqueado. Esperando interacción del usuario.");
+          console.warn("≡ƒöç Autoplay bloqueado. Esperando interacci├│n del usuario.");
           setIsPlaying(false);
         });
       }

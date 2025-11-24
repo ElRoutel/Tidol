@@ -12,6 +12,7 @@ import MobileHeader from './components/MobileHeader';
 import ContextMenu from './components/ContextMenu';
 import PlayerSheet from './components/PlayerSheet';
 import GlobalBackground from './components/GlobalBackground';
+import AddToPlaylistModal from './components/AddToPlaylistModal';
 import { usePlayer } from './context/PlayerContext';
 
 // PÁGINAS (Lazy Loading)
@@ -127,6 +128,7 @@ function AppLayout() {
           </nav>
 
           <ContextMenu item={contextItem} onAction={handleContextAction} />
+          <AddToPlaylistModal />
         </div>
       </div>
       {/* <FullScreenPlayerPortal /> YA NO ES NECESARIO */}
