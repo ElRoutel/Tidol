@@ -5,27 +5,15 @@
 -- =======================================
 -- 1️⃣ USUARIOS (Agregar columnas nuevas)
 -- =======================================
--- Agrega columna 'role' si no existe
-ALTER TABLE usuarios ADD COLUMN role TEXT DEFAULT 'user';
-
--- Agrega imagen de perfil si no existe
-ALTER TABLE usuarios ADD COLUMN profile_img TEXT DEFAULT '/public/default_cover.png';
-
--- Asignar rol 'owner' al usuario Routel (dev principal)
-UPDATE usuarios
-SET role = 'owner'
-WHERE LOWER(nombre) IN ('routel', 'elroutel', 'adolfo');
-
--- Crear usuarios iniciales si no existen (usa contraseñas hash reales)
-INSERT OR IGNORE INTO usuarios (nombre, password, role)
-VALUES ('admin', '$2b$12$RmttDJ9ySItjgv8vsBYyRe0owrY02N.Ssh4bSjQNilJxqh2dYR0Vm', 'admin');
-
-INSERT OR IGNORE INTO usuarios (nombre, password, role)
-VALUES ('ADOLFO', '$2b$12$eTB99h98Nn3csDPEDTYw1.1uLgA4sQGAORRNwDWdU2ubpICu/vpjy', 'tester');
-
--- Verificación
-SELECT id, nombre, role, profile_img FROM usuarios;
-
+CREATE TABLE IF NOT EXISTS usuarios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL UNIQUE,
+    email TEXT UNIQUE,
+    password TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'user',
+    profile_img TEXT DEFAULT '/assets/default_user.png',
+    fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 
 -- =======================================
 -- 2️⃣ ARTISTAS

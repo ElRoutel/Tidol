@@ -3,21 +3,29 @@
   --glass-bg: rgba(255, 255, 255, 0.03);
   --glass-border: rgba(255, 255, 255, 0.08);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  --glass-radius: 16px; /* Más redondeado estilo Apple */
+  --glass-radius: 16px;
+  /* Más redondeado estilo Apple */
 }
 
 /* ============================================ 
    GLASS CARD - LIQUID EDITION 
    ============================================ */
 .glass-card {
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
+  /* Fondo más sutil y translúcido */
+  background: rgba(255, 255, 255, 0.03);
+  /* Borde más fino y brillante en la parte superior (luz cenital) */
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-left: 1px solid rgba(255, 255, 255, 0.05);
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: var(--glass-radius);
-  box-shadow: var(--glass-shadow);
 
-  /* El blur estándar */
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  /* Sombra más suave y difusa */
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+
+  /* Blur más profundo y saturado */
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
 
   /* Isolation crea un nuevo stacking context */
   isolation: isolate;
@@ -25,9 +33,10 @@
   overflow: hidden;
 
   /* Transiciones suaves */
-  transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), 
-              background 0.3s ease,
-              box-shadow 0.3s ease;
+  transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1),
+    background 0.3s ease,
+    box-shadow 0.3s ease,
+    border-color 0.3s ease;
 }
 
 /* El efecto LIQUIDO se aplica aquí.
@@ -37,23 +46,23 @@
 .glass-card::before {
   content: "";
   position: absolute;
-  inset: -20%; /* Extendemos el área para evitar cortes bruscos al deformar */
+  inset: -20%;
+  /* Extendemos el área para evitar cortes bruscos al deformar */
   width: 140%;
   height: 140%;
-  
+
   /* Un gradiente sutil ayuda a que la distorsión sea visible */
-  background: radial-gradient(
-    circle at center, 
-    rgba(255, 255, 255, 0.05) 0%, 
-    transparent 60%
-  );
-  
+  background: radial-gradient(circle at center,
+      rgba(255, 255, 255, 0.05) 0%,
+      transparent 60%);
+
   /* AQUI ESTÁ LA MAGIA DEL VIDEO */
   filter: url(#liquid-distortion);
   opacity: 0.7;
   pointer-events: none;
-  z-index: -1; /* Detrás del contenido */
-  
+  z-index: -1;
+  /* Detrás del contenido */
+
   /* Animación lenta y fluida */
   animation: liquidBreathing 15s ease-in-out infinite alternate;
 }
@@ -72,9 +81,17 @@
 }
 
 @keyframes liquidBreathing {
-  0% { transform: translate(-2%, -2%) rotate(0deg); }
-  50% { transform: translate(2%, 2%) rotate(1deg); }
-  100% { transform: translate(-1%, 1%) rotate(-1deg); }
+  0% {
+    transform: translate(-2%, -2%) rotate(0deg);
+  }
+
+  50% {
+    transform: translate(2%, 2%) rotate(1deg);
+  }
+
+  100% {
+    transform: translate(-1%, 1%) rotate(-1deg);
+  }
 }
 
 /* ============================================ 
@@ -99,7 +116,8 @@
 /* Song List Styling */
 .song-list-item {
   display: grid;
-  grid-template-columns: 44px 1fr auto; /* Ajustado para mejor espaciado */
+  grid-template-columns: 44px 1fr auto;
+  /* Ajustado para mejor espaciado */
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
@@ -113,12 +131,14 @@
 }
 
 .song-list-item.active {
-  background: rgba(29, 185, 84, 0.15); /* Tidol Green tint */
+  background: rgba(29, 185, 84, 0.15);
+  /* Tidol Green tint */
 }
 
 .song-list-info .title {
   font-size: 15px;
-  font-weight: 600; /* Un poco más grueso */
+  font-weight: 600;
+  /* Un poco más grueso */
   color: #fff;
   margin-bottom: 2px;
 }
@@ -133,29 +153,36 @@
 
 .tidol-shelf-scroll {
   /* Mask-image suavizado */
-  -webkit-mask-image: linear-gradient(
-    to right,
-    transparent 0%,
-    black 24px,
-    black calc(100% - 24px),
-    transparent 100%
-  );
+  -webkit-mask-image: linear-gradient(to right,
+      transparent 0%,
+      black 24px,
+      black calc(100% - 24px),
+      transparent 100%);
   mask-image: linear-gradient(to right, transparent 0%, black 24px, black calc(100% - 24px), transparent 100%);
-  
+
   /* Scroll behavior */
   overflow-x: auto;
   overflow-y: hidden;
   display: flex;
   gap: 16px;
-  padding: 4px 24px; /* Padding lateral para compensar la máscara */
+  padding: 4px 24px;
+  /* Padding lateral para compensar la máscara */
   scroll-behavior: smooth;
 }
 
 /* Ocultar scrollbar en el carrusel pero permitir scroll */
-.tidol-shelf-scroll::-webkit-scrollbar { display: none; }
-.tidol-shelf-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+.tidol-shelf-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.tidol-shelf-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
 
 /* Fallback para navegadores antiguos */
 @supports not (backdrop-filter: blur(10px)) {
-  .glass-card { background: rgba(30, 30, 30, 0.9); }
+  .glass-card {
+    background: rgba(30, 30, 30, 0.9);
+  }
 }

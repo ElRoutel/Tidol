@@ -17,7 +17,7 @@ export default function Portal({ children }) {
             // position: fixed removes it from document flow completely
             // pointer-events: none allows clicks to pass through the container
             // Children must set pointer-events: auto to be clickable
-            portalRoot.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 10000;';
+            portalRoot.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 99999;';
             document.body.appendChild(portalRoot);
         }
         setMounted(true);

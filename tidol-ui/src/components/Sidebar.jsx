@@ -2,6 +2,7 @@
 import { NavLink } from 'react-router-dom';
 import { useEffect, useState } from "react";
 import api from '../api/axiosConfig';
+import { usePlaylist } from '../context/PlaylistContext';
 
 // Iconos
 import {
@@ -53,20 +54,16 @@ function MainNav() {
 
 // ✅ Biblioteca del usuario
 function UserLibrary() {
-  const [playlists, setPlaylists] = useState([]);
+  const { playlists, createPlaylist } = usePlaylist();
 
-  useEffect(() => {
-    const fetchPlaylists = async () => {
-      try {
-        const { data } = await api.get('/playlists');
-        setPlaylists(data);
-      } catch (error) {
-        console.error('Error fetching playlists:', error);
-      }
-    };
-    const token = localStorage.getItem("token");
-    if (token) fetchPlaylists();
-  }, []);
+  const handleCreatePlaylist = async () => {
+    const name = window.prompt("Nombre de la nueva playlist:");
+    if (name) {
+      await createPlaylist(name);
+    }
+  };
+
+
 
   const linkClass = ({ isActive }) =>
     `flex items-center gap-4 px-6 py-3 transition-all duration-200 font-bold border-l-4 ${isActive
@@ -90,7 +87,11 @@ function UserLibrary() {
         <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">
           Tus playlists
         </span>
-        <button className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10">
+        <button
+          onClick={handleCreatePlaylist}
+          className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10"
+          title="Crear nueva playlist"
+        >
           <IoAdd size={20} />
         </button>
       </div>

@@ -17,14 +17,14 @@ const Shelf = ({ title, endpoint, items: propItems, renderItem }) => {
         setItems(response.data);
       } catch (error) {
         console.error(`Error cargando la shelf "${title}":`, error);
-        setItems([]); 
+        setItems([]);
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [endpoint, title]); 
+  }, [endpoint, title]);
 
   if (loading) {
     return (
@@ -39,15 +39,15 @@ const Shelf = ({ title, endpoint, items: propItems, renderItem }) => {
 
   return (
     <div className="mb-12"> {/* Margen inferior aumentado para espacio */}
-      <h2 className="text-2xl md:text-3xl font-bold mb-4 text-white pl-2">{title}</h2>
-      
+      <h2 className="text-2xl md:text-3xl font-bold mb-4 text-white pl-4 tracking-tight leading-tight">{title}</h2>
+
       {/* ENVOLTORIO CLAVE PARA EL EFECTO */}
       <div className="tidol-shelf-wrapper">
-        <div className="flex gap-6 pb-4 tidol-shelf-scroll">
+        <div className="flex gap-4 pb-4 px-4 tidol-shelf-scroll">
           {items.map((item, index) => renderItem(item, index, items))}
         </div>
       </div>
-      
+
     </div>
   );
 };

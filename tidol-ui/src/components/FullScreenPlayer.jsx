@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 // import ReactDOM from 'react-dom'; // Ya no se usa Portal aquí
 import './FullScreenPlayer.css';
 import './FullScreenPlayerLyrics.css';
+import { motion, Reorder } from 'framer-motion';
 import { usePlayer } from '../context/PlayerContext';
 import { useSwipeable } from 'react-swipeable';
 import api from '../api/axiosConfig';
@@ -13,7 +14,9 @@ import {
   IoChevronDown,
   IoText,
   IoHeart,
-  IoHeartOutline
+  IoHeartOutline,
+  IoList,
+  IoReorderTwo
 } from 'react-icons/io5';
 
 const FullScreenPlayer = ({ isEmbedded = false }) => {
@@ -30,9 +33,14 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
     closeFullScreenPlayer,
     toggleLike,
     isSongLiked,
+    originalQueue,
+    currentIndex,
+    playSongList,
+    reorderQueue
   } = usePlayer();
 
   const [showLyrics, setShowLyrics] = useState(false);
+  const [showQueue, setShowQueue] = useState(false);
   const [lyrics, setLyrics] = useState([]);
   const [isAnimating, setIsAnimating] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -49,6 +57,11 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
     if (isEmbedded) {
       // When embedded, sync mounted directly with isFullScreenOpen
       setMounted(isFullScreenOpen);
+      // Reset views when closed
+      if (!isFullScreenOpen) {
+        setShowLyrics(false);
+        setShowQueue(false);
+      }
     } else {
       setMounted(true);
     }
@@ -90,7 +103,15 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
     }));
   };
 
-  const handlers = useSwipeable({
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth > 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth > 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const swipeHandlers = useSwipeable({
     onSwipedDown: () => {
       if (!isEmbedded) closeFullScreenPlayer(); // Solo cerrar con swipe si no es embedded (o manejar lógica embedded)
       if (isEmbedded) closeFullScreenPlayer();
@@ -98,6 +119,8 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
     preventDefaultTouchmoveEvent: true,
     trackMouse: true
   });
+
+  const handlers = isDesktop ? {} : swipeHandlers;
 
   const handleClose = () => {
     console.log('Closing FullScreenPlayer via button');
@@ -144,6 +167,16 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
     setIsAnimating(true);
     setTimeout(() => {
       setShowLyrics(!showLyrics);
+      if (!showLyrics) setShowQueue(false); // Close queue if opening lyrics
+      setIsAnimating(false);
+    }, 300);
+  };
+
+  const handleToggleQueue = () => {
+    setIsAnimating(true);
+    setTimeout(() => {
+      setShowQueue(!showQueue);
+      if (!showQueue) setShowLyrics(false); // Close lyrics if opening queue
       setIsAnimating(false);
     }, 300);
   };
@@ -256,6 +289,13 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
           >
             <IoText size={28} />
           </button>
+
+          <button
+            onClick={handleToggleQueue}
+            className="text-white/80 hover:text-white transition-all duration-200 hover:scale-110 active:scale-95"
+          >
+            <IoList size={28} />
+          </button>
         </div>
       </div>
     </div>
@@ -298,9 +338,78 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
     </div>
   );
 
+  const queueContent = (
+    <div
+      {...handlers}
+      className={`fsp-lyrics-container ${isEmbedded ? 'absolute w-full h-full' : 'fixed'} inset-0 z-[9999] bg-black bg-opacity-90 backdrop-blur-xl flex flex-col text-white p-4 pb-20 md:pb-4 transition-all duration-400 ${showQueue && !isAnimating ? 'opacity-100' : 'opacity-0'}`}
+    >
+      <div className={`absolute top-4 left-4 transition-all duration-500 ${showQueue && !isAnimating ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'}`}>
+        <button
+          onClick={handleToggleQueue}
+          className="text-white/70 hover:text-white transition-all duration-200 hover:scale-110 active:scale-95"
+        >
+          <IoChevronDown size={32} />
+        </button>
+      </div>
+
+      <div className={`fsp-lyrics-content transition-all duration-500 delay-100 ${showQueue && !isAnimating ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        <h2 className="text-2xl font-bold mb-6 text-center">Cola de Reproducción</h2>
+        <div className="space-y-2 overflow-y-auto max-h-[70vh] px-2">
+          {originalQueue.length === 0 ? (
+            <p className="text-center text-white/50">La cola está vacía</p>
+          ) : (
+            <Reorder.Group axis="y" values={originalQueue} onReorder={reorderQueue} className="space-y-2">
+              {originalQueue.map((song) => (
+                <Reorder.Item key={song.id} value={song}>
+                  <div
+                    className={`flex items-center gap-3 p-3 rounded-lg cursor-grab active:cursor-grabbing transition-colors ${song.id === currentSong?.id
+                      ? 'bg-white/20 border border-white/10'
+                      : 'bg-white/5 hover:bg-white/10'
+                      }`}
+                  >
+                    <div className="text-white/50 cursor-grab active:cursor-grabbing">
+                      <IoReorderTwo size={20} />
+                    </div>
+                    <div
+                      className="flex-1 flex items-center gap-3 min-w-0 cursor-pointer"
+                      onClick={() => {
+                        const index = originalQueue.findIndex(s => s.id === song.id);
+                        if (index !== -1) {
+                          playSongList(originalQueue, index);
+                          handleToggleQueue();
+                        }
+                      }}
+                    >
+                      <img
+                        src={song.portada || '/default_cover.png'}
+                        alt={song.titulo}
+                        className="w-12 h-12 rounded object-cover pointer-events-none"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-medium truncate ${song.id === currentSong?.id ? 'text-white' : 'text-white/90'}`}>
+                          {song.titulo}
+                        </p>
+                        <p className="text-sm text-white/60 truncate">
+                          {song.artista}
+                        </p>
+                      </div>
+                      {song.id === currentSong?.id && (
+                        <div className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_10px_rgba(74,222,128,0.5)]"></div>
+                      )}
+                    </div>
+                  </div>
+                </Reorder.Item>
+              ))}
+            </Reorder.Group>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <>
-      {!showLyrics ? playerContent : lyricsContent}
+      {!showLyrics && !showQueue ? playerContent : (showLyrics ? lyricsContent : queueContent)}
     </>
   );
 };

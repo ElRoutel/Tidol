@@ -11,20 +11,45 @@ export function PlaylistProvider({ children }) {
     const [songToAdd, setSongToAdd] = useState(null);
     const [loading, setLoading] = useState(false);
 
+    // Helper to get local playlists
+    const getLocalPlaylists = () => {
+        try {
+            const local = localStorage.getItem('tidol_playlists');
+            return local ? JSON.parse(local) : [];
+        } catch (e) {
+            console.error("Error parsing local playlists", e);
+            return [];
+        }
+    };
+
+    // Helper to save local playlists
+    const saveLocalPlaylists = (newPlaylists) => {
+        localStorage.setItem('tidol_playlists', JSON.stringify(newPlaylists));
+        setPlaylists(newPlaylists);
+    };
+
     // Fetch all user playlists
     const fetchPlaylists = useCallback(async () => {
+        setLoading(true);
         try {
             const { data } = await api.get('/playlists');
+            // Merge with local if needed, or just prefer server
+            // For now, let's trust the server if it responds
             setPlaylists(data || []);
+            // Also update local storage as cache
+            localStorage.setItem('tidol_playlists', JSON.stringify(data || []));
         } catch (error) {
-            console.error('Error fetching playlists:', error);
+            console.error('Error fetching playlists, using fallback:', error);
+            // Fallback to local storage
+            setPlaylists(getLocalPlaylists());
+        } finally {
+            setLoading(false);
         }
     }, []);
 
     // Load playlists on mount
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (token) fetchPlaylists();
+        fetchPlaylists();
     }, [fetchPlaylists]);
 
     // Create new playlist
@@ -32,14 +57,27 @@ export function PlaylistProvider({ children }) {
         if (!nombre || !nombre.trim()) return false;
 
         setLoading(true);
+        const tempId = Date.now(); // Temporary ID for local
+        const newPlaylist = { id: tempId, nombre, songs: [] };
+
         try {
             const { data } = await api.post('/playlists', { nombre });
-            setPlaylists(prev => [...prev, data]);
-            console.log('✅ Playlist creada:', data);
+            console.log('✅ Playlist creada en servidor:', data);
+
+            // Update state and local cache with server data
+            setPlaylists(prev => {
+                const updated = [...prev, data];
+                localStorage.setItem('tidol_playlists', JSON.stringify(updated));
+                return updated;
+            });
             return data;
         } catch (error) {
-            console.error('Error creating playlist:', error);
-            return null;
+            console.error('Error creating playlist on server, using local:', error);
+            // Fallback: create locally
+            const current = getLocalPlaylists();
+            const updated = [...current, newPlaylist];
+            saveLocalPlaylists(updated);
+            return newPlaylist;
         } finally {
             setLoading(false);
         }
@@ -66,42 +104,89 @@ export function PlaylistProvider({ children }) {
                 duracion: song.duracion || song.duration
             });
 
-            console.log('✅ Canción agregada a playlist');
+            console.log('✅ Canción agregada a playlist en servidor');
+            // Update local state is tricky without re-fetching, but we can try
+            // Ideally we re-fetch or optimistically update.
+            // Let's re-fetch for consistency with server
+            fetchPlaylists();
             return true;
         } catch (error) {
-            console.error('Error adding song to playlist:', error);
+            console.error('Error adding song to playlist on server, using local:', error);
+
+            // Fallback: add locally
+            const current = getLocalPlaylists();
+            const playlistIndex = current.findIndex(p => p.id === playlistId);
+
+            if (playlistIndex !== -1) {
+                const playlist = current[playlistIndex];
+                if (!playlist.songs) playlist.songs = [];
+
+                // Check for duplicates
+                const exists = playlist.songs.some(s => s.id === song.id);
+                if (!exists) {
+                    playlist.songs.push(song);
+                    current[playlistIndex] = playlist;
+                    saveLocalPlaylists(current);
+                    console.log('✅ Canción agregada a playlist local');
+                    return true;
+                }
+            }
             return false;
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [fetchPlaylists]);
 
     // Remove song from playlist
     const removeSongFromPlaylist = useCallback(async (playlistId, cancionId) => {
         setLoading(true);
         try {
             await api.delete(`/playlists/${playlistId}/songs/${cancionId}`);
-            console.log('✅ Canción eliminada de playlist');
+            console.log('✅ Canción eliminada de playlist en servidor');
+            fetchPlaylists();
             return true;
         } catch (error) {
-            console.error('Error removing song from playlist:', error);
+            console.error('Error removing song from playlist on server, using local:', error);
+            // Fallback: remove locally
+            const current = getLocalPlaylists();
+            const playlistIndex = current.findIndex(p => p.id === playlistId);
+
+            if (playlistIndex !== -1) {
+                const playlist = current[playlistIndex];
+                if (playlist.songs) {
+                    playlist.songs = playlist.songs.filter(s => s.id !== cancionId);
+                    current[playlistIndex] = playlist;
+                    saveLocalPlaylists(current);
+                    console.log('✅ Canción eliminada de playlist local');
+                    return true;
+                }
+            }
             return false;
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [fetchPlaylists]);
 
     // Delete playlist
     const deletePlaylist = useCallback(async (playlistId) => {
         setLoading(true);
         try {
             await api.delete(`/playlists/${playlistId}`);
-            setPlaylists(prev => prev.filter(p => p.id !== playlistId));
-            console.log('✅ Playlist eliminada');
+            setPlaylists(prev => {
+                const updated = prev.filter(p => p.id !== playlistId);
+                localStorage.setItem('tidol_playlists', JSON.stringify(updated));
+                return updated;
+            });
+            console.log('✅ Playlist eliminada del servidor');
             return true;
         } catch (error) {
-            console.error('Error deleting playlist:', error);
-            return false;
+            console.error('Error deleting playlist on server, using local:', error);
+            // Fallback: delete locally
+            const current = getLocalPlaylists();
+            const updated = current.filter(p => p.id !== playlistId);
+            saveLocalPlaylists(updated);
+            console.log('✅ Playlist eliminada localmente');
+            return true;
         } finally {
             setLoading(false);
         }

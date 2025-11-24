@@ -14,6 +14,7 @@ import PlayerSheet from './components/PlayerSheet';
 import GlobalBackground from './components/GlobalBackground';
 import AddToPlaylistModal from './components/AddToPlaylistModal';
 import { usePlayer } from './context/PlayerContext';
+import LiquidFilter from './components/LiquidFilter';
 
 // PÁGINAS (Lazy Loading)
 const HomePage = lazy(() => import('./pages/HomePage'));
@@ -28,6 +29,7 @@ const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const LibraryPage = lazy(() => import('./pages/LibraryPage'));
 const TermsPage = lazy(() => import('./pages/TermsPage'));
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
+const PlaylistPage = lazy(() => import('./pages/PlaylistPage'));
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -54,10 +56,30 @@ function ProtectedRoute({ children }) {
 function AppLayout() {
   const [contextItem, setContextItem] = useState(null);
   const location = useLocation();
-  const { currentSong } = usePlayer(); // 1. Obtenemos la canción actual del reproductor
+  const { currentSong, addToQueue, playNext } = usePlayer();
 
   const handleContextAction = (action, data) => {
     if (action === "setItem") return setContextItem(data);
+
+    const song = {
+      id: data.id,
+      titulo: data.titulo || data.title,
+      artista: data.artista || data.artist,
+      album: data.album,
+      url: data.url,
+      portada: data.portada || data.image || data.cover,
+      duracion: data.duration,
+      source: data.source,
+      format: data.format,
+      quality: data.quality
+    };
+
+    if (action === "addToQueue") {
+      addToQueue(song);
+    } else if (action === "queueNext") {
+      playNext(song);
+    }
+
     setContextItem(null);
   };
 
@@ -116,6 +138,7 @@ function AppLayout() {
 
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/library" element={<LibraryPage />} />
+                <Route path="/playlist/:id" element={<PlaylistPage />} />
               </Routes>
             </Suspense>
           </main>

@@ -1,22 +1,21 @@
-/* ==================== PLAYER BAR (BASE / PC) ==================== */
+/* ==================== PLAYER CONTAINER BASE ==================== */
 .player-container {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  height: 90px;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.85));
-  backdrop-filter: blur(20px);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  /* background: rgba(24, 24, 24, 0.95); */
+  /* backdrop-filter: blur(20px); */
+  /* border-top: 1px solid rgba(255, 255, 255, 0.1); */
+  padding: 12px 24px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 20px;
+  gap: 20px;
   z-index: 1000;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+  transition: all 0.3s ease;
 }
 
-/* Cuando está dentro del PlayerSheet (Reset de estilos) */
 .player-container.in-sheet {
   position: relative;
   bottom: auto !important;
@@ -31,7 +30,14 @@
   box-shadow: none;
 }
 
-/* Left Section */
+/* Remove hover lift effect for player bar */
+.player-container.glass-card:hover {
+  transform: none !important;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4) !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+}
+
+/* ==================== LEFT SECTION ==================== */
 .player-left {
   display: flex;
   align-items: center;
@@ -40,7 +46,6 @@
   min-width: 0;
 }
 
-/* Ajuste para in-sheet */
 .player-container.in-sheet .player-left {
   flex: 1;
   max-width: none;
@@ -53,6 +58,7 @@
   object-fit: cover;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
   transition: transform 0.2s ease;
+  cursor: pointer;
 }
 
 .player-container.in-sheet .player-cover {
@@ -100,6 +106,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: block;
 }
 
 .track-quality {
@@ -107,9 +114,10 @@
   color: #1db954;
   font-weight: 500;
   margin-top: 2px;
+  display: block;
 }
 
-/* Center Section */
+/* ==================== CENTER SECTION ==================== */
 .player-center {
   display: flex;
   flex-direction: column;
@@ -221,13 +229,25 @@
   opacity: 1;
 }
 
-/* Right Section */
+/* ==================== RIGHT SECTION ==================== */
 .player-right {
   display: flex;
   align-items: center;
   gap: 10px;
   flex: 0 0 200px;
   justify-content: flex-end;
+}
+
+.player-volume-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.player-mobile-controls {
+  display: none;
+  align-items: center;
+  gap: 12px;
 }
 
 .volume-btn {
@@ -238,6 +258,9 @@
   padding: 8px;
   border-radius: 50%;
   transition: background 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .volume-btn:hover {
@@ -281,6 +304,7 @@
   height: 2px;
   background: rgba(255, 255, 255, 0.2);
   display: none;
+  z-index: 10;
 }
 
 .progress-line-bar {
@@ -295,19 +319,18 @@
   position: fixed;
   top: 0;
   left: 0;
-  /* Configuración para PC: Ocupa todo */
   width: 100vw;
   height: 100vh;
   margin: 0;
   padding: 0;
   z-index: 2147483647;
-  /* Máximo z-index */
   display: flex;
   align-items: center;
   justify-content: center;
   animation: fadeIn 0.3s ease;
   background: #000;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 @keyframes fadeIn {
@@ -330,6 +353,7 @@
   background-position: center;
   filter: blur(60px) brightness(0.6);
   transform: scale(1.1);
+  z-index: 0;
 }
 
 .fullscreen-overlay {
@@ -339,11 +363,46 @@
   width: 100%;
   height: 100%;
   background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.95));
+  z-index: 0;
+}
+
+.fullscreen-overlay::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at center,
+      rgba(255, 255, 255, 0.05) 0%,
+      transparent 60%);
+  /* filter: url(#liquid-distortion); */
+  opacity: 0.7;
+  pointer-events: none;
+  z-index: 1;
+  animation: liquidBreathing 15s ease-in-out infinite alternate;
+}
+
+@keyframes liquidBreathing {
+  0% {
+    transform: scale(1) rotate(0deg);
+    opacity: 0.7;
+  }
+
+  50% {
+    transform: scale(1.05) rotate(2deg);
+    opacity: 0.5;
+  }
+
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 0.7;
+  }
 }
 
 .fullscreen-content {
   position: relative;
-  z-index: 1;
+  z-index: 10;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -370,6 +429,7 @@
   justify-content: center;
   transition: all 0.2s ease;
   backdrop-filter: blur(10px);
+  z-index: 20;
 }
 
 .fullscreen-close:hover {
@@ -584,28 +644,40 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-/* ==================== RESPONSIVE MOBILE (CONSERVADO EXACTAMENTE) ==================== */
+/* ==================== RESPONSIVE MOBILE ==================== */
 @media (max-width: 768px) {
 
   /* OCULTAR CONTROLES CENTRALES EN MOBILE */
   .player-center {
-    display: none;
+    display: none !important;
+  }
+
+  /* Ocultar controles de volumen en mobile */
+  .player-volume-controls {
+    display: none !important;
+  }
+
+  /* Mostrar controles móviles */
+  .player-mobile-controls {
+    display: flex !important;
+  }
+
+  /* Ocultar info extra del track */
+  .track-album,
+  .track-quality {
+    display: none !important;
   }
 
   /* PLAYER COMPACTO SOBRE EL BOTTOM NAV */
   .player-container {
     height: 64px;
     padding: 0 16px;
-    /* Bottom Nav = 64px, Player encima */
     bottom: 64px;
-    /* Safe area para notch */
     bottom: calc(64px + env(safe-area-inset-bottom));
   }
 
-  /* Reset para in-sheet en móvil */
   .player-container.in-sheet {
     bottom: auto !important;
-    /* Asegurado */
     padding: 0 16px;
     height: 100%;
   }
@@ -638,20 +710,10 @@
     font-size: 12px;
   }
 
-  .track-album,
-  .track-quality {
-    display: none;
-  }
-
   .player-right {
     flex: 0 0 auto;
     justify-content: flex-end;
     gap: 8px;
-  }
-
-  .player-right .volume-btn,
-  .player-right .volume-slider {
-    display: none;
   }
 
   .player-right .control-btn {
@@ -673,7 +735,7 @@
     color: #fff;
   }
 
-  /* FULLSCREEN EN MÓVIL - Mantiene espacio para Header y Nav */
+  /* FULLSCREEN EN MÓVIL */
   .fullscreen-player {
     top: 64px;
     height: calc(100vh - 128px - env(safe-area-inset-bottom));

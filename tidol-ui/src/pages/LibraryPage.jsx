@@ -104,9 +104,9 @@ export default function LibraryPage() {
   };
 
   return (
-    <div className="library-container" {...swipeHandlers}>
+    <div className="lib-container" {...swipeHandlers}>
       {/* CHIPS */}
-      <div className="chips-row">
+      <div className="lib-chips-row">
         {[
           { key: "favorites", label: "Favoritos" },
           { key: "ia-likes", label: "IA Likes" },
@@ -114,7 +114,7 @@ export default function LibraryPage() {
         ].map((c) => (
           <button
             key={c.key}
-            className={`chip ${currentView === c.key ? "active" : ""}`}
+            className={`lib-chip ${currentView === c.key ? "active" : ""}`}
             onClick={() => setCurrentView(c.key)}
           >
             {c.label}
@@ -122,7 +122,7 @@ export default function LibraryPage() {
         ))}
 
         <button
-          className="chip layout-chip"
+          className="lib-chip layout-chip"
           onClick={() => setLayout(layout === "grid" ? "list" : "grid")}
         >
           {layout === "grid" ? "📄 Lista" : "🔳 Grid"}
@@ -130,28 +130,28 @@ export default function LibraryPage() {
       </div>
 
       {/* HEADER */}
-      <div className="library-header glass-card">
-        <div className="header-image-wrapper">
-          <img src={favImage} alt="Header" className="library-header-img" />
+      <div className="lib-header glass-card">
+        <div className="lib-header-img-wrapper">
+          <img src={favImage} alt="Header" className="lib-header-img" />
         </div>
-        <div className="header-text">
-          <h5 className="library-subtitle">Colección</h5>
-          <h1 className="library-title">
+        <div className="lib-header-text">
+          <h5 className="lib-subtitle">Colección</h5>
+          <h1 className="lib-title">
             {currentView === "favorites" && "Tus Favoritos"}
             {currentView === "ia-likes" && "Internet Archive"}
             {currentView === "playlists" && "Tus Playlists"}
           </h1>
-          <p className="library-count">{data.length} elementos</p>
+          <p className="lib-count">{data.length} elementos</p>
         </div>
       </div>
 
       {/* CONTENIDO */}
-      <div className={`library-grid ${layout}`}>
-        {loading && <div className="loader">Cargando...</div>}
+      <div className={`lib-grid ${layout}`}>
+        {loading && <div className="lib-loader">Cargando...</div>}
 
         {!loading && data.length === 0 && (
-          <div className="library-empty">
-            <p className="library-empty-text">No hay nada por aquí aún.</p>
+          <div className="lib-empty">
+            <p className="lib-empty-text">No hay nada por aquí aún.</p>
           </div>
         )}
 

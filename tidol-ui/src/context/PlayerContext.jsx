@@ -266,6 +266,17 @@ export function PlayerProvider({ children }) {
     });
   }, [currentIndex]);
 
+  const reorderQueue = useCallback((newQueue) => {
+    // Encontrar la canción actual en la nueva cola para actualizar el índice
+    if (currentSong) {
+      const newIndex = newQueue.findIndex(s => s.id === currentSong.id);
+      if (newIndex !== -1) {
+        setCurrentIndex(newIndex);
+      }
+    }
+    setOriginalQueue(newQueue);
+  }, [currentSong]);
+
   const togglePlayPause = useCallback(() => {
     if (!audioRef.current) return;
     if (isPlaying) {
@@ -437,7 +448,7 @@ export function PlayerProvider({ children }) {
         title: currentSong.titulo || currentSong.title || '',
         artist: currentSong.artista || currentSong.artist || '',
         artwork: [
-          { src: currentSong.portada, sizes: '512x512', type: 'image/png' }
+          { src: currentSong.portada || '/default_cover.png', sizes: '512x512', type: 'image/png' }
         ]
       });
 
@@ -495,7 +506,11 @@ export function PlayerProvider({ children }) {
         closeFullScreenPlayer,
         toggleLike,
         isSongLiked,
-        likedSongs
+        isSongLiked,
+        likedSongs,
+        originalQueue,
+        currentIndex,
+        reorderQueue
       }}
     >
       {children}

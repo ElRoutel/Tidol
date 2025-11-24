@@ -119,7 +119,7 @@ const PlayerSheet = () => {
             onDragEnd={handleDragEnd}
             animate={controls}
             initial={initialPositions.collapsed}
-            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            transition={{ type: "spring", damping: 40, stiffness: 300, mass: 0.8 }}
             style={{
                 position: "fixed",
                 top: 0,

@@ -1,5 +1,7 @@
 import dotenv from "dotenv";
 dotenv.config();
+
+
 import express from "express";
 import cors from "cors";
 import path from "path";
@@ -16,7 +18,7 @@ import uploadRoutes from "./routes/upload.routes.js";
 import historyRoutes from "./routes/history.routes.js";
 import playlistsRoutes from "./routes/playlists.js";
 import albumesRoutes from "./routes/albumes.js";
-
+import helmet from "helmet";
 async function showAnimatedBanner() {
   console.clear();
 
@@ -63,10 +65,13 @@ function logStatus(name, success, info = "") {
   const icon = success ? "✅" : "❌";
   console.log(`${icon} ${name} ${info}`);
 }
-
+app.use(helmet());
 app.use(express.json());
 app.use(cors());
-
+app.use(express.json({
+  limit: "10mb",
+  strict: true,
+}));
 const UPLOADS_DIR = path.join(__dirname, "uploads");
 app.use("/uploads", express.static(UPLOADS_DIR));
 
