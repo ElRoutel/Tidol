@@ -1,131 +1,79 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useSwipeable } from "react-swipeable";
 import { usePlayer } from "../context/PlayerContext";
 import api from "../api/axiosConfig";
-import '../styles/glass.css';
-import favImage from "./favImage.jpg";
+import favImage from "./favImage.jpg"; // Asegúrate de que esta ruta sea correcta
+import "../styles/glass.css";
 import "./Library.css";
 
-// Componente para la fila de canción en la lista
-function SongListItem({ song, onPlay, isActive, isArchive = false }) {
-  const formatDuration = (s) => {
-    if (!s || isNaN(s)) return '--:--';
-    const minutes = Math.floor(s / 60);
-    const seconds = Math.floor(s % 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
-
-  // LÓGICA CORREGIDA: El backend ahora envía 'titulo' y 'artista' unificados
-  // Usamos || para tener soporte retroactivo por si acaso.
-  const displayTitle = song.titulo || song.title || "Sin título";
-  const displayArtist = song.artista || song.artist || "Desconocido";
-  const displayCover = song.portada || song.cover_url || '/default_cover.png';
-  const displayDuration = song.duration || song.duracion;
-
+// Componente extraído para limpieza
+const LibraryItem = ({ title, subtitle, image, isActive, onClick, view, type }) => {
   return (
-    <div 
-      className={`song-list-item ${isActive ? 'playing' : ''}`} 
-      onClick={onPlay}
+    <div
+      className={`library-card ${view} ${isActive ? "active" : ""}`}
+      data-type={type} // 'square' o 'artist'
+      onClick={onClick}
     >
-      <img
-        className="song-list-cover"
-        src={displayCover}
-        alt={displayTitle}
-      />
-      <div className="song-list-info">
-        <span className="title">{displayTitle}</span>
-        <span className="artist">{displayArtist}</span>
+      <div className="img-container">
+        <img src={image} alt={title} className="library-img" loading="lazy" />
+        {/* Overlay opcional para play icon al hacer hover */}
+        <div className="play-overlay">▶</div>
       </div>
-      <div className="song-list-duration">
-        {formatDuration(displayDuration)}
-      </div>
-    </div>
-  );
-}
 
-function PlaylistItem({ playlist, onSelect }) {
-  return (
-    <div className="playlist-item" onClick={onSelect}>
-      <img
-        src={playlist.portada || "https://via.placeholder.com/150"}
-        alt={playlist.nombre}
-        className="playlist-img"
-      />
-      <div className="playlist-info">
-        <p className="playlist-name">{playlist.nombre}</p>
-        <p className="playlist-count">{playlist.canciones?.length || 0} canciones</p>
+      <div className="library-info">
+        <h3 className="library-name" title={title}>{title}</h3>
+        <p className="library-artist">{subtitle}</p>
       </div>
     </div>
   );
-}
+};
 
 export default function LibraryPage() {
   const [songs, setSongs] = useState([]);
   const [iaLikes, setIaLikes] = useState([]);
   const [playlists, setPlaylists] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingIaLikes, setLoadingIaLikes] = useState(false);
-  const [loadingPlaylists, setLoadingPlaylists] = useState(false);
+  const [loading, setLoading] = useState(false);
+
   const [currentView, setCurrentView] = useState("favorites");
+  const [layout, setLayout] = useState("grid");
   const { playSongList, currentSong } = usePlayer();
 
-  // ✅ Carga likes locales
-  useEffect(() => {
-    const getLikes = async () => {
-      try {
-        setLoading(true);
-        const res = await api.get("/music/songs/likes");
-        setSongs(res.data || []);
-      } catch (e) {
-        console.error("Error obteniendo likes locales:", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    getLikes();
+  // Función genérica para fetching
+  const fetchData = useCallback(async (endpoint, setter) => {
+    setLoading(true);
+    try {
+      const res = await api.get(endpoint);
+      setter(res.data || []);
+    } catch (err) {
+      console.error("Error fetching data:", err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // ✅ Carga likes de IA SOLO cuando cambias a esa vista
+  // === LOAD FAVORITES ===
   useEffect(() => {
-    if (currentView === "ia-likes" && iaLikes.length === 0 && !loadingIaLikes) {
-      const getIaLikes = async () => {
-        setLoadingIaLikes(true);
-        try {
-          const res = await api.get("/music/ia/likes");
-          setIaLikes(res.data || []);
-        } catch (e) {
-          console.error("Error obteniendo likes de IA:", e);
-        } finally {
-          setLoadingIaLikes(false);
-        }
-      };
-
-      getIaLikes();
+    if (currentView === "favorites" && songs.length === 0) {
+      fetchData("/music/songs/likes", setSongs);
     }
-  }, [currentView]);
+  }, [currentView, songs.length, fetchData]);
 
-  // ✅ Carga playlists SOLO cuando cambias a esa vista
+  // === LOAD IA ===
   useEffect(() => {
-    if (currentView === "playlists" && playlists.length === 0 && !loadingPlaylists) {
-      const getPlaylists = async () => {
-        setLoadingPlaylists(true);
-        try {
-          const res = await api.get("/playlists");
-          setPlaylists(res.data || []);
-        } catch (e) {
-          console.error("Error obteniendo playlists:", e);
-        } finally {
-          setLoadingPlaylists(false);
-        }
-      };
-
-      getPlaylists();
+    if (currentView === "ia-likes" && iaLikes.length === 0) {
+      fetchData("/music/ia/likes", setIaLikes);
     }
-  }, [currentView]);
+  }, [currentView, iaLikes.length, fetchData]);
 
-  // Gestos de swipe
-  const handlers = useSwipeable({
+  // === LOAD PLAYLISTS ===
+  useEffect(() => {
+    if (currentView === "playlists" && playlists.length === 0) {
+      fetchData("/playlists", setPlaylists);
+    }
+  }, [currentView, playlists.length, fetchData]);
+
+  // === SWIPE LOGIC ===
+  const swipeHandlers = useSwipeable({
     onSwipedLeft: () => {
       if (currentView === "favorites") setCurrentView("ia-likes");
       else if (currentView === "ia-likes") setCurrentView("playlists");
@@ -134,166 +82,126 @@ export default function LibraryPage() {
       if (currentView === "playlists") setCurrentView("ia-likes");
       else if (currentView === "ia-likes") setCurrentView("favorites");
     },
-    preventScrollOnSwipe: true,
+    delta: 50,
     trackMouse: true,
-    delta: 50
   });
 
-  const handlePlayPlaylist = async (playlistId) => {
+  // PLAY PLAYLIST
+  const handlePlayPlaylist = async (id) => {
     try {
-      const res = await api.get(`/playlists/${playlistId}/songs`);
-      if (res.data?.length > 0) {
+      const res = await api.get(`/playlists/${id}/songs`);
+      if (res.data && res.data.length > 0) {
         playSongList(res.data, 0);
+      } else {
+        alert("Esta playlist está vacía");
       }
-    } catch (e) {
-      console.error("Error cargando playlist:", e);
+    } catch (err) {
+      console.error(err);
     }
   };
 
+  // SELECTOR DE DATOS
+  const renderData = () => {
+    switch (currentView) {
+      case "favorites": return songs;
+      case "ia-likes": return iaLikes;
+      case "playlists": return playlists;
+      default: return [];
+    }
+  };
+
+  const data = renderData();
+
+  // HELPER PARA SUBTÍTULOS (Corrige el bug lógico)
+  const getSubtitle = (item) => {
+    if (currentView === "playlists") {
+      // Si tiene array de canciones, mostramos la cantidad, si no, 0
+      const count = item.canciones ? item.canciones.length : 0;
+      return `${count} canciones`;
+    }
+    // Para canciones normales o IA
+    return item.artista || item.artist || item.subtitle || "Desconocido";
+  };
+
   return (
-    <div className="library-container" {...handlers}>
-      {/* Tabs */}
-      <div className="library-tabs">
+    <div className="library-container" {...swipeHandlers}>
+      {/* CHIPS */}
+      <div className="chips-row">
+        {[
+          { key: "favorites", label: "Favoritos" },
+          { key: "ia-likes", label: "IA Likes" },
+          { key: "playlists", label: "Playlists" },
+        ].map((c) => (
+          <button
+            key={c.key}
+            className={`chip ${currentView === c.key ? "active" : ""}`}
+            onClick={() => setCurrentView(c.key)}
+          >
+            {c.label}
+          </button>
+        ))}
+
         <button
-          className={`library-tab ${currentView === "favorites" ? "active" : ""}`}
-          onClick={() => setCurrentView("favorites")}
+          className="chip layout-chip"
+          onClick={() => setLayout(layout === "grid" ? "list" : "grid")}
         >
-          Favoritos
-        </button>
-        <button
-          className={`library-tab ${currentView === "ia-likes" ? "active" : ""}`}
-          onClick={() => setCurrentView("ia-likes")}
-        >
-          Internet Archive
-        </button>
-        <button
-          className={`library-tab ${currentView === "playlists" ? "active" : ""}`}
-          onClick={() => setCurrentView("playlists")}
-        >
-          Playlists
+          {layout === "grid" ? "📄 Lista" : "🔳 Grid"}
         </button>
       </div>
 
-      {/* Vista Favoritos */}
-      {currentView === "favorites" && (
-        <div className="library-view-content">
-          <div className="library-header glass-card">
-            <img src={favImage} alt="Favoritos" className="library-header-img" />
-            <div>
-              <p className="library-header-type">Playlist</p>
-              <h1 className="library-title">Favoritos</h1>
-              <p className="library-header-count">
-                {loading ? "..." : `${songs.length} canciones`}
-              </p>
-            </div>
-          </div>
-
-          {!loading && songs.length > 0 && (
-            <div className="library-song-list">
-              {songs.map((song, i) => (
-                <SongListItem
-                  key={song.id || i}
-                  song={song}
-                  // Para canciones locales, source suele ser null o 'local'
-                  isActive={currentSong?.id === song.id && currentSong?.source !== 'internet_archive'}
-                  onPlay={() => playSongList(songs, i)}
-                />
-              ))}
-            </div>
-          )}
-
-          {!loading && songs.length === 0 && (
-            <div className="library-empty glass-card">
-              <p className="library-empty-title">Nada por aquí 👀</p>
-              <p className="library-empty-text">
-                Marca canciones con ❤️ para que aparezcan aquí.
-              </p>
-            </div>
-          )}
+      {/* HEADER */}
+      <div className="library-header glass-card">
+        <div className="header-image-wrapper">
+          <img src={favImage} alt="Header" className="library-header-img" />
         </div>
-      )}
-
-      {/* Vista Internet Archive Likes */}
-      {currentView === "ia-likes" && (
-        <div className="library-view-content">
-          <div className="library-header glass-card">
-            <img src={favImage} alt="Internet Archive" className="library-header-img" />
-            <div>
-              <p className="library-header-type">Colección</p>
-              <h1 className="library-title">Internet Archive</h1>
-              <p className="library-header-count">
-                {loadingIaLikes ? "..." : `${iaLikes.length} canciones`}
-              </p>
-            </div>
-          </div>
-
-          {!loadingIaLikes && iaLikes.length > 0 && (
-            <div className="library-song-list">
-              {iaLikes.map((song, i) => (
-                <SongListItem
-                  key={song.id || i}
-                  song={song}
-                  isArchive={true}
-                  // La comparación debe ser por identifier Y source
-                  isActive={currentSong?.identifier === song.identifier && currentSong?.source === 'internet_archive'}
-                  onPlay={() => {
-                    // El backend ya envía la estructura correcta:
-                    // { titulo, artista, portada, url, duration, source: 'internet_archive' }
-                    // No necesitamos mapear nada extra.
-                    playSongList(iaLikes, i);
-                  }}
-                />
-              ))}
-            </div>
-          )}
-
-          {!loadingIaLikes && iaLikes.length === 0 && (
-            <div className="library-empty glass-card">
-              <p className="library-empty-title">Nada por aquí 🌐</p>
-              <p className="library-empty-text">
-                Marca canciones de Internet Archive con ❤️ para que aparezcan aquí.
-              </p>
-            </div>
-          )}
+        <div className="header-text">
+          <h5 className="library-subtitle">Colección</h5>
+          <h1 className="library-title">
+            {currentView === "favorites" && "Tus Favoritos"}
+            {currentView === "ia-likes" && "Internet Archive"}
+            {currentView === "playlists" && "Tus Playlists"}
+          </h1>
+          <p className="library-count">{data.length} elementos</p>
         </div>
-      )}
+      </div>
 
-      {/* Vista Playlists */}
-      {currentView === "playlists" && (
-        <div className="library-view-content">
-          <div className="library-header glass-card">
-            <div className="playlists-header-icon">🎵</div>
-            <div>
-              <p className="library-header-type">Mis Playlists</p>
-              <h1 className="library-title">Tus Colecciones</h1>
-              <p className="library-header-count">
-                {loadingPlaylists ? "..." : `${playlists.length} playlists`}
-              </p>
-            </div>
+      {/* CONTENIDO */}
+      <div className={`library-grid ${layout}`}>
+        {loading && <div className="loader">Cargando...</div>}
+
+        {!loading && data.length === 0 && (
+          <div className="library-empty">
+            <p className="library-empty-text">No hay nada por aquí aún.</p>
           </div>
+        )}
 
-          {!loadingPlaylists && playlists.length > 0 && (
-            <div className="playlists-list">
-              {playlists.map((playlist) => (
-                <PlaylistItem
-                  key={playlist.id}
-                  playlist={playlist}
-                  onSelect={() => handlePlayPlaylist(playlist.id)}
-                />
-              ))}
-            </div>
-          )}
+        {!loading && data.map((item, i) => {
+          // Generar un ID único robusto para la key
+          const uniqueKey = item.id || item.identifier || `idx-${i}`;
 
-          {!loadingPlaylists && playlists.length === 0 && (
-            <div className="library-empty glass-card">
-              <p className="library-empty-title">No tienes playlists 📝</p>
-              <p className="library-empty-text">
-                Próximamente podrás crearlas.
-              </p>
-            </div>
-          )}
-        </div>
-      )}
+          return (
+            <LibraryItem
+              key={uniqueKey}
+              title={item.titulo || item.title || item.nombre || "Sin título"}
+              subtitle={getSubtitle(item)}
+              image={item.portada || item.cover_url || favImage}
+              view={layout}
+              type={currentView === "playlists" ? "square" : "square"} // Podrías usar 'artist' si tu API lo soporta
+              isActive={
+                currentView === "favorites"
+                  ? currentSong?.id === item.id
+                  : currentView === "ia-likes"
+                    ? currentSong?.identifier === item.identifier
+                    : false
+              }
+              onClick={() => {
+                if (currentView === "playlists") handlePlayPlaylist(item.id);
+                else playSongList(data, i);
+              }}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-/* ==================== PLAYER BAR ==================== */
+/* ==================== PLAYER BAR (BASE / PC) ==================== */
 .player-container {
   position: fixed;
   bottom: 0;
@@ -16,7 +16,7 @@
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
 }
 
-/* Cuando está dentro del PlayerSheet */
+/* Cuando está dentro del PlayerSheet (Reset de estilos) */
 .player-container.in-sheet {
   position: relative;
   bottom: auto !important;
@@ -290,17 +290,18 @@
   transition: width 0.1s linear;
 }
 
-/* ==================== FULLSCREEN PLAYER (FIXED FOR PC) ==================== */
+/* ==================== FULLSCREEN PLAYER (DEFAULT / PC) ==================== */
 .fullscreen-player {
   position: fixed;
   top: 0;
   left: 0;
+  /* Configuración para PC: Ocupa todo */
   width: 100vw;
   height: 100vh;
   margin: 0;
   padding: 0;
   z-index: 2147483647;
-
+  /* Máximo z-index */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -583,7 +584,7 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-/* ==================== RESPONSIVE MOBILE ==================== */
+/* ==================== RESPONSIVE MOBILE (CONSERVADO EXACTAMENTE) ==================== */
 @media (max-width: 768px) {
 
   /* OCULTAR CONTROLES CENTRALES EN MOBILE */
@@ -595,10 +596,7 @@
   .player-container {
     height: 64px;
     padding: 0 16px;
-    /* 
-      Bottom Nav = 64px (h-16)
-      Player debe estar justo encima 
-    */
+    /* Bottom Nav = 64px, Player encima */
     bottom: 64px;
     /* Safe area para notch */
     bottom: calc(64px + env(safe-area-inset-bottom));
@@ -606,7 +604,8 @@
 
   /* Reset para in-sheet en móvil */
   .player-container.in-sheet {
-    bottom: auto;
+    bottom: auto !important;
+    /* Asegurado */
     padding: 0 16px;
     height: 100%;
   }
@@ -674,19 +673,14 @@
     color: #fff;
   }
 
-  /* FULLSCREEN EN MÓVIL - Respeta Header + Bottom Nav */
+  /* FULLSCREEN EN MÓVIL - Mantiene espacio para Header y Nav */
   .fullscreen-player {
-    /* 
-      Top: MobileHeader = 64px (h-16)
-      Bottom: BottomNav = 64px (h-16)
-    */
     top: 64px;
     height: calc(100vh - 128px - env(safe-area-inset-bottom));
     width: 100%;
     right: 0;
     bottom: auto;
     left: 0;
-    /* z-index más alto que todo excepto modales críticos */
     z-index: 9999;
   }
 
@@ -720,14 +714,11 @@
 @supports (padding: max(0px)) {
   @media (max-width: 768px) {
     .player-container {
-      /* Garantiza que nunca se oculte bajo gestos o notches */
       bottom: max(64px, calc(64px + env(safe-area-inset-bottom)));
     }
 
     .fullscreen-player {
-      /* Espacio superior para notch */
       top: max(64px, env(safe-area-inset-top));
-      /* Espacio inferior para gestos home */
       height: calc(100vh - 128px - max(0px, env(safe-area-inset-bottom)) - max(0px, env(safe-area-inset-top)));
     }
   }
