@@ -1,32 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useSwipeable } from "react-swipeable";
 import { usePlayer } from "../context/PlayerContext";
+import LibraryItem from "../components/LibraryItem";
 import api from "../api/axiosConfig";
 import favImage from "./favImage.jpg"; // Asegúrate de que esta ruta sea correcta
 import "../styles/glass.css";
 import "./Library.css";
 
-// Componente extraído para limpieza
-const LibraryItem = ({ title, subtitle, image, isActive, onClick, view, type }) => {
-  return (
-    <div
-      className={`library-card ${view} ${isActive ? "active" : ""}`}
-      data-type={type} // 'square' o 'artist'
-      onClick={onClick}
-    >
-      <div className="img-container">
-        <img src={image} alt={title} className="library-img" loading="lazy" />
-        {/* Overlay opcional para play icon al hacer hover */}
-        <div className="play-overlay">▶</div>
-      </div>
-
-      <div className="library-info">
-        <h3 className="library-name" title={title}>{title}</h3>
-        <p className="library-artist">{subtitle}</p>
-      </div>
-    </div>
-  );
-};
 
 export default function LibraryPage() {
   const [songs, setSongs] = useState([]);
@@ -185,15 +165,9 @@ export default function LibraryPage() {
               title={item.titulo || item.title || item.nombre || "Sin título"}
               subtitle={getSubtitle(item)}
               image={item.portada || item.cover_url || favImage}
-              view={layout}
-              type={currentView === "playlists" ? "square" : "square"} // Podrías usar 'artist' si tu API lo soporta
-              isActive={
-                currentView === "favorites"
-                  ? currentSong?.id === item.id
-                  : currentView === "ia-likes"
-                    ? currentSong?.identifier === item.identifier
-                    : false
-              }
+              viewMode={layout}
+              item={item}
+              type={currentView === "playlists" ? "playlist" : "song"}
               onClick={() => {
                 if (currentView === "playlists") handlePlayPlaylist(item.id);
                 else playSongList(data, i);

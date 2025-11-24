@@ -8,16 +8,16 @@
   --glass-blur-strong: 12px;
   --glass-blur-medium: 8px;
   --glass-blur-light: 6px;
-  
+
   /* Transparent Backgrounds for Immersive Mode */
   --glass-bg: rgba(255, 255, 255, 0.03);
   --glass-bg-2: rgba(255, 255, 255, 0.02);
   --glass-bg-shelf: transparent;
   --glass-bg-shelf-hover: rgba(255, 255, 255, 0.03);
-  
+
   --glass-border: rgba(255, 255, 255, 0.1);
   --glass-border-hover: rgba(255, 255, 255, 0.15);
-  
+
   /* Spacing Scale (8px base) */
   --space-xs: 0.5rem;
   --space-sm: 0.75rem;
@@ -26,7 +26,7 @@
   --space-xl: 2rem;
   --space-2xl: 2.5rem;
   --space-3xl: 3rem;
-  
+
   /* Typography Scale */
   --font-size-xs: 0.875rem;
   --font-size-sm: 1rem;
@@ -35,37 +35,37 @@
   --font-size-xl: 2rem;
   --font-size-2xl: 2.5rem;
   --font-size-3xl: 3rem;
-  
+
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 800;
-  
+
   /* Color Palette */
   --color-text-primary: #FFFFFF;
   --color-text-secondary: #B3B3B3;
   --color-text-tertiary: #808080;
-  
+
   /* Border Radius Scale */
   --radius-sm: 12px;
   --radius-md: 16px;
   --radius-lg: 20px;
-  
+
   /* Shadows */
   --shadow-sm: 0 4px 8px rgba(0, 0, 0, 0.15);
   --shadow-md: 0 8px 16px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 12px px rgba(0, 0, 0, 0.3);
-  
+
   /* Transitions */
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
-  
+
   /* Card Widths */
   --card-width-mobile: 160px;
   --card-width-tablet: 176px;
   --card-width-desktop: 192px;
   --card-width-large: 208px;
-  
+
   /* Scrollbar */
   --scrollbar-height: -16px;
   --scrollbar-track: transparent;
@@ -83,7 +83,8 @@
   isolation: isolate;
   contain: layout style;
   background: transparent;
-  overflow-x: clip; /* ✅ Evita scroll horizontal sin crear scroll container */
+  overflow-x: clip;
+  /* ✅ Evita scroll horizontal sin crear scroll container */
 }
 
 /* ============================================
@@ -102,12 +103,12 @@
   isolation: isolate;
   position: relative;
   overflow: hidden;
-  
+
   transform: translateZ(0);
   will-change: backdrop-filter;
   contain: layout paint;
-  
-  transition: 
+
+  transition:
     background-color var(--transition-normal),
     border-color var(--transition-normal),
     box-shadow var(--transition-normal),
@@ -121,7 +122,7 @@
   left: -10%;
   width: 120%;
   height: 120%;
-  background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.05), transparent 60%);
+  background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.05), transparent 60%);
   animation: liquidMove 8s infinite alternate ease-in-out;
   pointer-events: none;
   z-index: -1;
@@ -139,26 +140,29 @@
    HEADER
    ============================================ */
 .tidol-home-header {
-  padding: var(--space-xl) var(--space-lg); /* Reducido de 40px 30px */
+  padding: var(--space-xl) var(--space-lg);
+  /* Reducido de 40px 30px */
   margin-bottom: var(--space-lg);
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: 1px; /* Reducido de 200px */
-  background-image: linear-gradient(to right, rgba(29,185,84,0.1), transparent);
+  min-height: 1px;
+  /* Reducido de 200px */
+  background-image: linear-gradient(to right, rgba(29, 185, 84, 0.1), transparent);
 }
 
 /* ============================================
    TYPOGRAPHY
    ============================================ */
 .tidol-home-title {
-  font-size: var(--font-size-2xl); /* Reducido de 3rem */
+  font-size: var(--font-size-2xl);
+  /* Reducido de 3rem */
   font-weight: var(--font-weight-bold);
   color: #fff;
   margin: 0;
   letter-spacing: -1px;
   line-height: 1.2;
-  
+
   background: linear-gradient(135deg, #FFFFFF 0%, #B3B3B3 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -167,7 +171,8 @@
 }
 
 .tidol-home-subtitle {
-  font-size: var(--font-size-sm); /* Reducido de 1.2rem */
+  font-size: var(--font-size-sm);
+  /* Reducido de 1.2rem */
   color: rgba(255, 255, 255, 0.7);
   font-weight: var(--font-weight-medium);
   margin-top: 10px;
@@ -182,7 +187,8 @@
   flex-direction: column;
   gap: var(--space-md);
   contain: layout style;
-  overflow: visible; /* ✅ Permite que las animaciones se vean completamente */
+  overflow: visible;
+  /* ✅ Permite que las animaciones se vean completamente */
 }
 
 /* ============================================
@@ -192,17 +198,21 @@
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-lg);
-  padding-block: var(--space-md); /* ✅ AUMENTADO de --space-sm */
-  padding-inline: var(--space-xs); /* ✅ NUEVO - Espacio lateral */
-  margin-block: var(--space-xs); /* ✅ NUEVO - Margen vertical adicional */
-  
+  padding-block: var(--space-md);
+  /* ✅ AUMENTADO de --space-sm */
+  padding-inline: var(--space-xs);
+  /* ✅ NUEVO - Espacio lateral */
+  margin-block: var(--space-xs);
+  /* ✅ NUEVO - Margen vertical adicional */
+
   transform: translateZ(0);
   will-change: transform;
   isolation: isolate;
   contain: layout;
-  overflow: visible; /* ✅ CRÍTICO - Permite ver animaciones completas */
-  
-  transition: 
+  overflow: visible;
+  /* ✅ CRÍTICO - Permite ver animaciones completas */
+
+  transition:
     background-color var(--transition-normal),
     border-color var(--transition-normal),
     transform var(--transition-normal);
@@ -214,10 +224,21 @@
 }
 
 /* ✅ DELAYS ESCALONADOS CON nth-child */
-.tidol-shelf-wrapper:nth-child(1) { animation-delay: 0.05s; }
-.tidol-shelf-wrapper:nth-child(2) { animation-delay: 0.1s; }
-.tidol-shelf-wrapper:nth-child(3) { animation-delay: 0.2s; }
-.tidol-shelf-wrapper:nth-child(4) { animation-delay: 0.3s; }
+.tidol-shelf-wrapper:nth-child(1) {
+  animation-delay: 0.05s;
+}
+
+.tidol-shelf-wrapper:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.tidol-shelf-wrapper:nth-child(3) {
+  animation-delay: 0.2s;
+}
+
+.tidol-shelf-wrapper:nth-child(4) {
+  animation-delay: 0.3s;
+}
 
 /* ============================================
    CAROUSEL & SCROLLBAR
@@ -226,19 +247,22 @@
   display: flex;
   gap: var(--space-sm);
   overflow-x: auto;
-  overflow-y: visible; /* ✅ CRÍTICO - Permite ver hover effects */
+  overflow-y: visible;
+  /* ✅ CRÍTICO - Permite ver hover effects */
   overscroll-behavior-x: contain;
   scroll-snap-type: x mandatory;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
-  
+
   padding-inline: var(--space-xs);
-  padding-block: var(--space-sm); /* ✅ NUEVO - Padding vertical para hover */
+  padding-block: var(--space-sm);
+  /* ✅ NUEVO - Padding vertical para hover */
   scroll-padding-inline: var(--space-xs);
-  
+
   content-visibility: auto;
-  contain-intrinsic-size: auto 280px; /* ✅ AUMENTADO de 250px */
-  
+  contain-intrinsic-size: auto 280px;
+  /* ✅ AUMENTADO de 250px */
+
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
   scrollbar-gutter: stable;
@@ -273,13 +297,13 @@
   cursor: pointer;
   scroll-snap-align: start;
   scroll-snap-stop: normal;
-  
+
   contain: layout style;
   content-visibility: auto;
-  
+
   animation: tidol-card-enter var(--transition-slow) cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
   transition: transform var(--transition-fast), opacity var(--transition-fast);
-  
+
   user-select: none;
   -webkit-user-select: none;
 }
@@ -294,12 +318,14 @@
 }
 
 .tidol-card-item:hover {
-  transform: translateY(-12px); /* ✅ AUMENTADO de -4px para efecto más visible */
+  transform: translateY(-12px);
+  /* ✅ AUMENTADO de -4px para efecto más visible */
 }
 
 .tidol-card-item:hover :is(img, picture, video, canvas) {
   filter: brightness(1.1) saturate(1.1);
-  transform: scale(1.05); /* ✅ AUMENTADO de 1.03 */
+  transform: scale(1.05);
+  /* ✅ AUMENTADO de 1.03 */
 }
 
 .tidol-card-item:active :is(img, picture, video, canvas) {
@@ -315,18 +341,28 @@
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: var(--space-sm);
   margin-bottom: var(--space-sm);
-  padding-block: var(--space-sm); /* ✅ NUEVO - Espacio para animaciones */
+  padding-block: var(--space-sm);
+  /* ✅ NUEVO - Espacio para animaciones */
   contain: layout style;
   content-visibility: auto;
-  overflow: visible; /* ✅ Permite ver hover effects completos */
+  overflow: visible;
+  /* ✅ Permite ver hover effects completos */
 }
 
 /* ============================================
    ANIMATIONS
    ============================================ */
 @keyframes tidol-card-enter {
-  from { opacity: 0; transform: translateY(30px) scale(0.95); } /* ✅ AUMENTADO de 20px */
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+
+  /* ✅ AUMENTADO de 20px */
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .tidol-fade-in {
@@ -337,20 +373,31 @@
 .tidol-slide-up {
   animation: slideUp 0.6s ease-out forwards;
   opacity: 0;
-  transform: translateY(30px); /* ✅ AUMENTADO de 20px */
+  transform: translateY(30px);
+  /* ✅ AUMENTADO de 20px */
 }
 
-@keyframes fadeIn { 
-  to { opacity: 1; } 
+@keyframes fadeIn {
+  to {
+    opacity: 1;
+  }
 }
 
-@keyframes slideUp { 
-  to { opacity: 1; transform: translateY(0); } 
+@keyframes slideUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes liquidMove {
-  0% { transform: translate(-2%, -2%) scale(1); }
-  100% { transform: translate(2%, 2%) scale(1.05); }
+  0% {
+    transform: translate(-2%, -2%) scale(1);
+  }
+
+  100% {
+    transform: translate(2%, 2%) scale(1.05);
+  }
 }
 
 /* ============================================
@@ -363,49 +410,62 @@
     --font-size-2xl: 1.75rem;
     --font-size-sm: 0.875rem;
   }
-  
+
   .tidol-home-header {
     padding: var(--space-sm);
     margin-block-end: var(--space-sm);
   }
-  
+
   .tidol-shelf-wrapper {
-    padding-block: var(--space-sm); /* ✅ Mantiene espacio en móvil */
+    padding-block: var(--space-sm);
+    /* ✅ Mantiene espacio en móvil */
     padding-inline: var(--space-xs);
     margin-block: 0.25rem;
     border-radius: var(--radius-md);
     border: none;
   }
-  
+
   .tidol-card-item {
     inline-size: var(--card-width-mobile);
   }
-  
+
   .tidol-card-item:hover {
-    transform: translateY(-6px); /* ✅ Efecto reducido para móvil */
+    transform: translateY(-6px);
+    /* ✅ Efecto reducido para móvil */
   }
-  
+
   .tidol-shelf-scroll,
   .quick-picks-grid {
     gap: 0.5rem;
   }
-  
+
   .tidol-shelf-scroll {
     padding-inline: var(--space-xs);
     padding-block: var(--space-sm);
     contain-intrinsic-size: auto 260px;
   }
-  
+
   .quick-picks-grid {
     padding-block: var(--space-xs);
   }
 }
 
 @media (min-width: 768px) and (max-width: 1024px) {
-  :root { --font-size-2xl: 2rem; }
-  .tidol-home-header { padding: 1.75rem; }
-  .tidol-card-item { inline-size: var(--card-width-tablet); }
-  .tidol-shelf-wrapper { padding-block: var(--space-md); }
+  :root {
+    --font-size-2xl: 2rem;
+  }
+
+  .tidol-home-header {
+    padding: 1.75rem;
+  }
+
+  .tidol-card-item {
+    inline-size: var(--card-width-tablet);
+  }
+
+  .tidol-shelf-wrapper {
+    padding-block: var(--space-md);
+  }
 }
 
 @media (min-width: 1440px) {
@@ -416,18 +476,30 @@
     --font-size-2xl: 3rem;
     --font-size-sm: 1.125rem;
   }
-  .tidol-home-header { padding: var(--space-xl); margin-block-end: var(--space-lg); }
-  .tidol-home-content { gap: var(--space-lg); }
-  .tidol-shelf-wrapper { 
-    padding-block: var(--space-md); 
+
+  .tidol-home-header {
+    padding: var(--space-xl);
+    margin-block-end: var(--space-lg);
+  }
+
+  .tidol-home-content {
+    gap: var(--space-lg);
+  }
+
+  .tidol-shelf-wrapper {
+    padding-block: var(--space-md);
     margin-block: var(--space-xs);
   }
-  .tidol-card-item { 
-    inline-size: var(--card-width-large); 
+
+  .tidol-card-item {
+    inline-size: var(--card-width-large);
   }
+
   .tidol-card-item:hover {
-    transform: translateY(-10px); /* ✅ Efecto máximo en desktop grande */
+    transform: translateY(-10px);
+    /* ✅ Efecto máximo en desktop grande */
   }
+
   .tidol-shelf-scroll {
     contain-intrinsic-size: auto 300px;
     padding-block: var(--space-md);
@@ -438,15 +510,19 @@
    ACCESSIBILITY
    ============================================ */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-  
+
   .tidol-card-item:hover {
-    transform: none; /* ✅ Sin movimiento para usuarios sensibles */
+    transform: none;
+    /* ✅ Sin movimiento para usuarios sensibles */
   }
 }
 
@@ -460,6 +536,7 @@
 }
 
 @media (forced-colors: active) {
+
   .tidol-home-header,
   .tidol-shelf-wrapper {
     background-color: Canvas;
@@ -467,10 +544,157 @@
     border: 1px solid CanvasText;
     forced-color-adjust: none;
   }
-  
+
   .tidol-home-title {
     background: none;
     -webkit-text-fill-color: inherit;
     color: CanvasText;
+  }
+}
+
+/* =========================================================
+   CONTEXT MENU - LIQUID GLASS
+   ========================================================= */
+
+.tidol-context-menu {
+  position: fixed;
+  inset: 0;
+  display: none;
+  z-index: 9999;
+  backdrop-filter: blur(10px);
+  background: rgba(0, 0, 0, 0.25);
+  animation: tidol-menu-fade 180ms ease-out forwards;
+}
+
+.tidol-context-menu.active {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+/* ---------- Caja principal ---------- */
+.tidol-context-sheet {
+  position: absolute;
+  min-width: 240px;
+  max-width: 320px;
+  background: rgba(30, 30, 30, 0.55);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+
+  overflow: hidden;
+  isolation: isolate;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .45);
+
+  animation: tidol-menu-pop 180ms cubic-bezier(.34, 1.56, .64, 1);
+}
+
+/* ---------- Opciones ---------- */
+.tidol-context-option {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+
+  padding: .75rem 1rem;
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+
+  transition: background 120ms ease, opacity 120ms ease;
+}
+
+.tidol-context-option:hover {
+  background: rgba(255, 255, 255, .08);
+}
+
+.tidol-context-option:active {
+  background: rgba(255, 255, 255, .12);
+  opacity: .85;
+}
+
+/* ---------- Iconos ---------- */
+.tidol-context-option svg {
+  font-size: 1.15rem;
+  opacity: .85;
+  transition: opacity 100ms ease;
+}
+
+.tidol-context-option:hover svg {
+  opacity: 1;
+}
+
+/* ---------- Divisor líquido ---------- */
+.tidol-context-separator {
+  height: 1px;
+  margin: 4px 0;
+  background: linear-gradient(90deg,
+      transparent,
+      rgba(255, 255, 255, .18),
+      transparent);
+  pointer-events: none;
+}
+
+/* ---------- Animaciones ---------- */
+@keyframes tidol-menu-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes tidol-menu-pop {
+  0% {
+    transform: translateY(6px) scale(.94);
+    opacity: .3;
+  }
+
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* =========================================================
+   MOBILE MODE (BOTTOM SHEET)
+   ========================================================= */
+
+@media (max-width: 767px) {
+  .tidol-context-sheet {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+
+    width: 100%;
+    max-width: none;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+
+    transform-origin: bottom center;
+    animation: tidol-menu-bottom 190ms cubic-bezier(.3, 1.2, .4, 1);
+  }
+
+  @keyframes tidol-menu-bottom {
+    0% {
+      transform: translateY(50%) scale(.96);
+      opacity: .4;
+    }
+
+    100% {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+  }
+
+  .tidol-context-option {
+    padding: 1rem 1.25rem;
+    font-size: 1.05rem;
+  }
+
+  .tidol-context-option svg {
+    font-size: 1.3rem;
   }
 }

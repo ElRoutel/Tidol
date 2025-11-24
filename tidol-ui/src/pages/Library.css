@@ -1,321 +1,322 @@
-/* =========================================================
-   LIBRARY.CSS - TIDOL (Spotify Clone Style)
-   ========================================================= */
+/* ============================================
+   LIBRARY PAGE - MODERN GLASS DESIGN
+   ============================================ */
 
-/* --- 1. CONTENEDOR PRINCIPAL --- */
 .library-container {
   width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  padding-bottom: 140px;
   min-height: 100vh;
   overflow-x: hidden;
-  color: #ffffff;
-  position: relative;
-  padding: 1.5rem;
-  padding-bottom: 160px;
-  /* Más espacio para reproductor */
-  max-width: 1920px;
-  margin: 0 auto;
 }
 
-/* ================================
-   2. CHIPS / FILTROS
-================================ */
+/* ============================================
+   CHIPS ROW (NAVEGACIÓN)
+   ============================================ */
 .chips-row {
   display: flex;
-  gap: 10px;
-  padding-bottom: 1.5rem;
-  flex-wrap: wrap;
-  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.chips-row::-webkit-scrollbar {
+  height: 4px;
+}
+
+.chips-row::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
 }
 
 .chip {
-  border-radius: 20px;
-  /* Más redondeado estilo material/spotify */
-  padding: 8px 16px;
-  cursor: pointer;
-  background: rgba(255, 255, 255, 0.08);
-  color: #e0e0e0;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.65rem 1.25rem;
+  border-radius: 50px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  color: rgba(255, 255, 255, 0.7);
   font-size: 0.9rem;
   font-weight: 500;
-  transition: all 0.2s ease;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
   user-select: none;
 }
 
 .chip:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.9);
+  transform: translateY(-2px);
 }
 
 .chip.active {
-  background: #ffffff;
-  color: #000000;
-  font-weight: 700;
-  border-color: #ffffff;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1));
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 4px 20px rgba(255, 255, 255, 0.15);
 }
 
 .layout-chip {
   margin-left: auto;
-  /* Empuja a la derecha */
+  font-size: 0.85rem;
 }
 
-/* ================================
-   3. HEADER HERO
-================================ */
+/* ============================================
+   HEADER CON IMAGEN
+   ============================================ */
 .library-header {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 2rem;
   padding: 2rem;
-  margin-bottom: 2rem;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(0, 0, 0, 0) 100%);
+  margin-bottom: 2.5rem;
+  border-radius: 20px;
+  position: relative;
+  overflow: hidden;
+  min-height: 200px;
+}
+
+.header-image-wrapper {
+  flex-shrink: 0;
+  width: 180px;
+  height: 180px;
   border-radius: 16px;
-  transition: background 0.3s ease;
+  overflow: hidden;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+  position: relative;
 }
 
 .library-header-img {
-  width: 200px;
-  height: 200px;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
-  border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+  transition: transform 0.4s ease;
+}
+
+.library-header:hover .library-header-img {
+  transform: scale(1.05);
 }
 
 .header-text {
+  flex: 1;
   display: flex;
   flex-direction: column;
+  gap: 0.5rem;
 }
 
 .library-subtitle {
-  text-transform: uppercase;
   font-size: 0.85rem;
-  letter-spacing: 1px;
-  margin: 0 0 0.5rem 0;
-  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 600;
+  margin: 0;
 }
 
 .library-title {
-  font-size: 4rem;
-  /* Texto grande estilo Spotify Web */
-  font-weight: 900;
+  font-size: 3rem;
+  font-weight: 800;
   margin: 0;
-  line-height: 1;
-  letter-spacing: -0.03em;
+  color: #ffffff;
+  line-height: 1.1;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
 .library-count {
-  margin-top: 1rem;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 0.95rem;
-}
-
-/* ================================
-   4. GRID VS LIST
-================================ */
-.library-grid {
-  width: 100%;
-  transition: opacity 0.3s ease;
-}
-
-/* --- GRID MODE --- */
-.library-grid.grid {
-  display: grid;
-  /* Responsive grid robusto */
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 24px;
-}
-
-.library-grid.grid .library-card {
-  background: #181818;
-  /* Fondo sutil para cards en grid */
-  padding: 16px;
-}
-
-.library-grid.grid .library-img {
-  width: 100%;
-  aspect-ratio: 1/1;
-  margin-bottom: 1rem;
-  border-radius: 8px;
-}
-
-/* --- LIST MODE --- */
-.library-grid.list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  /* Menos espacio entre items de lista */
-}
-
-.library-grid.list .library-card {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 8px 16px;
-  border-radius: 6px;
-  background: transparent;
-  /* Lista suele ser transparente hasta hover */
-}
-
-.library-grid.list .library-img {
-  width: 50px;
-  height: 50px;
-  border-radius: 4px;
-  flex-shrink: 0;
-  /* Evita que la imagen se aplaste */
-}
-
-/* ================================
-   5. CARDS COMUNES
-================================ */
-.library-card {
-  cursor: pointer;
-  border-radius: 8px;
-  transition: background-color 0.3s ease;
-  position: relative;
-  overflow: hidden;
-}
-
-.library-card:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
-.library-card.active {
-  background-color: rgba(255, 255, 255, 0.2);
-}
-
-.img-container {
-  position: relative;
-}
-
-.play-overlay {
-  /* Icono de play que aparece al hacer hover en Grid */
-  position: absolute;
-  bottom: 8px;
-  right: 8px;
-  width: 40px;
-  height: 40px;
-  background: #1db954;
-  /* Verde Spotify */
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: black;
-  font-size: 18px;
-  opacity: 0;
-  transform: translateY(10px);
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-}
-
-.library-card:hover .play-overlay {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* Ocultar overlay en modo lista para limpieza */
-.library-grid.list .play-overlay {
-  display: none;
-}
-
-/* Imagen */
-.library-img {
-  object-fit: cover;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  transition: transform 0.3s ease;
-}
-
-/* ================================
-   6. TEXTOS (Truncamiento)
-================================ */
-.library-info {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-width: 0;
-  /* CRÍTICO para que el flex child respete el ellipsis */
-  flex: 1;
-}
-
-.library-name {
   font-size: 1rem;
-  font-weight: 700;
-  margin: 0 0 4px 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: #fff;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+  margin: 0.5rem 0 0 0;
 }
 
-.library-card.active .library-name {
-  color: #1db954;
+/* ============================================
+   GRID & LIST LAYOUTS
+   ============================================ */
+.library-grid {
+  display: grid;
+  gap: 1.5rem;
+  width: 100%;
 }
 
-.library-artist {
-  font-size: 0.85rem;
-  color: #b3b3b3;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
+/* GRID VIEW */
+.library-grid.grid {
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
 }
 
-/* ================================
-   7. ESTADO VACÍO / LOADER
-================================ */
-.library-empty {
-  grid-column: 1 / -1;
-  text-align: center;
-  padding: 4rem 1rem;
-  opacity: 0.6;
+/* LIST VIEW */
+.library-grid.list {
+  grid-template-columns: 1fr;
+  gap: 1rem;
 }
 
+/* ============================================
+   LOADER & EMPTY STATES
+   ============================================ */
 .loader {
   grid-column: 1 / -1;
   text-align: center;
-  padding: 2rem;
-  font-size: 1.2rem;
-  color: #1db954;
+  padding: 3rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1.1rem;
+  font-weight: 500;
 }
 
-/* ================================
-   8. MOBILE
-================================ */
-@media (max-width: 768px) {
-  .library-container {
-    padding: 1rem;
-    padding-bottom: 140px;
-  }
+.library-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 4rem 2rem;
+}
 
-  .library-header {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    padding: 1.5rem;
-    gap: 1rem;
-  }
+.library-empty-text {
+  font-size: 1.2rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+}
 
-  .library-header-img {
-    width: 160px;
-    height: 160px;
+/* ============================================
+   RESPONSIVE DESIGN
+   ============================================ */
+
+/* Tablets */
+@media (max-width: 1024px) {
+  .library-grid.grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   }
 
   .library-title {
     font-size: 2.5rem;
   }
 
-  /* Grid móvil de 2 columnas */
-  .library-grid.grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
+  .header-image-wrapper {
+    width: 150px;
+    height: 150px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .library-container {
+    padding: 1rem;
+    padding-bottom: 160px;
   }
 
-  /* Ajustes de tarjeta en móvil */
-  .library-grid.grid .library-card {
-    padding: 10px;
+  .library-header {
+    flex-direction: column;
+    text-align: center;
+    padding: 1.5rem;
+    gap: 1.5rem;
+  }
+
+  .header-image-wrapper {
+    width: 140px;
+    height: 140px;
+  }
+
+  .library-title {
+    font-size: 2rem;
+  }
+
+  .library-grid.grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 1rem;
+  }
+
+  .chips-row {
+    gap: 0.5rem;
   }
 
   .chip {
-    font-size: 0.8rem;
-    padding: 6px 12px;
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
   }
+}
+
+/* Small Mobile */
+@media (max-width: 480px) {
+  .library-grid.grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+
+  .library-title {
+    font-size: 1.75rem;
+  }
+
+  .header-image-wrapper {
+    width: 120px;
+    height: 120px;
+  }
+
+  .chip {
+    padding: 0.45rem 0.85rem;
+    font-size: 0.8rem;
+  }
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.library-grid>* {
+  animation: fadeIn 0.4s ease forwards;
+}
+
+.library-grid>*:nth-child(1) {
+  animation-delay: 0.05s;
+}
+
+.library-grid>*:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.library-grid>*:nth-child(3) {
+  animation-delay: 0.15s;
+}
+
+.library-grid>*:nth-child(4) {
+  animation-delay: 0.2s;
+}
+
+.library-grid>*:nth-child(5) {
+  animation-delay: 0.25s;
+}
+
+/* ============================================
+   SCROLLBAR STYLING
+   ============================================ */
+.library-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.library-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+
+.library-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+}
+
+.library-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
