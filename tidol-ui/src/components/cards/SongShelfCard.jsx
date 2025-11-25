@@ -1,13 +1,11 @@
 import React from 'react';
 import { usePlayer } from '../../context/PlayerContext';
-import React from 'react';
-import { usePlayer } from '../../context/PlayerContext';
 import { useContextMenu } from '../../context/ContextMenuContext';
 import { FaPlay, FaEllipsisH } from 'react-icons/fa';
 import '../../styles/cards.css';
 
 /**
- * Tarjeta vertical para mostrar una canción en un carrusel (Shelf).
+ * Tarjeta vertical para mostrar una canción en un carrusel(Shelf).
  * Muestra portada, título, artista y un botón de play al hacer hover.
  * Integra con el ContextMenu global mediante la clase 'song-item' y data attributes.
  */

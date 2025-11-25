@@ -1,112 +1,114 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { usePlayer } from '../context/PlayerContext';
-import Shelf from '../components/HomeShelf';
-import AlbumCard from '../components/AlbumCard';
-import SongShelfCard from '../components/cards/SongShelfCard';
-import SongGridCard from '../components/cards/SongGridCard';
-import api from '../api/axiosConfig';
+import { useHome } from '../hooks/useHome';
+import ChipsCarousel from '../components/home/ChipsCarousel';
+import SectionBlock from '../components/home/SectionBlock';
+import MediaCarousel from '../components/home/MediaCarousel';
+import ListGrid from '../components/home/ListGrid';
 import './HomePage.css';
-
-// Función para barajar un array (algoritmo de Fisher-Yates)
-const shuffleArray = (array) => {
-  let currentIndex = array.length, randomIndex;
-  while (currentIndex !== 0) {
-    randomIndex = Math.floor(Math.random() * currentIndex);
-    currentIndex--;
-    [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
-  }
-  return array;
-};
 
 export default function HomePage() {
   const { playSongList } = usePlayer();
-  const [quickPicks, setQuickPicks] = useState([]);
-
-  // Cargar datos para la sección rápida
-  useEffect(() => {
-    const fetchQuickPicks = async () => {
-      try {
-        const [historyRes, recsRes] = await Promise.all([
-          api.get('/history'),
-          api.get('/music/home-recommendations')
-        ]);
-        const combined = [...(historyRes.data?.slice(0, 6) || []), ...(recsRes.data?.slice(0, 6) || [])];
-        setQuickPicks(shuffleArray(combined));
-      } catch (error) {
-        console.error("Error cargando la sección rápida:", error);
-      }
-    };
-    fetchQuickPicks();
-  }, []);
+  const { selectedChip, setSelectedChip, isLoading, data } = useHome();
 
   const handlePlaySong = (song, index, songList) => {
+    // Si es una lista de canciones (MediaCarousel o ListGrid)
+    // pasamos la lista completa y el índice de inicio
     const playlist = songList.slice(index);
     playSongList(playlist, 0);
   };
 
+  if (isLoading) {
+    return (
+      <div className="tidol-home-container flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="tidol-home-container">
-      {/* Header con glassmorphism */}
-      <div className="tidol-home-header glass-card tidol-fade-in">
-        <h1 className="tidol-home-title">Inicio</h1>
-        <p className="tidol-home-subtitle">Tu música, siempre contigo</p>
+    <div className="tidol-home-container pb-32">
+      {/* Chips Carousel */}
+      <div className="sticky top-0 z-20 bg-[#0a0a0a]/95 backdrop-blur-xl pt-4 pb-2 -mx-4 px-4 md:mx-0 md:px-0">
+        <ChipsCarousel selectedChip={selectedChip} onSelectChip={setSelectedChip} />
       </div>
 
-      {/* Shelves con animaciones escalonadas */}
-      <div className="tidol-home-content">
-        {/* Nueva Sección Rápida en formato Grid */}
-        {quickPicks.length > 0 && (
-          <div className="tidol-shelf-wrapper tidol-slide-up">
-            <h2 className="text-3xl font-bold mb-4 text-white">Selección rápida</h2>
-            <div className="quick-picks-grid">
-              {quickPicks.slice(0, 6).map((song, index, songList) => (
-                <SongGridCard
-                  key={song.id || `${song.identifier}-${index}`}
-                  song={song}
-                  onPlay={() => handlePlaySong(song, index, songList)}
-                />
-              ))}
-            </div>
-          </div>
+      <div className="tidol-home-content space-y-8">
+
+        {/* Selección Rápida (Grid) */}
+        {data.quickSelection.length > 0 && (
+          <SectionBlock
+            title="Selección rápida"
+            subtitle="PARA EMPEZAR"
+            onMore={() => console.log('Ver más selección rápida')}
+          >
+            <ListGrid
+              items={data.quickSelection}
+              onPlay={(song, index) => handlePlaySong(song, index, data.quickSelection)}
+            />
+          </SectionBlock>
         )}
 
-        <div className="tidol-shelf-wrapper tidol-slide-up">
-          <Shelf
-            title="Escuchado Recientemente"
-            endpoint="/history"
-            renderItem={(song, index, songList) => (
-              <SongShelfCard 
-                key={song.id}
-                song={song}
-                onPlay={() => handlePlaySong(song, index, songList)}
-              />
-            )}
-          />
-        </div>
+        {/* Volver a escuchar (Carousel) */}
+        {data.recentListenings.length > 0 && (
+          <SectionBlock
+            title="Volver a escuchar"
+            subtitle="ROUTEL"
+            onMore={() => console.log('Ver más historial')}
+            showControls
+          >
+            <MediaCarousel
+              items={data.recentListenings}
+              type="song"
+              onPlay={(song, index) => handlePlaySong(song, index, data.recentListenings)}
+            />
+          </SectionBlock>
+        )}
 
-        <div className="tidol-shelf-wrapper tidol-slide-up">
-          <Shelf
-            title="Para ti"
-            endpoint="/music/home-recommendations"
-            renderItem={(song, index, songList) => (
-              <SongShelfCard
-                key={song.id}
-                song={song}
-                onPlay={() => handlePlaySong(song, index, songList)}
-              />
-            )}
-          />
-        </div>
+        {/* Programas para ti (Podcasts) */}
+        {data.programs.length > 0 && (
+          <SectionBlock
+            title="Programas para ti"
+            subtitle="PODCASTS"
+            showControls
+          >
+            <MediaCarousel
+              items={data.programs}
+              type="song" // Tratamos podcasts como songs por ahora
+              onPlay={(song, index) => handlePlaySong(song, index, data.programs)}
+            />
+          </SectionBlock>
+        )}
 
-        <div className="tidol-shelf-wrapper tidol-slide-up">
-          <Shelf
-            title="Álbumes Populares"
-            endpoint="/music/albums"
-            renderItem={(album, index) => (
-              <AlbumCard key={album.id} album={album} />
-            )}
-          />
-        </div>
+        {/* Álbumes recomendados */}
+        {data.albums.length > 0 && (
+          <SectionBlock
+            title="Álbumes recomendados"
+            subtitle="NUEVOS LANZAMIENTOS"
+            showControls
+          >
+            <MediaCarousel
+              items={data.albums}
+              type="album"
+            />
+          </SectionBlock>
+        )}
+
+        {/* Covers y Remixes */}
+        {data.coversRemixes.length > 0 && (
+          <SectionBlock
+            title="Covers y Remixes"
+            subtitle="DESCUBRE MÁS"
+            showControls
+          >
+            <MediaCarousel
+              items={data.coversRemixes}
+              type="song"
+              onPlay={(song, index) => handlePlaySong(song, index, data.coversRemixes)}
+            />
+          </SectionBlock>
+        )}
+
       </div>
     </div>
   );

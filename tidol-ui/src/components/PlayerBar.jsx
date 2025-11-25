@@ -47,6 +47,48 @@ export default function PlayerBar({ isSheetMode = false }) {
     isFullScreenOpen
   } = usePlayer();
 
+  // Estado local para el slider de progreso (evita saltos al arrastrar)
+  const [isDragging, setIsDragging] = useState(false);
+  const [localProgress, setLocalProgress] = useState(0);
+
+  // Sincronizar progreso local con el real cuando no se está arrastrando
+  useEffect(() => {
+    if (!isDragging) {
+      setLocalProgress(progress || 0);
+    }
+  }, [progress, isDragging]);
+
+  // Cargar volumen de localStorage al inicio
+  useEffect(() => {
+    const savedVolume = localStorage.getItem('userPreferences.volume');
+    if (savedVolume !== null) {
+      changeVolume(parseFloat(savedVolume));
+    }
+  }, [changeVolume]);
+
+  // Manejadores del Slider de Progreso
+  const handleSeekStart = () => {
+    setIsDragging(true);
+  };
+
+  const handleSeekChange = (e) => {
+    setLocalProgress(parseFloat(e.target.value));
+  };
+
+  const handleSeekEnd = (e) => {
+    const newProgress = parseFloat(e.target.value);
+    const newTime = (newProgress / 100) * duration;
+    seek(newTime);
+    setIsDragging(false);
+  };
+
+  // Manejador de Volumen
+  const handleVolumeChange = (e) => {
+    const newVolume = parseFloat(e.target.value);
+    changeVolume(newVolume);
+    localStorage.setItem('userPreferences.volume', newVolume);
+  };
+
   // Refs para tracking y evitar actualizaciones innecesarias
   const lastPositionUpdateRef = useRef(0);
   const mediaSessionInitializedRef = useRef(false);
@@ -269,13 +311,17 @@ export default function PlayerBar({ isSheetMode = false }) {
           </button>
         </div>
         <div className="progress-container">
-          <span className="time-current">{formatTime(currentTime)}</span>
+          <span className="time-current">{formatTime(isDragging ? (localProgress / 100) * duration : currentTime)}</span>
           <input
             type="range"
             min="0"
             max="100"
-            value={progress || 0}
-            onChange={(e) => seek((e.target.value / 100) * duration)}
+            value={localProgress}
+            onMouseDown={handleSeekStart}
+            onTouchStart={handleSeekStart}
+            onChange={handleSeekChange}
+            onMouseUp={handleSeekEnd}
+            onTouchEnd={handleSeekEnd}
             className="progress-bar"
           />
           <span className="time-duration">{formatTime(duration)}</span>
@@ -295,7 +341,7 @@ export default function PlayerBar({ isSheetMode = false }) {
             max="1"
             step="0.01"
             value={isMuted ? 0 : volume}
-            onChange={(e) => changeVolume(parseFloat(e.target.value))}
+            onChange={handleVolumeChange}
             className="volume-slider"
           />
         </div>
