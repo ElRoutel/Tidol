@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
+import { useContextMenu } from '../context/ContextMenuContext';
 import api from '../api/axiosConfig';
-import { IoPlaySharp, IoPauseSharp, IoShuffle } from 'react-icons/io5';
+import { IoPlaySharp, IoPauseSharp, IoShuffle, IoEllipsisVertical } from 'react-icons/io5';
 import LikeButton from '../components/LikeButton';
 
 // ✅ IMPORTAMOS EL CSS EXTERNO
@@ -30,6 +31,7 @@ export default function InternetArchivePage() {
   const [likedSongs, setLikedSongs] = useState(new Set());
 
   const { playSongList, currentSong } = usePlayer();
+  const { openContextMenu } = useContextMenu();
 
   const findBestCover = (files, identifier) => {
     const imageFiles = Object.values(files)
@@ -151,6 +153,16 @@ export default function InternetArchivePage() {
     });
   };
 
+  const handleMenuClick = (e, song) => {
+    e.stopPropagation();
+    // Normalizar datos para el menú global
+    const menuData = {
+      ...song,
+      type: 'ia-song' // Identificador especial si es necesario, o usar 'song' genérico
+    };
+    openContextMenu(e, 'song', menuData);
+  };
+
   const formatTotalDuration = (seconds) => {
     if (!seconds) return "";
     const h = Math.floor(seconds / 3600);
@@ -268,6 +280,14 @@ export default function InternetArchivePage() {
                     onLikeToggle={handleLikeToggle}
                     isArchive={true}
                   />
+
+                  <button
+                    className="track-menu-btn"
+                    onClick={(e) => handleMenuClick(e, song)}
+                    aria-label="Más opciones"
+                  >
+                    <IoEllipsisVertical size={18} />
+                  </button>
                 </div>
               </div>
             );
