@@ -1,8 +1,9 @@
 // src/components/AlbumCard.jsx
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { IoPlay } from "react-icons/io5";
 
-const AlbumCard = ({ album }) => {
+const AlbumCard = React.memo(({ album }) => {
   return (
     <Link to={`/album/${album.id}`} className="album-card-wrapper">
       <div className="album-card">
@@ -14,6 +15,7 @@ const AlbumCard = ({ album }) => {
               src={album.portada}
               alt={album.titulo}
               className="album-cover"
+              loading="lazy"
             />
             <div className="image-gradient" />
           </div>
@@ -238,7 +240,14 @@ const AlbumCard = ({ album }) => {
           color: rgba(255, 255, 255, 0.8);
         }
 
-
+        .card-glow {
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(
+            circle at 50% 0%,
+            rgba(255, 255, 255, 0.1),
+            transparent 70%
+          );
           border-radius: 14px;
           opacity: 0;
           transition: opacity 0.4s;
@@ -292,6 +301,6 @@ const AlbumCard = ({ album }) => {
       `}</style>
     </Link>
   );
-};
+});
 
 export default AlbumCard;

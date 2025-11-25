@@ -36,16 +36,7 @@ export default function HomePage() {
       {/* Content Section */}
       {/* Mobile: px-0 (full width), Desktop: px-12 */}
       <div className="flex flex-col gap-8 md:gap-12 px-0 md:px-12">
-        {selectedChip === 'all' && (
-          <HomeAllView data={data} onPlay={handlePlaySong} />
-        )}
-
-        {selectedChip !== 'all' && (
-          <div className="flex flex-col items-center justify-center py-20 text-gray-500 gap-4 px-4">
-            <p className="text-lg">Explorando {selectedChip}...</p>
-            <HomeAllView data={data} onPlay={handlePlaySong} />
-          </div>
-        )}
+        <HomeAllView data={data} onPlay={handlePlaySong} />
       </div>
     </div>
   );

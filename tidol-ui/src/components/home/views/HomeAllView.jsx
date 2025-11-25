@@ -7,6 +7,7 @@ export default function HomeAllView({ data, onPlay }) {
     const { recentListenings, quickSelection, recommendations, programs, albums, coversRemixes } = data || {};
 
     const recentRef = useRef(null);
+    const quickRef = useRef(null);
     const recsRef = useRef(null);
     const programsRef = useRef(null);
     const albumsRef = useRef(null);
@@ -20,14 +21,8 @@ export default function HomeAllView({ data, onPlay }) {
 
     return (
         <div className="flex flex-col gap-8 pb-20 animate-fade-in">
-            {/* Quick Selection (Grid) - No Carousel Controls needed */}
-            {quickSelection && quickSelection.length > 0 && (
-                <SectionBlock title="Selección rápida" subtitle="Para empezar">
-                    <ListGrid items={quickSelection} onPlay={(item, index) => onPlay(item, index, quickSelection)} />
-                </SectionBlock>
-            )}
 
-            {/* Recent Listenings (Carousel) */}
+            {/* Recent Listenings (Carousel) - MOVED TO TOP */}
             {recentListenings && recentListenings.length > 0 && (
                 <SectionBlock
                     title="Volver a escuchar"
@@ -40,6 +35,24 @@ export default function HomeAllView({ data, onPlay }) {
                         ref={recentRef}
                         items={recentListenings}
                         onPlay={(item, index) => onPlay(item, index, recentListenings)}
+                    />
+                </SectionBlock>
+            )}
+
+            {/* Quick Selection (Carousel - Compact) */}
+            {quickSelection && quickSelection.length > 0 && (
+                <SectionBlock
+                    title="Selección rápida"
+                    subtitle="Para empezar"
+                    showControls
+                    onPrev={() => handleScroll(quickRef, 'left')}
+                    onNext={() => handleScroll(quickRef, 'right')}
+                >
+                    <MediaCarousel
+                        ref={quickRef}
+                        items={quickSelection}
+                        type="compact"
+                        onPlay={(item, index) => onPlay(item, index, quickSelection)}
                     />
                 </SectionBlock>
             )}
@@ -114,3 +127,5 @@ export default function HomeAllView({ data, onPlay }) {
         </div>
     );
 }
+
+

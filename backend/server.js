@@ -248,6 +248,25 @@ async function ensureColumn(table, column, typeDef) {
     await db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_canciones_externas_unique ON canciones_externas(external_id, song_url)`);
     logStatus("Canciones Externas", true, "Tabla 'canciones_externas' lista.");
 
+    // --- TABLA PROXIES ---
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS proxies (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        address TEXT NOT NULL,
+        active BOOLEAN DEFAULT 0,
+        last_used INTEGER
+      )
+    `);
+
+    // Insertar proxy por defecto si no existe ninguno
+    const proxyCount = await db.get("SELECT COUNT(*) as count FROM proxies");
+    if (proxyCount.count === 0) {
+      await db.run(`INSERT INTO proxies (address, active, last_used) VALUES (?, 1, ?)`, ['socks5://127.0.0.1:9050', Date.now()]);
+      logStatus("Proxies", true, "Tabla 'proxies' inicializada con valor por defecto.");
+    } else {
+      logStatus("Proxies", true, "Tabla 'proxies' lista.");
+    }
+
     // --- TABLA LIKES EXTERNOS (Internet Archive) ---
     await db.run(`
       CREATE TABLE IF NOT EXISTS likes_externos (
@@ -264,12 +283,12 @@ async function ensureColumn(table, column, typeDef) {
     await db.run(`CREATE INDEX IF NOT EXISTS idx_likes_externos_cancion_externa_id ON likes_externos(cancion_externa_id)`);
     logStatus("Likes Externos", true, "Tabla 'likes_externos' lista.");
 
-//NO TOCAR ES PARA SERVIR EL FRONTEND
-//NO TOCAR
-//NO TOCAR
+    //NO TOCAR ES PARA SERVIR EL FRONTEND
+    //NO TOCAR
+    //NO TOCAR
     // --- Servir el Frontend (tidol-ui/dist) ---
     const frontendDistPath = path.join(__dirname, '..', 'tidol-ui', 'dist');
-    
+
     // Middleware para servir los archivos estáticos (JS, CSS, imágenes, etc.)
     app.use(express.static(frontendDistPath));
     logStatus("Frontend", true, `Sirviendo archivos estáticos desde ${frontendDistPath}`);
@@ -295,5 +314,6 @@ async function ensureColumn(table, column, typeDef) {
   } catch (err) {
     logStatus("Conexión a DB / Creación de tablas", false, err.message);
     process.exit(1);
-  }}
+  }
+}
 )();

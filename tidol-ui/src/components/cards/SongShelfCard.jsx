@@ -9,7 +9,7 @@ import '../../styles/cards.css';
  * Muestra portada, título, artista y un botón de play al hacer hover.
  * Integra con el ContextMenu global mediante la clase 'song-item' y data attributes.
  */
-export default function SongShelfCard({ song, onPlay }) {
+export default React.memo(function SongShelfCard({ song, onPlay }) {
   const { openContextMenu } = useContextMenu();
   if (!song) return null;
 
@@ -52,6 +52,7 @@ export default function SongShelfCard({ song, onPlay }) {
           className="card-cover"
           src={song.portada || '/default_cover.png'}
           alt={song.titulo}
+          loading="lazy"
         />
         <div className="card-play-button">
           <FaPlay />
@@ -73,4 +74,4 @@ export default function SongShelfCard({ song, onPlay }) {
       </div>
     </div>
   );
-}
+});

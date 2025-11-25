@@ -9,7 +9,7 @@ import '../../styles/cards.css';
  * Muestra portada, info y un indicador de reproducción.
  * Integra con el ContextMenu global mediante la clase 'song-item' y data attributes.
  */
-export default function SongGridCard({ song, onPlay }) {
+export default React.memo(function SongGridCard({ song, onPlay }) {
   const { currentSong, isPlaying: isPlayerActive } = usePlayer();
   const { openContextMenu } = useContextMenu();
   const isThisSongCurrent = currentSong?.id === song.id || currentSong?.identifier === song.identifier;
@@ -54,6 +54,7 @@ export default function SongGridCard({ song, onPlay }) {
         className="song-grid-cover"
         src={song.portada || '/default_cover.png'}
         alt={song.titulo}
+        loading="lazy"
       />
 
       <div className="song-grid-info">
@@ -79,4 +80,4 @@ export default function SongGridCard({ song, onPlay }) {
       </div>
     </div >
   );
-}
+});

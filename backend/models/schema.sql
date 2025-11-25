@@ -93,6 +93,12 @@ CREATE TABLE IF NOT EXISTS playlist_canciones (
     FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS proxies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    address TEXT NOT NULL,
+    active BOOLEAN DEFAULT 0,
+    last_used INTEGER
+);
 
 -- =======================================
 -- 7️⃣ LIKES (Tabla de Me Gusta)
