@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
 import { useContextMenu } from '../context/ContextMenuContext';
+import useLazyCaching from '../hooks/useLazyCaching';
 import api from '../api/axiosConfig';
 import { IoPlaySharp, IoPauseSharp, IoShuffle, IoEllipsisVertical, IoChevronDown, IoChevronUp } from 'react-icons/io5';
 import LikeButton from '../components/LikeButton';
@@ -28,8 +29,9 @@ export default function InternetArchivePage() {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [likedSongs, setLikedSongs] = useState(new Set());
 
-  const { playSongList, currentSong } = usePlayer();
+  const { currentSong } = usePlayer();
   const { openContextMenu } = useContextMenu();
+  const { handlePlayList } = useLazyCaching();
 
   const findBestCover = (files, identifier) => {
     const imageFiles = Object.values(files)
@@ -135,12 +137,12 @@ export default function InternetArchivePage() {
 
     setFilteredTracks(tracksToShow);
 
-    if (shouldAutoplay && tracksToShow.length > 0) playSongList(tracksToShow, 0);
-  }, [allFiles, formatFilter, shouldAutoplay, playSongList]);
+    if (shouldAutoplay && tracksToShow.length > 0) handlePlayList(tracksToShow, 0);
+  }, [allFiles, formatFilter, shouldAutoplay, handlePlayList]);
 
   const handleSongClick = (song) => {
     const index = filteredTracks.findIndex(t => t.id === song.id);
-    if (index !== -1) playSongList(filteredTracks, index);
+    if (index !== -1) handlePlayList(filteredTracks, index);
   };
 
   const handleLikeToggle = (songIdentifier, isLiked) => {
@@ -235,7 +237,7 @@ export default function InternetArchivePage() {
             {/* BARRA DE ACCIONES */}
             <div className="flex items-center gap-4 mt-4 flex-wrap">
               <button
-                onClick={() => playSongList(filteredTracks, 0)}
+                onClick={() => handlePlayList(filteredTracks, 0)}
                 className="px-8 py-3 rounded-full bg-white text-black font-bold flex items-center gap-2 hover:scale-105 transition-transform shadow-xl hover:shadow-white/20"
               >
                 <IoPlaySharp size={20} />

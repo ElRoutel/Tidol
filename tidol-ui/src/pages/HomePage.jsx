@@ -13,7 +13,23 @@ export default function HomePage() {
 
   const handlePlaySong = (song, index, songList) => {
     // Detectar si es una canción de Internet Archive
-    const isInternetArchive = song.identifier || song.url?.includes('archive.org');
+    // Las canciones de IA pueden venir de varias fuentes:
+    // 1. Con campo 'type' = 'ia' (desde getHistory)
+    // 2. Con campo 'identifier' (desde búsqueda/Search)
+    // 3. URL contiene 'archive.org'
+    const isInternetArchive =
+      song.type === 'ia' ||
+      song.identifier ||
+      song.url?.includes('archive.org');
+
+    console.log('🎵 Playing song:', {
+      titulo: song.titulo,
+      isIA: isInternetArchive,
+      type: song.type,
+      id: song.id,
+      identifier: song.identifier,
+      url: song.url?.substring(0, 50) + '...'
+    });
 
     if (isInternetArchive) {
       // Usar lazy caching para canciones de IA
