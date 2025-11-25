@@ -35,16 +35,44 @@ export default function HomePage() {
       // Usar lazy caching para canciones de IA
       // Esto reproduce inmediatamente Y dispara descarga en background
       if (index === 0) {
-        // Si es la primera canción, reproducir toda la lista con lazy caching
         handlePlayList(songList, 0);
       } else {
-        // Si no es la primera, reproducir desde ese índice
         handlePlayList(songList.slice(index), 0);
       }
     } else {
-      // Para canciones locales, usar el método tradicional
+      // CANCIONES LOCALES: Reproducir + Sincronizar a Spectra
       const playlist = songList.slice(index);
       playSongList(playlist, 0);
+
+      // Sincronizar canción local a Spectra para análisis
+      syncLocalToSpectra(song);
+    }
+  };
+
+  // Sincronizar canción local a Spectra
+  const syncLocalToSpectra = async (song) => {
+    try {
+      const response = await fetch('http://localhost:3001/sync-local-song', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          songId: song.id,
+          title: song.titulo || song.title,
+          artist: song.artista || song.artist || 'Unknown',
+          album: song.album || 'Local Music',
+          filepath: song.archivo || song.url,
+          coverpath: song.portada || null,
+          duration: song.duracion || song.duration || 0,
+          bitrate: song.bit_rate || 0
+        })
+      });
+
+      const data = await response.json();
+      if (data.success && !data.alreadyExists) {
+        console.log('📊 Canción local sincronizada a Spectra para análisis:', song.titulo);
+      }
+    } catch (error) {
+      console.warn('⚠️  No se pudo sincronizar a Spectra:', error.message);
     }
   };
 

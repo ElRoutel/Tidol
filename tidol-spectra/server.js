@@ -44,6 +44,7 @@ dbSpectra.exec(`
     key_signature TEXT,
     waveform_data TEXT, 
     original_ia_id TEXT,
+    original_tidol_id INTEGER,
     analysis_status TEXT DEFAULT 'pending'
   );
 `);
@@ -455,6 +456,313 @@ app.post('/ingest-remote', async (req, res) => {
     }
 });
 
+// --- ANÁLISIS DE CANCIONES LOCALES ---
+
+// 9. Migrar canciones de Tidol DB a Spectra DB y analizarlas
+app.post('/migrate-local-songs', async (req, res) => {
+    try {
+        if (!dbTidol) {
+            return res.status(500).json({
+                error: 'Tidol DB no está conectada',
+                message: 'No se puede acceder a las canciones locales'
+            });
+        }
+
+        // Obtener todas las canciones de Tidol con JOIN a artistas
+        const localSongs = dbTidol.prepare(`
+            SELECT 
+                c.id as tidol_id,
+                c.titulo,
+                c.archivo,
+                c.duracion,
+                c.portada,
+                c.bit_rate,
+                a.nombre as artista,
+                al.titulo as album
+            FROM canciones c
+            LEFT JOIN artistas a ON c.artista_id = a.id
+            LEFT JOIN albumes al ON c.album_id = al.id
+        `).all();
+
+        if (localSongs.length === 0) {
+            return res.json({
+                success: true,
+                message: 'No hay canciones locales para migrar',
+                count: 0
+            });
+        }
+
+        console.log(`📦 Migrando ${localSongs.length} canciones de Tidol a Spectra...`);
+
+        let migrated = 0;
+        let skipped = 0;
+        let toAnalyze = [];
+
+        // Procesar cada canción
+        for (const song of localSongs) {
+            try {
+                // Verificar si ya existe en Spectra
+                const existing = dbSpectra.prepare(
+                    'SELECT id FROM tracks WHERE title = ? AND artist = ?'
+                ).get(song.titulo, song.artista || 'Unknown');
+
+                if (existing) {
+                    console.log(`⏭️  Saltando "${song.titulo}" - ya existe en Spectra`);
+                    skipped++;
+                    continue;
+                }
+
+                // Insertar en Spectra con todos los metadatos de Tidol
+                const insert = dbSpectra.prepare(`
+                    INSERT INTO tracks (
+                        title, artist, album, filepath, duration, bitrate, 
+                        coverpath, analysis_status, original_tidol_id
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+                `);
+
+                const result = insert.run(
+                    song.titulo,
+                    song.artista || 'Unknown',
+                    song.album || 'Local Music',
+                    song.archivo,
+                    song.duracion,
+                    song.bit_rate,
+                    song.portada || null,  // Guardar portada de Tidol
+                    song.tidol_id
+                );
+
+                migrated++;
+                toAnalyze.push({
+                    id: result.lastInsertRowid,
+                    filepath: song.archivo
+                });
+
+                console.log(`✅ Migrado: "${song.titulo}" (ID: ${result.lastInsertRowid})`);
+
+            } catch (err) {
+                console.error(`❌ Error migrando "${song.titulo}":`, err.message);
+            }
+        }
+
+        // Disparar análisis para las canciones migradas
+        console.log(`🔬 Iniciando análisis de ${toAnalyze.length} canciones...`);
+
+        toAnalyze.forEach((track, index) => {
+            // Canciones de Tidol están en backend/uploads/musica
+            const filePath = path.join(__dirname, '../backend/uploads/musica', path.basename(track.filepath));
+
+            // Delay progresivo
+            setTimeout(() => {
+                console.log(`🔄 Analizando ${index + 1}/${toAnalyze.length} - ID: ${track.id}`);
+                if (fs.existsSync(filePath)) {
+                    runPythonAnalysis(track.id, filePath);
+                } else {
+                    console.warn(`⚠️  Archivo no encontrado: ${filePath}`);
+                    dbSpectra.prepare('UPDATE tracks SET analysis_status = ? WHERE id = ?')
+                        .run('failed', track.id);
+                }
+            }, index * 2000);
+        });
+
+        res.json({
+            success: true,
+            message: `Migración completada`,
+            migrated,
+            skipped,
+            total: localSongs.length,
+            analyzing: toAnalyze.length,
+            estimatedTimeMinutes: Math.ceil((toAnalyze.length * 10) / 60)
+        });
+
+    } catch (error) {
+        console.error('❌ Error en /migrate-local-songs:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 10. Sincronizar canción local individual (desde frontend on-demand)
+app.post('/sync-local-song', async (req, res) => {
+    try {
+        const { songId, title, artist, album, filepath, coverpath, duration, bitrate } = req.body;
+
+        if (!songId || !title) {
+            return res.status(400).json({ error: 'songId and title are required' });
+        }
+
+        // Verificar si ya existe en Spectra
+        const existing = dbSpectra.prepare(
+            'SELECT id FROM tracks WHERE original_tidol_id = ? OR (title = ? AND artist = ?)'
+        ).get(songId, title, artist || 'Unknown');
+
+        if (existing) {
+            return res.json({
+                success: true,
+                trackId: existing.id,
+                message: 'Song already in Spectra',
+                alreadyExists: true
+            });
+        }
+
+        // Insertar en Spectra
+        const insert = dbSpectra.prepare(`
+            INSERT INTO tracks (
+                title, artist, album, filepath, duration, bitrate,
+                coverpath, analysis_status, original_tidol_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+        `);
+
+        const result = insert.run(
+            title,
+            artist || 'Unknown',
+            album || 'Local Music',
+            filepath,
+            duration || 0,
+            bitrate || 0,
+            coverpath || null,
+            songId
+        );
+
+        console.log(`✅ Sincronizada: "${title}" (ID: ${result.lastInsertRowid})`);
+
+        // Disparar análisis
+        const fullPath = path.join(__dirname, '../backend/uploads/musica', path.basename(filepath));
+
+        if (fs.existsSync(fullPath)) {
+            runPythonAnalysis(result.lastInsertRowid, fullPath);
+        } else {
+            console.warn(`⚠️  Archivo no encontrado: ${fullPath}`);
+            dbSpectra.prepare('UPDATE tracks SET analysis_status = ? WHERE id = ?')
+                .run('failed', result.lastInsertRowid);
+        }
+
+        res.json({
+            success: true,
+            trackId: result.lastInsertRowid,
+            message: 'Song synced and analysis started',
+            alreadyExists: false
+        });
+
+    } catch (error) {
+        console.error('❌ Error en /sync-local-song:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 11. Analizar todas las canciones pendientes (ANTIGUAS Y NUEVAS)
+app.post('/analyze-all', async (req, res) => {
+    try {
+        // Buscar canciones sin analizar o que fallaron
+        const pending = dbSpectra.prepare(`
+            SELECT id, filepath 
+            FROM tracks 
+            WHERE analysis_status IS NULL 
+               OR analysis_status = 'pending' 
+               OR analysis_status = 'failed'
+        `).all();
+
+        if (pending.length === 0) {
+            return res.json({
+                success: true,
+                message: 'No hay canciones pendientes de análisis',
+                count: 0
+            });
+        }
+
+        console.log(`📊 Iniciando análisis masivo de ${pending.length} canciones...`);
+
+        // Actualizar status a 'pending' para todas
+        const updateStmt = dbSpectra.prepare('UPDATE tracks SET analysis_status = ? WHERE id = ?');
+        pending.forEach(track => {
+            updateStmt.run('pending', track.id);
+        });
+
+        // Disparar análisis para cada una con delay para no saturar CPU
+        pending.forEach((track, index) => {
+            const filePath = track.filepath.startsWith('uploads/')
+                ? path.join(__dirname, track.filepath)
+                : path.join(MEDIA_DIR, track.filepath);
+
+            // Delay progresivo: 2 segundos entre cada canción
+            setTimeout(() => {
+                console.log(`🔄 Analizando ${index + 1}/${pending.length} - ID: ${track.id}`);
+                runPythonAnalysis(track.id, filePath);
+            }, index * 2000);
+        });
+
+        res.json({
+            success: true,
+            message: `Análisis iniciado para ${pending.length} canciones`,
+            count: pending.length,
+            estimatedTimeMinutes: Math.ceil((pending.length * 10) / 60)
+        });
+
+    } catch (error) {
+        console.error('❌ Error en /analyze-all:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 12. Re-analizar una canción específica
+app.post('/analyze/:id', async (req, res) => {
+    try {
+        const trackId = req.params.id;
+        const track = dbSpectra.prepare('SELECT id, filepath FROM tracks WHERE id = ?').get(trackId);
+
+        if (!track) {
+            return res.status(404).json({ error: 'Track not found' });
+        }
+
+        const filePath = track.filepath.startsWith('uploads/')
+            ? path.join(__dirname, track.filepath)
+            : path.join(MEDIA_DIR, track.filepath);
+
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ error: 'Audio file not found on disk' });
+        }
+
+        // Marcar como pending y analizar
+        dbSpectra.prepare('UPDATE tracks SET analysis_status = ? WHERE id = ?').run('pending', trackId);
+        runPythonAnalysis(trackId, filePath);
+
+        res.json({
+            success: true,
+            message: 'Analysis started',
+            trackId: trackId
+        });
+
+    } catch (error) {
+        console.error(`❌ Error en /analyze/${req.params.id}:`, error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 13. Estado del análisis (estadísticas)
+app.get('/analysis-status', (req, res) => {
+    try {
+        const total = dbSpectra.prepare('SELECT COUNT(*) as count FROM tracks').get().count;
+        const analyzed = dbSpectra.prepare('SELECT COUNT(*) as count FROM tracks WHERE analysis_status = ?').get('analyzed').count;
+        const pending = dbSpectra.prepare('SELECT COUNT(*) as count FROM tracks WHERE analysis_status IS NULL OR analysis_status = ?').get('pending').count;
+        const failed = dbSpectra.prepare('SELECT COUNT(*) as count FROM tracks WHERE analysis_status = ?').get('failed').count;
+
+        const percentage = total > 0 ? Math.round((analyzed / total) * 100) : 0;
+
+        res.json({
+            total,
+            analyzed,
+            pending,
+            failed,
+            percentage,
+            needsAnalysis: pending + failed
+        });
+
+    } catch (error) {
+        console.error('❌ Error en /analysis-status:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // --- PYTHON WORKER ---
 function runPythonAnalysis(trackId, filePath) {
     console.log(`🐍 Iniciando Python para Track #${trackId}...`);
@@ -480,14 +788,17 @@ function runPythonAnalysis(trackId, filePath) {
                 `);
                 update.run(result.bpm, result.key, JSON.stringify(result.waveform), trackId);
             } else {
-                console.error("Lógica Python falló:", result.message);
+                console.log(`⚠️ Python Warning: ${result.error}`);
+                dbSpectra.prepare('UPDATE tracks SET analysis_status = "failed" WHERE id = ?').run(trackId);
             }
-        } catch (e) {
-            console.error("Error procesando respuesta de Python:", e);
+        } catch (parseErr) {
+            console.error(`❌ JSON Parse Error:`, parseErr);
+            dbSpectra.prepare('UPDATE tracks SET analysis_status = "failed" WHERE id = ?').run(trackId);
         }
     });
 }
 
+// --- INICIAR SERVIDOR ---
 app.listen(PORT, () => {
-    console.log(`🚀 SPECTRA SERVER en http://localhost:${PORT}`);
+    console.log(`🎵 SPECTRA ENGINE running on http://localhost:${PORT}`);
 });
