@@ -1,6 +1,7 @@
 import React from 'react';
 import { usePlayer } from '../context/PlayerContext';
 import { useHome } from '../hooks/useHome';
+import useLazyCaching from '../hooks/useLazyCaching';
 import ChipsCarousel from '../components/home/ChipsCarousel';
 import HomeAllView from '../components/home/views/HomeAllView';
 import '../styles/glass.css';
@@ -8,10 +9,27 @@ import '../styles/glass.css';
 export default function HomePage() {
   const { playSongList } = usePlayer();
   const { selectedChip, setSelectedChip, isLoading, data } = useHome();
+  const { handlePlayTrack, handlePlayList } = useLazyCaching();
 
   const handlePlaySong = (song, index, songList) => {
-    const playlist = songList.slice(index);
-    playSongList(playlist, 0);
+    // Detectar si es una canción de Internet Archive
+    const isInternetArchive = song.identifier || song.url?.includes('archive.org');
+
+    if (isInternetArchive) {
+      // Usar lazy caching para canciones de IA
+      // Esto reproduce inmediatamente Y dispara descarga en background
+      if (index === 0) {
+        // Si es la primera canción, reproducir toda la lista con lazy caching
+        handlePlayList(songList, 0);
+      } else {
+        // Si no es la primera, reproducir desde ese índice
+        handlePlayList(songList.slice(index), 0);
+      }
+    } else {
+      // Para canciones locales, usar el método tradicional
+      const playlist = songList.slice(index);
+      playSongList(playlist, 0);
+    }
   };
 
   if (isLoading) {
