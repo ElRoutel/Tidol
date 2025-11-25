@@ -3,9 +3,9 @@ import { useParams, useSearchParams, Link } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { usePlayer } from '../context/PlayerContext';
 import { useContextMenu } from '../context/ContextMenuContext';
-import { IoPlaySharp, IoPauseSharp, IoShuffle, IoEllipsisHorizontal, IoEllipsisVertical } from 'react-icons/io5';
+import { IoPlaySharp, IoShuffle, IoEllipsisHorizontal, IoEllipsisVertical, IoTimeOutline } from 'react-icons/io5';
 import LikeButton from '../components/LikeButton';
-import './ImmersiveLayout.css';
+import '../styles/glass.css';
 
 export default function AlbumPage() {
   const { id } = useParams();
@@ -74,7 +74,6 @@ export default function AlbumPage() {
 
   const handleMenuClick = (e, song) => {
     e.stopPropagation();
-    // Normalizar datos para el menú global
     const menuData = {
       id: song.id,
       titulo: song.titulo,
@@ -82,7 +81,7 @@ export default function AlbumPage() {
       album: album?.titulo,
       portada: album?.portada,
       duracion: song.duracion,
-      url: song.url || song.filepath // Asegurar que haya URL si es necesario
+      url: song.url || song.filepath
     };
     openContextMenu(e, 'song', menuData);
   };
@@ -100,69 +99,94 @@ export default function AlbumPage() {
     return h > 0 ? `${h} h ${m} min` : `${m} min`;
   };
 
-  if (loading) return <div className="ia-loading"><div className="loading-spinner" /></div>;
-  if (error) return <div className="ia-error"><h2>{error}</h2></div>;
+  const formatDuration = (seconds) => {
+    if (!seconds) return "--:--";
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-screen">
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
+    </div>
+  );
+
+  if (error) return (
+    <div className="flex items-center justify-center h-screen text-red-400">
+      <h2 className="text-xl font-bold">{error}</h2>
+    </div>
+  );
 
   return (
-    <div className="yt-album-page">
-
+    <div className="relative min-h-screen pb-40">
+      {/* Ambient Background */}
       <div
-        className="ambient-background"
+        className="fixed inset-0 z-0 bg-cover bg-center blur-3xl opacity-30 scale-110 pointer-events-none transition-all duration-1000"
         style={{ backgroundImage: `url(${album?.portada || '/default_cover.png'})` }}
       />
-      <div className="ambient-overlay" />
+      <div className="fixed inset-0 z-0 bg-gradient-to-b from-black/20 via-[#0a0a0a]/80 to-[#0a0a0a] pointer-events-none" />
 
-      <div className="content-wrapper">
-
-        <div className="album-hero">
-          <div className="cover-container">
+      <div className="relative z-10 px-8 pt-24 max-w-7xl mx-auto">
+        {/* Hero Section */}
+        <div className="flex flex-col md:flex-row gap-8 items-end mb-12 animate-fade-in">
+          <div className="w-64 h-64 shadow-2xl rounded-xl overflow-hidden glass-card flex items-center justify-center bg-white/5">
             <img
               src={album?.portada || '/default_cover.png'}
               alt={album?.titulo}
-              className="hero-cover"
+              className="w-full h-full object-cover"
             />
           </div>
 
-          <div className="hero-details">
-            <h1 className="album-title">{album?.titulo}</h1>
+          <div className="flex-1">
+            <h5 className="uppercase tracking-widest text-xs font-bold mb-2 text-white/80">Álbum</h5>
+            <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 tracking-tight">{album?.titulo}</h1>
 
-            <div className="album-meta-row">
+            <div className="flex items-center gap-2 text-sm text-gray-300 mb-6">
               {album?.artista_id ? (
-                <Link
-                  to={`/artist/${album.artista_id}`}
-                  className="artist-name hover-link"
-                >
+                <Link to={`/artist/${album.artista_id}`} className="font-medium text-white hover:underline">
                   {album?.autor || 'Desconocido'}
                 </Link>
               ) : (
-                <span className="artist-name">{album?.autor || 'Desconocido'}</span>
+                <span className="font-medium text-white">{album?.autor || 'Desconocido'}</span>
               )}
-
-              <span className="meta-dot">•</span>
-              <span className="meta-text">Álbum</span>
-              <span className="meta-dot">•</span>
-              <span className="meta-text">{album?.year || '2024'}</span>
+              <span>•</span>
+              <span>{album?.year || '2024'}</span>
+              <span>•</span>
+              <span>{songs.length} canciones</span>
+              <span>•</span>
+              <span>{formatTotalDuration(totalDuration)}</span>
             </div>
 
-            <div className="album-stats">
-              {songs.length} canciones • {formatTotalDuration(totalDuration)}
-            </div>
-
-            <div className="action-bar">
-              <button onClick={() => playSongList(songs, 0)} className="btn-primary-white">
-                <IoPlaySharp /> <span>Reproducir</span>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => playSongList(songs, 0)}
+                className="w-14 h-14 rounded-full bg-[#1db954] hover:bg-[#1ed760] text-black flex items-center justify-center shadow-lg hover:scale-105 transition-all"
+              >
+                <IoPlaySharp size={28} className="ml-1" />
               </button>
-              <button className="btn-circle-glass">
-                <IoShuffle />
+              <button className="w-10 h-10 rounded-full border border-white/20 hover:bg-white/10 flex items-center justify-center text-white transition-all">
+                <IoShuffle size={20} />
               </button>
-              <button className="btn-circle-glass">
-                <IoEllipsisHorizontal />
+              <button className="w-10 h-10 rounded-full border border-white/20 hover:bg-white/10 flex items-center justify-center text-white transition-all">
+                <IoEllipsisHorizontal size={20} />
               </button>
             </div>
           </div>
         </div>
 
-        <div className="tracks-container">
+        {/* Tracks List */}
+        <div className="glass-card rounded-xl overflow-hidden animate-slide-up">
+          {/* Header Row */}
+          <div className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-4 px-6 py-3 border-b border-white/5 text-sm text-gray-400 font-medium uppercase tracking-wider">
+            <div className="w-8 text-center">#</div>
+            <div>Título</div>
+            <div className="hidden md:block text-right">Calidad</div>
+            <div className="hidden md:block text-right"><IoTimeOutline size={18} /></div>
+            <div className="w-8"></div>
+          </div>
+
+          {/* Songs */}
           {songs.map((song, index) => {
             const isPlaying = currentSong?.id === song.id;
             const qualityBadge = formatQuality(song);
@@ -170,41 +194,44 @@ export default function AlbumPage() {
             return (
               <div
                 key={song.id}
-                className={`track-row song-item ${isPlaying ? 'playing' : ''}`}
+                className={`group grid grid-cols-[auto_1fr_auto_auto_auto] gap-4 px-6 py-3 items-center hover:bg-white/5 transition-colors cursor-pointer border-b border-white/5 last:border-0 ${isPlaying ? 'bg-white/10' : ''}`}
                 onClick={() => handleSongClick(index)}
-                data-id={song.id}
-                data-titulo={song.titulo}
-                data-artista={song.artista}
               >
-                <div className="track-col-index">
-                  <span className="number">{index + 1}</span>
-                  <span className="icon"><IoPlaySharp /></span>
+                <div className="w-8 text-center text-gray-400 group-hover:text-white relative flex items-center justify-center">
+                  <span className={`group-hover:hidden ${isPlaying ? 'text-[#1db954]' : ''}`}>{index + 1}</span>
+                  <IoPlaySharp className="hidden group-hover:block text-white" />
                 </div>
 
-                <div className="track-col-info">
-                  <div className="track-title">{song.titulo}</div>
-                  <div className="track-artist">{song.artista}</div>
+                <div className="min-w-0">
+                  <div className={`font-medium truncate ${isPlaying ? 'text-[#1db954]' : 'text-white'}`}>
+                    {song.titulo}
+                  </div>
+                  <div className="text-sm text-gray-400 truncate group-hover:text-gray-300">
+                    {song.artista}
+                  </div>
                 </div>
 
-                <div className="track-col-meta mobile-hide">
-                  {qualityBadge && <span className="format-badge">{qualityBadge}</span>}
+                <div className="hidden md:flex justify-end">
+                  {qualityBadge && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-white/30 text-white/70 uppercase tracking-wider">
+                      {qualityBadge}
+                    </span>
+                  )}
                 </div>
 
-                <div className="track-col-duration mobile-hide">
-                  {Math.floor(song.duracion / 60)}:{(song.duracion % 60).toString().padStart(2, '0')}
+                <div className="hidden md:block text-sm text-gray-400 font-variant-numeric tabular-nums text-right">
+                  {formatDuration(song.duracion)}
                 </div>
 
-                <div className="track-col-actions" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                   <LikeButton
                     song={song}
                     isLiked={likedSongs.has(song.id)}
                     onLikeToggle={handleLikeToggle}
                   />
-
                   <button
-                    className="track-menu-btn"
+                    className="p-2 text-gray-400 hover:text-white transition-colors"
                     onClick={(e) => handleMenuClick(e, song)}
-                    aria-label="Más opciones"
                   >
                     <IoEllipsisVertical size={18} />
                   </button>

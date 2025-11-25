@@ -1,173 +1,108 @@
-// src/pages/RegisterPage.jsx
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import logo from '/logo.svg';
-import './Auth.css';
+import { IoPersonAdd, IoArrowForward } from 'react-icons/io5';
 
 export default function RegisterPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [acceptTerms, setAcceptTerms] = useState(false);
-  const { register, loading } = useAuth();
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const { register, error: authError } = useAuth();
+  const [localError, setLocalError] = useState(null);
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setSuccess('');
-
-    if (password.length < 4) {
-      setError("La contraseña debe tener al menos 4 caracteres.");
-      return;
-    }
+    setLocalError(null);
 
     if (password !== confirmPassword) {
-      setError("Las contraseñas no coinciden.");
+      setLocalError("Las contraseñas no coinciden");
       return;
     }
 
-    if (!acceptTerms) {
-      setError("Debes aceptar los Términos de Uso para continuar.");
-      return;
-    }
-
+    setIsLoading(true);
     const result = await register(username, password);
     if (result.success) {
-      setSuccess('¡Cuenta creada exitosamente! Redirigiendo...');
-      setTimeout(() => navigate('/login'), 2000);
-    } else {
-      setError(result.error || 'Error en el registro.');
+      // Auto login o redirigir a login
+      navigate('/login');
     }
+    setIsLoading(false);
   };
 
+  const error = localError || authError;
+
   return (
-    <div className="auth-container">
-      <div className="auth-background">
-        <div className="auth-gradient-orb auth-orb-1"></div>
-        <div className="auth-gradient-orb auth-orb-2"></div>
-        <div className="auth-gradient-orb auth-orb-3"></div>
+    <div className="flex flex-col gap-6">
+      <div className="text-center">
+        <h2 className="text-2xl font-bold text-white mb-2">Crea tu cuenta</h2>
+        <p className="text-gray-400 text-sm">Únete a Tidol y descubre nueva música</p>
       </div>
 
-      <div className="auth-card">
-        <div className="auth-logo">
-          <img src={logo} alt="Tidol Logo" className="auth-logo-icon" />
-          <h1 className="auth-title">Tidol</h1>
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg text-sm text-center">
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-gray-400 uppercase tracking-wider ml-1">Usuario</label>
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all"
+            placeholder="Elige un nombre de usuario"
+            required
+          />
         </div>
 
-        <p className="auth-subtitle">Crea tu cuenta</p>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-gray-400 uppercase tracking-wider ml-1">Contraseña</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all"
+            placeholder="Mínimo 6 caracteres"
+            required
+            minLength={6}
+          />
+        </div>
 
-        <form className="auth-form" onSubmit={handleSubmit}>
-          <div className="auth-input-group">
-            <label htmlFor="username" className="auth-label">Usuario</label>
-            <input
-              id="username"
-              type="text"
-              placeholder="Elige un nombre de usuario"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="auth-input"
-              required
-            />
-          </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-gray-400 uppercase tracking-wider ml-1">Confirmar Contraseña</label>
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all"
+            placeholder="Repite tu contraseña"
+            required
+          />
+        </div>
 
-          <div className="auth-input-group">
-            <label htmlFor="password" className="auth-label">Contraseña</label>
-            <input
-              id="password"
-              type="password"
-              placeholder="Mínimo 4 caracteres"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="auth-input"
-              required
-            />
-          </div>
-
-          <div className="auth-input-group">
-            <label htmlFor="confirmPassword" className="auth-label">Confirmar Contraseña</label>
-            <input
-              id="confirmPassword"
-              type="password"
-              placeholder="Repite tu contraseña"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="auth-input"
-              required
-            />
-          </div>
-
-          {/* Casilla de Términos de Uso */}
-          <div className="auth-checkbox-group">
-            <input
-              id="acceptTerms"
-              type="checkbox"
-              checked={acceptTerms}
-              onChange={(e) => setAcceptTerms(e.target.checked)}
-              className="auth-checkbox"
-              required
-            />
-            <label htmlFor="acceptTerms" className="auth-checkbox-label">
-              Acepto los{' '}
-              <Link to="/terms" target="_blank" rel="noopener noreferrer" className="auth-terms-link">
-                Términos de Uso
-              </Link>
-              {' '}y la{' '}
-              <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="auth-terms-link">
-                Política de Privacidad
-              </Link>
-            </label>
-          </div>
-
-          {error && (
-            <div className="auth-alert auth-alert-error">
-              <svg className="auth-alert-icon" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-              {error}
-            </div>
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="mt-4 w-full bg-white text-black font-bold py-3 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isLoading ? (
+            <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin"></div>
+          ) : (
+            <>
+              Registrarse <IoPersonAdd />
+            </>
           )}
+        </button>
+      </form>
 
-          {success && (
-            <div className="auth-alert auth-alert-success">
-              <svg className="auth-alert-icon" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-              {success}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="auth-button auth-button-primary"
-          >
-            {loading ? (
-              <>
-                <span className="auth-spinner"></span>
-                Creando cuenta...
-              </>
-            ) : (
-              'Crear Cuenta'
-            )}
-          </button>
-        </form>
-
-        <div className="auth-divider">
-          <span className="auth-divider-text">o</span>
-        </div>
-
-        <div className="auth-footer">
-          <p className="auth-footer-text">
-            ¿Ya tienes una cuenta?{' '}
-            <Link to="/login" className="auth-link">
-              Inicia sesión
-            </Link>
-          </p>
-        </div>
+      <div className="text-center text-sm text-gray-400">
+        ¿Ya tienes cuenta?{' '}
+        <Link to="/login" className="text-white hover:underline font-medium">
+          Inicia Sesión
+        </Link>
       </div>
     </div>
   );

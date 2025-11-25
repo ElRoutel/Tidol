@@ -17,8 +17,11 @@ export function AuthProvider({ children }) {
           const res = await api.get('/auth/validate');
           setUser(res.data);
         } catch (err) {
+          console.error("Token validation failed:", err);
           logout();
         }
+      } else {
+        setUser(null);
       }
       setLoading(false);
     };
@@ -31,11 +34,11 @@ export function AuthProvider({ children }) {
     try {
       const res = await api.post('/auth/login', { username, password });
 
-      const { token, username: userName, role, redirectPage } = res.data;
+      const { token: newToken, username: userName, role, redirectPage } = res.data;
 
-      setToken(token);
+      setToken(newToken);
       setUser({ username: userName, role });
-      localStorage.setItem('token', token);
+      localStorage.setItem('token', newToken);
 
       setLoading(false);
       return { success: true, redirectPage };
@@ -58,7 +61,6 @@ export function AuthProvider({ children }) {
     setLoading(true);
     setError(null);
     try {
-      // El rol se asigna por defecto en el backend
       await api.post('/auth/register', { username, password });
       setLoading(false);
       return { success: true };
@@ -70,7 +72,6 @@ export function AuthProvider({ children }) {
       return { success: false, error: message };
     }
   };
-
 
   return (
     <AuthContext.Provider value={{

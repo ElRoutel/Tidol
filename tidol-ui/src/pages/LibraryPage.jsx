@@ -1,56 +1,16 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React from "react";
 import { useSwipeable } from "react-swipeable";
 import { usePlayer } from "../context/PlayerContext";
+import { useLibrary } from "../hooks/useLibrary";
 import LibraryItem from "../components/LibraryItem";
 import api from "../api/axiosConfig";
-import favImage from "./favImage.jpg"; // Asegúrate de que esta ruta sea correcta
+import favImage from "./favImage.jpg";
 import "../styles/glass.css";
 import "./Library.css";
 
-
 export default function LibraryPage() {
-  const [songs, setSongs] = useState([]);
-  const [iaLikes, setIaLikes] = useState([]);
-  const [playlists, setPlaylists] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  const [currentView, setCurrentView] = useState("favorites");
-  const [layout, setLayout] = useState("grid");
-  const { playSongList, currentSong } = usePlayer();
-
-  // Función genérica para fetching
-  const fetchData = useCallback(async (endpoint, setter) => {
-    setLoading(true);
-    try {
-      const res = await api.get(endpoint);
-      setter(res.data || []);
-    } catch (err) {
-      console.error("Error fetching data:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // === LOAD FAVORITES ===
-  useEffect(() => {
-    if (currentView === "favorites" && songs.length === 0) {
-      fetchData("/music/songs/likes", setSongs);
-    }
-  }, [currentView, songs.length, fetchData]);
-
-  // === LOAD IA ===
-  useEffect(() => {
-    if (currentView === "ia-likes" && iaLikes.length === 0) {
-      fetchData("/music/ia/likes", setIaLikes);
-    }
-  }, [currentView, iaLikes.length, fetchData]);
-
-  // === LOAD PLAYLISTS ===
-  useEffect(() => {
-    if (currentView === "playlists" && playlists.length === 0) {
-      fetchData("/playlists", setPlaylists);
-    }
-  }, [currentView, playlists.length, fetchData]);
+  const { currentView, setCurrentView, layout, setLayout, data, isLoading } = useLibrary();
+  const { playSongList } = usePlayer();
 
   // === SWIPE LOGIC ===
   const swipeHandlers = useSwipeable({
@@ -80,26 +40,12 @@ export default function LibraryPage() {
     }
   };
 
-  // SELECTOR DE DATOS
-  const renderData = () => {
-    switch (currentView) {
-      case "favorites": return songs;
-      case "ia-likes": return iaLikes;
-      case "playlists": return playlists;
-      default: return [];
-    }
-  };
-
-  const data = renderData();
-
-  // HELPER PARA SUBTÍTULOS (Corrige el bug lógico)
+  // HELPER PARA SUBTÍTULOS
   const getSubtitle = (item) => {
     if (currentView === "playlists") {
-      // Si tiene array de canciones, mostramos la cantidad, si no, 0
       const count = item.canciones ? item.canciones.length : 0;
       return `${count} canciones`;
     }
-    // Para canciones normales o IA
     return item.artista || item.artist || item.subtitle || "Desconocido";
   };
 
@@ -147,16 +93,15 @@ export default function LibraryPage() {
 
       {/* CONTENIDO */}
       <div className={`lib-grid ${layout}`}>
-        {loading && <div className="lib-loader">Cargando...</div>}
+        {isLoading && <div className="lib-loader">Cargando...</div>}
 
-        {!loading && data.length === 0 && (
+        {!isLoading && data.length === 0 && (
           <div className="lib-empty">
             <p className="lib-empty-text">No hay nada por aquí aún.</p>
           </div>
         )}
 
-        {!loading && data.map((item, i) => {
-          // Generar un ID único robusto para la key
+        {!isLoading && data.map((item, i) => {
           const uniqueKey = item.id || item.identifier || `idx-${i}`;
 
           return (

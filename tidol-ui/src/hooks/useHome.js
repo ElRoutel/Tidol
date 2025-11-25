@@ -62,7 +62,7 @@ export const useHome = () => {
             const recsData = recsRes.data || [];
             const albumsData = albumsRes.data || [];
             const programsData = programsRes.data || [];
-            const coversData = coversRes.data || [];
+            const coversData = coversRes.data?.canciones || [];
 
             // Combinar para Quick Selection
             const combinedQuick = [...historyData.slice(0, 6), ...recsData.slice(0, 6)];
@@ -70,7 +70,8 @@ export const useHome = () => {
             setData({
                 recentListenings: historyData.slice(0, 20),
                 quickSelection: shuffleArray(combinedQuick).slice(0, 6),
-                programs: programsData.slice(0, 10), // Limitar para rendimiento
+                recommendations: recsData.slice(0, 15), // Exponer recomendaciones puras
+                programs: programsData.slice(0, 10),
                 albums: albumsData.slice(0, 15),
                 coversRemixes: coversData.slice(0, 10)
             });

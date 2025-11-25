@@ -3,7 +3,7 @@ import { IoChevronBack, IoChevronForward } from 'react-icons/io5';
 
 export default function SectionBlock({ title, subtitle, onMore, children, onPrev, onNext, showControls = false }) {
     return (
-        <div className="flex flex-col gap-4 mb-12 relative group">
+        <div className="flex flex-col gap-4 mb-8 relative group">
             {/* Header */}
             <div className="flex items-end justify-between px-4 md:px-0">
                 <div className="flex flex-col">
@@ -17,31 +17,31 @@ export default function SectionBlock({ title, subtitle, onMore, children, onPrev
                     </h2>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
                     {onMore && (
                         <button
                             onClick={onMore}
-                            className="text-sm font-medium text-gray-400 hover:text-white transition-colors px-3 py-1 rounded-full border border-transparent hover:border-white/10"
+                            className="text-xs font-bold text-gray-400 hover:text-white transition-colors px-3 py-1 rounded-full border border-white/10 hover:border-white/30 uppercase tracking-wide"
                         >
                             Más
                         </button>
                     )}
 
                     {showControls && (
-                        <div className="hidden md:flex items-center gap-2">
+                        <div className="hidden md:flex items-center gap-2 ml-2">
                             <button
                                 onClick={onPrev}
-                                className="p-2 rounded-full border border-white/10 hover:bg-white/10 text-white transition-all disabled:opacity-30"
+                                className="w-8 h-8 flex items-center justify-center rounded-full border border-white/10 hover:bg-white/10 text-white transition-all disabled:opacity-30"
                                 aria-label="Previous"
                             >
-                                <IoChevronBack size={20} />
+                                <IoChevronBack size={16} />
                             </button>
                             <button
                                 onClick={onNext}
-                                className="p-2 rounded-full border border-white/10 hover:bg-white/10 text-white transition-all disabled:opacity-30"
+                                className="w-8 h-8 flex items-center justify-center rounded-full border border-white/10 hover:bg-white/10 text-white transition-all disabled:opacity-30"
                                 aria-label="Next"
                             >
-                                <IoChevronForward size={20} />
+                                <IoChevronForward size={16} />
                             </button>
                         </div>
                     )}

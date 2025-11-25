@@ -1,155 +1,65 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import api from '../api/axiosConfig';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
+import { useSearch } from '../hooks/useSearch';
 import SearchInput from '../components/SearchInput';
 import SearchResultCard from '../components/SearchResultCard';
-import { IoTimeOutline, IoCloseOutline } from 'react-icons/io5'; // Iconos para el historial
-
-import './search.css';
+import { IoTimeOutline, IoCloseOutline } from 'react-icons/io5';
+import api from '../api/axiosConfig';
 import '../styles/glass.css';
+import './search.css';
 
 export function SearchPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const queryParam = searchParams.get('q') || ''; // 1. Leemos la URL al iniciar
-
-  const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState({
-    canciones: [], albums: [], artists: [], archive: []
-  });
-  
-  // Estado para el historial local
-  const [searchHistory, setSearchHistory] = useState([]);
+  const {
+    query,
+    loading,
+    results,
+    searchHistory,
+    handleSearch,
+    removeFromHistory,
+    hasResults
+  } = useSearch();
 
   const navigate = useNavigate();
   const { playSongList } = usePlayer();
 
-  // --- A. CARGAR HISTORIAL AL MONTAR ---
-  useEffect(() => {
-    const savedHistory = localStorage.getItem('tidol_search_history');
-    if (savedHistory) {
-      setSearchHistory(JSON.parse(savedHistory));
-    }
-  }, []);
-
-  // --- B. EFECTO QUE REACCIONA A LA URL ---
-  // Esto es lo que evita que se "pierda" la búsqueda al volver atrás
-  useEffect(() => {
-    if (queryParam.trim() !== '') {
-      performSearch(queryParam);
-    } else {
-      // Si la URL está vacía, limpiamos resultados
-      setResults({ canciones: [], albums: [], artists: [], archive: [] });
-    }
-  }, [queryParam]);
-
-  // --- C. FUNCIÓN DE BÚSQUEDA REAL ---
-  const performSearch = async (query) => {
-    setLoading(true);
-    try {
-      const res = await api.get(`/music/searchAll?q=${encodeURIComponent(query)}`);
-      const data = res.data || {};
-      
-      setResults({
-        canciones: data.canciones || [],
-        albums: data.albums || [],
-        artists: data.artists || [],
-        archive: normalizeArchiveResults(data.archive || [])
-      });
-    } catch (err) {
-      console.error('Error buscando:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // --- D. MANEJO DEL INPUT ---
-  // Cuando el usuario busca, NO buscamos directamente, solo actualizamos la URL.
-  // El useEffect de arriba detectará el cambio y ejecutará la búsqueda.
-  const handleSearch = (query) => {
-    if (!query || query.trim() === '') {
-      setSearchParams({});
-      return;
-    }
-    
-    // 1. Actualizar URL
-    setSearchParams({ q: query });
-
-    // 2. Guardar en Historial (LocalStorage)
-    updateHistory(query);
-  };
-
-  // --- E. GESTIÓN DEL HISTORIAL ---
-  const updateHistory = (term) => {
-    let newHistory = [term, ...searchHistory.filter(item => item !== term)];
-    newHistory = newHistory.slice(0, 10); // Guardar solo los últimos 10
-    setSearchHistory(newHistory);
-    localStorage.setItem('tidol_search_history', JSON.stringify(newHistory));
-  };
-
-  const removeFromHistory = (e, term) => {
-    e.stopPropagation(); // Evitar que se dispare el click del item
-    const newHistory = searchHistory.filter(item => item !== term);
-    setSearchHistory(newHistory);
-    localStorage.setItem('tidol_search_history', JSON.stringify(newHistory));
-  };
-
-  // Normalización (Tu código original)
-  const normalizeArchiveResults = (archiveItems) => {
-    if (!archiveItems || archiveItems.length === 0) return [];
-    return archiveItems.map((item) => {
-      const identifier = item.identifier || (item.id && item.id.startsWith('ia_') ? item.id.replace('ia_', '') : item.id);
-      return {
-        id: item.id || `ia_${identifier}`,
-        identifier,
-        titulo: item.titulo || item.title || 'Sin título',
-        artista: item.artista || item.artist || item.creator || 'Autor desconocido',
-        url: item.url || `https://archive.org/details/${identifier}`,
-        portada: `https://archive.org/services/img/${identifier}`,
-        duracion: item.duracion || item.duration || null,
-        album: item.album || null,
-        year: item.year || null,
-      };
-    });
-  };
-
   const handlePlayArchive = async (item) => {
-    // Tu lógica de analytics
-    try { await api.post("/music/ia/click", { identifier: item.identifier, title: item.titulo }); } catch (_) {}
+    try { await api.post("/music/ia/click", { identifier: item.identifier, title: item.titulo }); } catch (_) { }
     navigate(`/ia-album/${item.identifier}`);
   };
 
-  const hasResults = results.canciones.length > 0 || results.albums.length > 0 || results.artists.length > 0 || results.archive.length > 0;
-  const showHistory = !queryParam && searchHistory.length > 0;
+  const showHistory = !query && searchHistory.length > 0;
 
   return (
     <div className="search-page">
       {/* Barra de búsqueda */}
       <div className="search-header glass-card">
-        {/* Pasamos el valor inicial desde la URL para que el input no se quede vacío */}
-        <SearchInput onSearch={handleSearch} loading={loading} initialValue={queryParam} />
+        <SearchInput onSearch={handleSearch} loading={loading} initialValue={query} />
       </div>
 
-      {/* 1. HISTORIAL DE BÚSQUEDA (Solo si no hay búsqueda activa) */}
+      {/* 1. HISTORIAL DE BÚSQUEDA */}
       {showHistory && (
-        <div className="search-history-section">
-          <h3 className="history-title">Búsquedas recientes</h3>
-          <div className="history-list">
+        <div className="mt-5 px-2">
+          <h3 className="text-sm text-gray-400 mb-3 font-semibold pl-1">Búsquedas recientes</h3>
+          <div className="flex flex-col gap-2">
             {searchHistory.map((term, index) => (
-              <div 
-                key={index} 
-                className="history-item glass-card" 
+              <div
+                key={index}
+                className="flex justify-between items-center p-3 cursor-pointer rounded-lg hover:bg-white/10 transition-colors glass-card"
                 onClick={() => handleSearch(term)}
               >
-                <div className="history-content">
-                  <IoTimeOutline className="history-icon" />
-                  <span className="history-text">{term}</span>
+                <div className="flex items-center gap-3">
+                  <IoTimeOutline className="text-lg text-gray-400" />
+                  <span className="text-white text-sm">{term}</span>
                 </div>
-                <button 
-                  className="history-delete-btn"
-                  onClick={(e) => removeFromHistory(e, term)}
+                <button
+                  className="text-gray-400 hover:text-red-400 p-1 rounded-full hover:bg-white/5 transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeFromHistory(term);
+                  }}
                 >
-                  <IoCloseOutline />
+                  <IoCloseOutline size={20} />
                 </button>
               </div>
             ))}
@@ -157,33 +67,33 @@ export function SearchPage() {
         </div>
       )}
 
-      {/* 2. ESTADO INICIAL (Sin historial ni búsqueda) */}
-      {!queryParam && searchHistory.length === 0 && (
-        <div className="search-empty-state glass-card">
-          <div className="empty-icon">🔍</div>
-          <h2 className="empty-title">Descubre tu música</h2>
-          <p className="empty-description">Busca canciones, álbumes y artistas.</p>
+      {/* 2. ESTADO INICIAL */}
+      {!query && searchHistory.length === 0 && (
+        <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8 glass-card rounded-2xl mt-10">
+          <div className="text-6xl mb-6 animate-bounce">🔍</div>
+          <h2 className="text-2xl font-bold text-white mb-2">Descubre tu música</h2>
+          <p className="text-gray-400 text-lg">Busca canciones, álbumes y artistas.</p>
         </div>
       )}
 
       {/* 3. SIN RESULTADOS */}
-      {!loading && queryParam && !hasResults && (
-        <div className="search-empty-state glass-card">
-          <div className="empty-icon">😕</div>
-          <h2 className="empty-title">No encontramos "{queryParam}"</h2>
-          <p className="empty-description">Intenta con otros términos.</p>
+      {!loading && query && !hasResults && (
+        <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8 glass-card rounded-2xl mt-10">
+          <div className="text-6xl mb-6">😕</div>
+          <h2 className="text-2xl font-bold text-white mb-2">No encontramos "{query}"</h2>
+          <p className="text-gray-400 text-lg">Intenta con otros términos.</p>
         </div>
       )}
 
       {/* 4. RESULTADOS */}
-      <div className="search-results">
+      <div className="flex flex-col gap-10 mt-8">
         {/* Artistas */}
         {results.artists.length > 0 && (
-          <div className="results-section">
-            <div className="section-header glass-card">
-              <h2 className="section-title">Artistas</h2>
+          <div className="animate-fade-in">
+            <div className="mb-5 px-4 py-3 glass-card rounded-xl inline-block">
+              <h2 className="text-xl font-bold text-white">Artistas</h2>
             </div>
-            <div className="results-grid">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {results.artists.map(artist => (
                 <SearchResultCard
                   key={artist.id}
@@ -199,11 +109,11 @@ export function SearchPage() {
 
         {/* Álbumes */}
         {results.albums.length > 0 && (
-          <div className="results-section">
-            <div className="section-header glass-card">
-              <h2 className="section-title">Álbumes</h2>
+          <div className="animate-fade-in">
+            <div className="mb-5 px-4 py-3 glass-card rounded-xl inline-block">
+              <h2 className="text-xl font-bold text-white">Álbumes</h2>
             </div>
-            <div className="results-grid">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {results.albums.map(album => (
                 <SearchResultCard
                   key={album.id}
@@ -219,11 +129,11 @@ export function SearchPage() {
 
         {/* Canciones */}
         {results.canciones.length > 0 && (
-          <div className="results-section">
-            <div className="section-header glass-card">
-              <h2 className="section-title">Canciones</h2>
+          <div className="animate-fade-in">
+            <div className="mb-5 px-4 py-3 glass-card rounded-xl inline-block">
+              <h2 className="text-xl font-bold text-white">Canciones</h2>
             </div>
-            <div className="results-grid">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {results.canciones.map((song, index) => (
                 <SearchResultCard
                   key={song.id}
@@ -239,11 +149,13 @@ export function SearchPage() {
 
         {/* Internet Archive */}
         {results.archive.length > 0 && (
-          <div className="results-section">
-            <div className="section-header glass-card">
-              <h2 className="section-title">Internet Archive 🌐</h2>
+          <div className="animate-fade-in">
+            <div className="mb-5 px-4 py-3 glass-card rounded-xl inline-block">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                Internet Archive 🌐
+              </h2>
             </div>
-            <div className="results-grid">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {results.archive.map((item, index) => (
                 <SearchResultCard
                   key={item.id || index}
@@ -259,71 +171,6 @@ export function SearchPage() {
           </div>
         )}
       </div>
-
-      {/* ESTILOS DEL HISTORIAL */}
-      <style jsx>{`
-        .search-history-section {
-          margin-top: 20px;
-          padding: 0 8px;
-        }
-        .history-title {
-          font-size: 14px;
-          color: #aaa;
-          margin-bottom: 12px;
-          font-weight: 600;
-          padding-left: 4px;
-        }
-        .history-list {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-        .history-item {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 12px 16px;
-          cursor: pointer;
-          transition: background 0.2s;
-        }
-        .history-item:hover {
-          background: rgba(255,255,255,0.1);
-        }
-        .history-content {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-        .history-icon {
-          font-size: 18px;
-          color: #888;
-        }
-        .history-text {
-          font-size: 15px;
-          color: white;
-        }
-        .history-delete-btn {
-          background: none;
-          border: none;
-          color: #666;
-          font-size: 20px;
-          padding: 4px;
-          display: flex;
-          align-items: center;
-          cursor: pointer;
-          border-radius: 50%;
-        }
-        .history-delete-btn:hover {
-          color: #ff5555;
-          background: rgba(255,255,255,0.05);
-        }
-        .loading-text {
-            text-align: center;
-            color: #aaa;
-            font-size: 14px;
-            margin-top: 10px;
-        }
-      `}</style>
     </div>
   );
 }

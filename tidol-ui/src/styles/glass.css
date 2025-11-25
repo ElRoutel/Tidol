@@ -186,3 +186,36 @@
     background: rgba(30, 30, 30, 0.9);
   }
 }
+/* ============================================ 
+   CUSTOM SCROLLBARS (Desktop Only)
+   ============================================ */
+@media (min-width: 768px) {
+  .scrollbar-default::-webkit-scrollbar {
+    height: 8px;
+    background: transparent;
+  }
+
+  .scrollbar-default::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-default::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+  }
+
+  .scrollbar-default::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.4);
+  }
+}
+
+/* Hide scrollbar utility */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+

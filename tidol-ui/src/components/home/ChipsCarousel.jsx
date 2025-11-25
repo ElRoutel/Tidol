@@ -5,17 +5,10 @@ import '../../styles/glass.css'; // Asegurar estilos base
 const CHIPS = [
     { id: 'all', label: 'Todo' },
     { id: 'podcasts', label: 'Podcasts' },
-    { id: 'sad', label: 'Triste' },
-    { id: 'commute', label: 'Viaje diario' },
-    { id: 'party', label: 'Fiesta' },
-    { id: 'energy', label: 'Energía' },
-    { id: 'feel_good', label: 'Para sentirte bien' },
-    { id: 'entertainment', label: 'Entretenimiento' },
-    { id: 'romance', label: 'Romance' },
-    { id: 'relax', label: 'Relajación' },
-    { id: 'focus', label: 'Concentración' },
+    { id: 'relax', label: 'Relax' },
     { id: 'workout', label: 'Entrenamiento' },
-    { id: 'sleep', label: 'Dormir' }
+    { id: 'party', label: 'Fiesta' },
+    { id: 'focus', label: 'Concentración' }
 ];
 
 export default function ChipsCarousel({ selectedChip, onSelectChip }) {
