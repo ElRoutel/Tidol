@@ -3,29 +3,28 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
-const mm = require('music-metadata'); // Para leer metadatos del archivo
-const axios = require('axios'); // Necesario para buscar en la web
-const ffmpeg = require('fluent-ffmpeg'); // La navaja suiza del audio
+const mm = require('music-metadata');
+const { spawn } = require('child_process'); // Vital para llamar a Python
 
 const app = express();
-const PORT = 3001; // Correrá en puerto distinto a React (3000)
+const PORT = 3001;
 
 // --- CONFIGURACIÓN ---
 app.use(cors());
 app.use(express.json());
 
-// Directorios para guardar la música y la DB
 const MEDIA_DIR = path.join(__dirname, 'media');
-const DB_PATH = path.join(__dirname, 'spectra.db');
+const DB_PATH_SPECTRA = path.join(__dirname, 'spectra.db');
 
-// Asegurar que existan las carpetas
+// Asegurar que exista carpeta media
 if (!fs.existsSync(MEDIA_DIR)) fs.mkdirSync(MEDIA_DIR);
 
-// --- BASE DE DATOS (SQLite) ---
-const db = new Database(DB_PATH);
+// --- DB SPECTRA (Local) ---
+// AQUÍ ESTABA EL ERROR: Ahora se llama dbSpectra uniformemente
+const dbSpectra = new Database(DB_PATH_SPECTRA);
 
-// Inicializar tablas si no existen
-db.exec(`
+// Tabla actualizada con todos los campos necesarios
+dbSpectra.exec(`
   CREATE TABLE IF NOT EXISTS tracks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT,
@@ -37,275 +36,204 @@ db.exec(`
     format TEXT,
     bpm REAL DEFAULT 0,
     key_signature TEXT,
-    analysis_status TEXT DEFAULT 'pending' -- 'pending', 'analyzed', 'failed'
+    waveform_data TEXT, 
+    original_ia_id TEXT,
+    analysis_status TEXT DEFAULT 'pending'
   );
 `);
 
-console.log('💿 SPECTRA Database initialized');
+console.log('💿 SPECTRA Database: Ready');
 
-// ⚠️ AJUSTA ESTA RUTA A DONDE TENGAS TU DB ANTIGUA DE TIDOL
-const DB_PATH_TIDOL = path.join(__dirname, '../Tidol/backend/models/database.sqlite'); 
+// --- DB TIDOL (CONEXIÓN BLINDADA) ---
+let dbTidol;
+const PATH_OPCION_A = path.join(__dirname, '../backend/models/database.sqlite');
+const PATH_OPCION_B = path.join(__dirname, '../Tidol/backend/models/database.sqlite');
+// Elegimos la ruta que exista
+let DB_PATH_TIDOL = fs.existsSync(PATH_OPCION_A) ? PATH_OPCION_A : PATH_OPCION_B;
 
-// --- CONEXIONES ---
-// Abrimos la DB de Tidol en modo lectura para no romper nada allá
-const dbTidol = new Database(DB_PATH_TIDOL, { readonly: true }); 
-
-console.log('💾 TIDOL LEGACY DB: Connected');
+try {
+    if (!fs.existsSync(DB_PATH_TIDOL)) {
+        // Si no existe ninguna, lanzamos error controlado
+        throw new Error("No se encuentra el archivo .sqlite en ninguna ruta estándar.");
+    }
+    dbTidol = new Database(DB_PATH_TIDOL, { readonly: true });
+    console.log(`💾 TIDOL LEGACY DB: Conectada.`);
+} catch (err) {
+    console.warn(`⚠️  ADVERTENCIA: Bridge desactivado. (${err.message})`);
+    dbTidol = null;
+}
 
 // --- RUTAS ---
 
-// 1. Endpoint de "Ingesta" (Simulación de descarga/procesamiento inicial)
-// Aquí recibirías la orden de descargar algo de Internet Archive o guardar un archivo local
+// 1. Bridge: Recomendaciones
+app.get('/bridge/recommendations', (req, res) => {
+    if (!dbTidol) return res.status(503).json({ error: 'Bridge desactivado' });
+    try {
+        const history = dbTidol.prepare(`
+            SELECT ia_identifier, titulo, artista, url, played_at
+            FROM ia_history ORDER BY played_at DESC LIMIT 50
+        `).all();
+
+        const recommendations = history.map(item => {
+            const localMatch = dbSpectra.prepare(`
+                SELECT id FROM tracks WHERE title = ? OR original_ia_id = ?
+            `).get(item.titulo, item.ia_identifier);
+            return {
+                ...item,
+                status: localMatch ? 'upgraded' : 'needs_upgrade',
+                local_id: localMatch ? localMatch.id : null
+            };
+        });
+        res.json(recommendations);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 2. Ingesta Inteligente (Con protección de duplicados)
 app.post('/ingest', async (req, res) => {
-    const { filename, sourceUrl } = req.body;
-    // NOTA: Aquí iría la lógica de descarga real (axios stream).
-    // Por ahora, asumimos que el archivo ya apareció en la carpeta media.
-    
+    const { filename, ia_id, metadata_override } = req.body;
     const filePath = path.join(MEDIA_DIR, filename);
 
-    if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ error: 'Archivo no encontrado en media/' });
-    }
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
 
     try {
-        // A. Extracción rápida de Metadatos (Node puro)
-        const metadata = await mm.parseFile(filePath);
-        
+        // Verificar si ya existe para no romper la DB
+        const existingTrack = dbSpectra.prepare('SELECT id FROM tracks WHERE filepath = ?').get(filename);
+
+        if (existingTrack) {
+            // Si existe, solo re-analizamos y avisamos
+            runPythonAnalysis(existingTrack.id, filePath);
+            return res.json({ success: true, trackId: existingTrack.id, msg: "Re-analyzing existing track..." });
+        }
+
+        const fileMeta = await mm.parseFile(filePath);
         const info = {
-            title: metadata.common.title || filename,
-            artist: metadata.common.artist || 'Unknown Artist',
-            album: metadata.common.album || 'Unknown Album',
-            duration: metadata.format.duration,
-            bitrate: metadata.format.bitrate,
-            format: metadata.format.container,
-            filepath: filename
+            title: metadata_override?.title || fileMeta.common.title || filename,
+            artist: metadata_override?.artist || fileMeta.common.artist || 'Unknown',
+            album: fileMeta.common.album || 'Spectra Import',
+            filepath: filename,
+            duration: fileMeta.format.duration,
+            bitrate: fileMeta.format.bitrate,
+            format: fileMeta.format.container,
+            original_ia_id: ia_id || null
         };
 
-        // B. Guardar en DB
-        const insert = db.prepare(`
-            INSERT INTO tracks (title, artist, album, filepath, duration, bitrate, format)
-            VALUES (@title, @artist, @album, @filepath, @duration, @bitrate, @format)
+        const insert = dbSpectra.prepare(`
+            INSERT INTO tracks (title, artist, album, filepath, duration, bitrate, format, original_ia_id)
+            VALUES (@title, @artist, @album, @filepath, @duration, @bitrate, @format, @original_ia_id)
         `);
         const result = insert.run(info);
 
-        res.json({ success: true, trackId: result.lastInsertRowid, metadata: info });
-
-        // C. Disparar análisis profundo en segundo plano (FFT / BPM / Waveform)
-        analyzeAudioBackground(result.lastInsertRowid, filePath);
+        res.json({ success: true, trackId: result.lastInsertRowid, msg: "Analysis started" });
+        
+        // Disparar Python
+        runPythonAnalysis(result.lastInsertRowid, filePath);
 
     } catch (error) {
-        console.error("Error ingesting:", error);
+        console.error("Error Ingest:", error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// 2. Streaming de Audio (Lo que usa tu <audio> tag en React)
+// 3. Streaming
 app.get('/stream/:id', (req, res) => {
-    const track = db.prepare('SELECT * FROM tracks WHERE id = ?').get(req.params.id);
+    const track = dbSpectra.prepare('SELECT * FROM tracks WHERE id = ?').get(req.params.id);
+    if (!track) return res.status(404).send('Not found');
     
-    if (!track) return res.status(404).send('Track not found');
-
     const filePath = path.join(MEDIA_DIR, track.filepath);
+    if (!fs.existsSync(filePath)) return res.status(404).send('File missing');
+
     const stat = fs.statSync(filePath);
-    const fileSize = stat.size;
     const range = req.headers.range;
 
-    // Lógica para permitir "seek" (saltar a un minuto específico)
     if (range) {
         const parts = range.replace(/bytes=/, "").split("-");
         const start = parseInt(parts[0], 10);
-        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
         const chunksize = (end - start) + 1;
         const file = fs.createReadStream(filePath, { start, end });
         const head = {
-            'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+            'Content-Range': `bytes ${start}-${end}/${stat.size}`,
             'Accept-Ranges': 'bytes',
             'Content-Length': chunksize,
-            'Content-Type': 'audio/mpeg', // O audio/flac según corresponda
-        };
-        res.writeHead(206, head); // 206 Partial Content
-        file.pipe(res);
-    } else {
-        const head = {
-            'Content-Length': fileSize,
             'Content-Type': 'audio/mpeg',
         };
-        res.writeHead(200, head);
+        res.writeHead(206, head);
+        file.pipe(res);
+    } else {
+        res.writeHead(200, { 'Content-Length': stat.size, 'Content-Type': 'audio/mpeg' });
         fs.createReadStream(filePath).pipe(res);
     }
 });
 
-// 3. API para obtener la biblioteca
-app.get('/library', (req, res) => {
-    const tracks = db.prepare('SELECT * FROM tracks ORDER BY id DESC').all();
-    res.json(tracks);
-});
-
-// --- NUEVO MÓDULO: EL "BRIDGE" (PUENTE) ---
-
-// Ruta para ver qué canciones necesitan "Refinamiento" urgente
-app.get('/bridge/recommendations', (req, res) => {
-    try {
-        // 1. Consultamos la DB vieja para ver lo más escuchado
-        // Asumo que tienes una tabla 'history' o 'songs' con contador de clicks.
-        // Ajusta 'song_name' y 'play_count' a tus nombres reales de columnas.
-        const topSongs = dbTidol.prepare(`
-            SELECT song_name, artist_name, play_count, original_url 
-            FROM user_stats 
-            ORDER BY play_count DESC 
-            LIMIT 20
-        `).all();
-
-        // 2. Filtramos las que YA tenemos en Spectra para no repetir trabajo
-        const recommendations = topSongs.map(song => {
-            const exists = db.prepare('SELECT id FROM tracks WHERE title = ?').get(song.song_name);
-            return {
-                ...song,
-                status: exists ? 'upgraded' : 'needs_upgrade' // 'upgraded' significa que ya está local y limpia
-            };
-        });
-
-        res.json(recommendations);
-    } catch (error) {
-        res.status(500).json({ error: 'Error leyendo Tidol DB: ' + error.message });
+// 4. Datos de Análisis (Waveform, BPM)
+app.get('/track/:id/analysis', (req, res) => {
+    const track = dbSpectra.prepare('SELECT id, bpm, key_signature, waveform_data, analysis_status FROM tracks WHERE id = ?').get(req.params.id);
+    if(track && track.waveform_data) {
+        try { track.waveform_data = JSON.parse(track.waveform_data); } 
+        catch (e) { track.waveform_data = []; }
     }
+    res.json(track);
 });
 
-// Ruta que ejecuta el "Scout" para una canción específica de la lista anterior
-app.post('/bridge/upgrade-track', async (req, res) => {
-    const { rawTitle, rawArtist } = req.body;
-    
-    console.log(`🕵️ Scout activado para: ${rawTitle}`);
-
-    try {
-        // PASO 1: SANITIZACIÓN (WEB SCRAPING SIMULADO)
-        // Aquí conectaríamos con MusicBrainz o Discogs API para corregir el nombre
-        const cleanMetadata = await sanitizeMetadata(rawTitle, rawArtist);
-        
-        // PASO 2: BÚSQUEDA INTELIGENTE EN INTERNET ARCHIVE
-        // Buscamos la mejor versión basada en los datos limpios
-        const archiveMatch = await searchInternetArchive(cleanMetadata.query);
-
-        if (!archiveMatch) {
-            return res.status(404).json({ message: 'No se encontró mejora en alta calidad' });
-        }
-
-        // Si encontramos algo mejor, devolvemos los datos para que el frontend (o el user) confirme la descarga
-        res.json({
-            original: { rawTitle, rawArtist },
-            upgrade: {
-                title: cleanMetadata.title,
-                artist: cleanMetadata.artist,
-                source: 'Internet Archive',
-                file_url: archiveMatch.downloadUrl,
-                format: archiveMatch.format, // ej: FLAC o VBR MP3
-                size: archiveMatch.size
-            }
-        });
-
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: error.message });
-    }
-});
-// --- NUEVA RUTA: SMART FLOW (Ordenamiento Automático) ---
+// 5. Smart Flow (Playlist Automática por BPM)
 app.get('/smart-queue/bpm-flow', (req, res) => {
     try {
-        // 1. La Lógica del DJ:
-        // Seleccionamos solo las canciones que ya fueron analizadas exitosamente.
-        // Las ordenamos por BPM de menor a mayor (Ascendente).
+        // Usamos dbSpectra aquí (antes fallaba porque decía 'db')
         const playlist = dbSpectra.prepare(`
             SELECT id, title, artist, bpm, key_signature, duration, filepath 
             FROM tracks 
-            WHERE analysis_status = 'analyzed' 
-            AND bpm > 0 
+            WHERE analysis_status = 'analyzed' AND bpm > 0 
             ORDER BY bpm ASC
         `).all();
 
-        // 2. Análisis de Transiciones (Predicción)
-        // Agregamos una nota sobre qué tan difícil será mezclar con la siguiente
         const smartPlaylist = playlist.map((track, index) => {
             const nextTrack = playlist[index + 1];
             let transitionType = "Final";
-
             if (nextTrack) {
                 const bpmDiff = Math.abs(nextTrack.bpm - track.bpm);
-                if (bpmDiff < 5) transitionType = "Smooth (Suave) 🟢";
-                else if (bpmDiff < 15) transitionType = "Energy Boost (Subida) 🟡";
-                else transitionType = "Hard Cut (Cambio Brusco) 🔴";
+                if (bpmDiff < 5) transitionType = "Smooth 🟢";
+                else if (bpmDiff < 15) transitionType = "Boost 🟡";
+                else transitionType = "Hard Cut 🔴";
             }
-
             return { ...track, transition_prediction: transitionType };
         });
-
         res.json(smartPlaylist);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
-// --- FUNCIONES AUXILIARES (MOCKUPS POR AHORA) ---
 
-async function sanitizeMetadata(title, artist) {
-    // AQUÍ IRÁ TU LÓGICA DE SCRAPING
-    // Por ahora simulamos que limpiamos el texto
-    // Ej: "linkin_park_numb_official" -> "Numb" - "Linkin Park"
-    return {
-        title: title.replace(/_/g, ' ').trim(), // Limpieza básica
-        artist: artist ? artist.replace(/_/g, ' ').trim() : 'Unknown',
-        query: `${artist} ${title} flac OR 320kbps` // Query optimizada para IA
-    };
-}
+// --- PYTHON WORKER ---
+function runPythonAnalysis(trackId, filePath) {
+    console.log(`🐍 Iniciando Python para Track #${trackId}...`);
+    const pythonProcess = spawn('python', ['analyzer.py', filePath]);
 
-async function searchInternetArchive(query) {
-    // Aquí usamos axios para llamar a la Search API de Internet Archive
-    const searchUrl = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}&fl[]=identifier&fl[]=title&output=json`;
-    
-    // Esto es un ejemplo real de llamada
-    const response = await axios.get(searchUrl);
-    const docs = response.data.response.docs;
+    let dataBuffer = '';
+    pythonProcess.stdout.on('data', (data) => dataBuffer += data.toString());
+    pythonProcess.stderr.on('data', (data) => console.error(`Python Debug: ${data}`));
 
-    if (docs.length > 0) {
-        const id = docs[0].identifier;
-        return {
-            id: id,
-            downloadUrl: `https://archive.org/download/${id}/${id}_vbr.mp3`, // Simplificado
-            format: 'mp3',
-            size: '5MB'
-        };
-    }
-    return null;
-}
-
-// --- FUNCIÓN DE ANÁLISIS EN BACKGROUND ---
-function analyzeAudioBackground(trackId, filePath) {
-    console.log(`🧪 Iniciando análisis SPECTRA para ID: ${trackId}...`);
-    
-    // Aquí es donde integraríamos Python más adelante para la FFT compleja.
-    // Por ahora, usamos FFmpeg para normalizar o detectar volumen.
-    
-    ffmpeg(filePath)
-        .audioFilters('volumedetect')
-        .format('null') // No generamos archivo, solo analizamos
-        .on('end', (stdout, stderr) => {
-            // FFmpeg escribe el análisis en stderr
-            if(stderr.includes('max_volume')) {
-                console.log(`✅ Análisis completado para ID ${trackId}`);
-                // Aquí parsearíamos el log para sacar el volumen y actualizar la DB
-                // db.prepare('UPDATE tracks SET analysis_status = "analyzed" WHERE id = ?').run(trackId);
+    pythonProcess.on('close', (code) => {
+        if (code !== 0) {
+            console.log(`Python falló con código ${code}`);
+            dbSpectra.prepare('UPDATE tracks SET analysis_status = "failed" WHERE id = ?').run(trackId);
+            return;
+        }
+        try {
+            const result = JSON.parse(dataBuffer);
+            if (result.status === 'success') {
+                console.log(`✅ Análisis: ${result.bpm} BPM | ${result.key}`);
+                const update = dbSpectra.prepare(`
+                    UPDATE tracks SET bpm = ?, key_signature = ?, waveform_data = ?, analysis_status = 'analyzed'
+                    WHERE id = ?
+                `);
+                update.run(result.bpm, result.key, JSON.stringify(result.waveform), trackId);
+            } else {
+                console.error("Lógica Python falló:", result.message);
             }
-        })
-        .on('error', (err) => console.error("Error analizando:", err))
-        .save('NUL'); // Salida a la nada (en windows usar 'NUL')
+        } catch (e) {
+            console.error("Error procesando respuesta de Python:", e);
+        }
+    });
 }
 
-// Iniciar servidor
 app.listen(PORT, () => {
-    console.log(`
-    =========================================
-      🔊 SPECTRA AUDIO SERVER | PORT ${PORT}
-    =========================================
-      - Media Folder: ${MEDIA_DIR}
-      - Database: Connected
-      - Mode: Local Refinery
-    `);
+    console.log(`🚀 SPECTRA SERVER en http://localhost:${PORT}`);
 });

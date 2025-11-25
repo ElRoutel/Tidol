@@ -40,10 +40,10 @@ export default function ChipsCarousel({ selectedChip, onSelectChip }) {
 
     return (
         <div className="relative group w-full mb-6">
-            {/* Botón Izquierda */}
+            {/* Botón Izquierda - Oculto en móvil */}
             <button
                 onClick={() => scroll('left')}
-                className={`absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/50 backdrop-blur-md border border-white/10 text-white hover:bg-white/20 transition-all ${showLeftArrow ? 'opacity-100 visible' : 'opacity-0 invisible'
+                className={`hidden md:block absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/50 backdrop-blur-md border border-white/10 text-white hover:bg-white/20 transition-all ${showLeftArrow ? 'opacity-100 visible' : 'opacity-0 invisible'
                     }`}
                 aria-label="Scroll left"
             >
@@ -74,10 +74,10 @@ export default function ChipsCarousel({ selectedChip, onSelectChip }) {
                 ))}
             </div>
 
-            {/* Botón Derecha */}
+            {/* Botón Derecha - Oculto en móvil */}
             <button
                 onClick={() => scroll('right')}
-                className={`absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/50 backdrop-blur-md border border-white/10 text-white hover:bg-white/20 transition-all ${showRightArrow ? 'opacity-100 visible' : 'opacity-0 invisible'
+                className={`hidden md:block absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/50 backdrop-blur-md border border-white/10 text-white hover:bg-white/20 transition-all ${showRightArrow ? 'opacity-100 visible' : 'opacity-0 invisible'
                     }`}
                 aria-label="Scroll right"
             >
