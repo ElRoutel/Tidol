@@ -208,7 +208,41 @@ app.post('/bridge/upgrade-track', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+// --- NUEVA RUTA: SMART FLOW (Ordenamiento Automático) ---
+app.get('/smart-queue/bpm-flow', (req, res) => {
+    try {
+        // 1. La Lógica del DJ:
+        // Seleccionamos solo las canciones que ya fueron analizadas exitosamente.
+        // Las ordenamos por BPM de menor a mayor (Ascendente).
+        const playlist = dbSpectra.prepare(`
+            SELECT id, title, artist, bpm, key_signature, duration, filepath 
+            FROM tracks 
+            WHERE analysis_status = 'analyzed' 
+            AND bpm > 0 
+            ORDER BY bpm ASC
+        `).all();
 
+        // 2. Análisis de Transiciones (Predicción)
+        // Agregamos una nota sobre qué tan difícil será mezclar con la siguiente
+        const smartPlaylist = playlist.map((track, index) => {
+            const nextTrack = playlist[index + 1];
+            let transitionType = "Final";
+
+            if (nextTrack) {
+                const bpmDiff = Math.abs(nextTrack.bpm - track.bpm);
+                if (bpmDiff < 5) transitionType = "Smooth (Suave) 🟢";
+                else if (bpmDiff < 15) transitionType = "Energy Boost (Subida) 🟡";
+                else transitionType = "Hard Cut (Cambio Brusco) 🔴";
+            }
+
+            return { ...track, transition_prediction: transitionType };
+        });
+
+        res.json(smartPlaylist);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 // --- FUNCIONES AUXILIARES (MOCKUPS POR AHORA) ---
 
 async function sanitizeMetadata(title, artist) {

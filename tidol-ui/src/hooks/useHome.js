@@ -20,7 +20,6 @@ export const useHome = () => {
     const [data, setData] = useState({
         recentListenings: [],
         quickSelection: [],
-        programs: [],
         albums: [],
         coversRemixes: []
     });
@@ -40,20 +39,15 @@ export const useHome = () => {
             // 3. Albums (Populares o filtrados)
             const albumsPromise = api.get('/music/albums');
 
-            // 4. Programs (Podcasts desde Internet Archive)
-            // Usamos searchArchive con query específica para podcasts
-            const podcastQuery = `podcast${querySuffix}`;
-            const programsPromise = api.get(`/music/searchArchive?q=${encodeURIComponent(podcastQuery)}`);
-
-            // 5. Covers & Remixes (Búsqueda general)
+            // 4. Covers & Remixes (Búsqueda general)
+            // NOTA: Podcasts removidos para evitar bloqueo de IP por exceso de requests
             const coversQuery = `cover remix${querySuffix}`;
             const coversPromise = api.get(`/music/search?q=${encodeURIComponent(coversQuery)}`);
 
-            const [historyRes, recsRes, albumsRes, programsRes, coversRes] = await Promise.all([
+            const [historyRes, recsRes, albumsRes, coversRes] = await Promise.all([
                 historyPromise,
                 recsPromise,
                 albumsPromise,
-                programsPromise,
                 coversPromise
             ]);
 
@@ -61,7 +55,6 @@ export const useHome = () => {
             const historyData = historyRes.data || [];
             const recsData = recsRes.data || [];
             const albumsData = albumsRes.data || [];
-            const programsData = programsRes.data || [];
             const coversData = coversRes.data?.canciones || [];
 
             // Combinar para Quick Selection
@@ -71,7 +64,6 @@ export const useHome = () => {
                 recentListenings: historyData.slice(0, 20),
                 quickSelection: shuffleArray(combinedQuick).slice(0, 6),
                 recommendations: recsData.slice(0, 15), // Exponer recomendaciones puras
-                programs: programsData.slice(0, 10),
                 albums: albumsData.slice(0, 15),
                 coversRemixes: coversData.slice(0, 10)
             });

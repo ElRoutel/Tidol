@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { usePlayer } from '../../context/PlayerContext';
 import { useContextMenu } from '../../context/ContextMenuContext';
 import { FaPlay, FaPause, FaEllipsisH } from 'react-icons/fa';
@@ -9,13 +9,13 @@ import '../../styles/cards.css';
  * Muestra portada, info y un indicador de reproducción.
  * Integra con el ContextMenu global mediante la clase 'song-item' y data attributes.
  */
-export default React.memo(function SongGridCard({ song, onPlay }) {
+function SongGridCard({ song, onPlay }) {
   const { currentSong, isPlaying: isPlayerActive } = usePlayer();
   const { openContextMenu } = useContextMenu();
   const isThisSongCurrent = currentSong?.id === song.id || currentSong?.identifier === song.identifier;
   const isPlaying = isThisSongCurrent && isPlayerActive;
 
-  const handleMenuClick = (e) => {
+  const handleMenuClick = useCallback((e) => {
     e.stopPropagation();
     // Prepare data object similar to dataset
     const data = {
@@ -32,12 +32,16 @@ export default React.memo(function SongGridCard({ song, onPlay }) {
       quality: song.quality
     };
     openContextMenu(e, 'song', data);
-  };
+  }, [song, openContextMenu]);
+
+  const handlePlay = useCallback(() => {
+    if (onPlay) onPlay();
+  }, [onPlay]);
 
   return (
     <div
       className={`song-grid-card glass-card song-item ${isPlaying ? 'playing' : ''}`}
-      onClick={onPlay}
+      onClick={handlePlay}
       data-id={song.id || song.identifier}
       data-title={song.titulo || song.title}
       data-artist={song.artista || song.artist}
@@ -80,4 +84,20 @@ export default React.memo(function SongGridCard({ song, onPlay }) {
       </div>
     </div >
   );
-});
+}
+
+// Custom comparison function  
+const areEqual = (prevProps, nextProps) => {
+  const prevSong = prevProps.song;
+  const nextSong = nextProps.song;
+
+  if (!prevSong && !nextSong) return true;
+  if (!prevSong || !nextSong) return false;
+
+  const prevId = prevSong.id || prevSong.identifier;
+  const nextId = nextSong.id || nextSong.identifier;
+
+  return prevId === nextId && prevProps.onPlay === nextProps.onPlay;
+};
+
+export default React.memo(SongGridCard, areEqual);

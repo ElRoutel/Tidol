@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { usePlayer } from '../../context/PlayerContext';
 import { useContextMenu } from '../../context/ContextMenuContext';
 import { FaPlay, FaEllipsisH } from 'react-icons/fa';
@@ -9,11 +9,11 @@ import '../../styles/cards.css';
  * Muestra portada, título, artista y un botón de play al hacer hover.
  * Integra con el ContextMenu global mediante la clase 'song-item' y data attributes.
  */
-export default React.memo(function SongShelfCard({ song, onPlay }) {
+function SongShelfCard({ song, onPlay }) {
   const { openContextMenu } = useContextMenu();
   if (!song) return null;
 
-  const handleMenuClick = (e) => {
+  const handleMenuClick = useCallback((e) => {
     e.stopPropagation();
     const data = {
       id: song.id || song.identifier,
@@ -29,12 +29,16 @@ export default React.memo(function SongShelfCard({ song, onPlay }) {
       quality: song.quality
     };
     openContextMenu(e, 'song', data);
-  };
+  }, [song, openContextMenu]);
+
+  const handlePlay = useCallback(() => {
+    if (onPlay) onPlay();
+  }, [onPlay]);
 
   return (
     <div
       className="song-shelf-card glass-card song-item"
-      onClick={onPlay}
+      onClick={handlePlay}
       data-id={song.id || song.identifier}
       data-title={song.titulo || song.title}
       data-artist={song.artista || song.artist}
@@ -74,4 +78,21 @@ export default React.memo(function SongShelfCard({ song, onPlay }) {
       </div>
     </div>
   );
-});
+}
+
+// Custom comparison function for React.memo
+const areEqual = (prevProps, nextProps) => {
+  // Only re-render if song ID or onPlay function actually changed
+  const prevSong = prevProps.song;
+  const nextSong = nextProps.song;
+
+  if (!prevSong && !nextSong) return true;
+  if (!prevSong || !nextSong) return false;
+
+  const prevId = prevSong.id || prevSong.identifier;
+  const nextId = nextSong.id || nextSong.identifier;
+
+  return prevId === nextId && prevProps.onPlay === nextProps.onPlay;
+};
+
+export default React.memo(SongShelfCard, areEqual);

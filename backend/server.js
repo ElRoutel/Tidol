@@ -19,6 +19,8 @@ import historyRoutes from "./routes/history.routes.js";
 import playlistsRoutes from "./routes/playlists.js";
 import albumesRoutes from "./routes/albumes.js";
 import helmet from "helmet";
+import compression from "compression";
+
 async function showAnimatedBanner() {
   console.clear();
 
@@ -65,7 +67,23 @@ function logStatus(name, success, info = "") {
   const icon = success ? "✅" : "❌";
   console.log(`${icon} ${name} ${info}`);
 }
+
+// --- Middleware de Optimización ---
+// Helmet para seguridad
 app.use(helmet());
+
+// Compression para reducir tamaño de respuestas (Gzip/Brotli)
+app.use(compression({
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  },
+  level: 6, // Balance entre velocidad y compresión
+  threshold: 1024 // Solo comprimir responses > 1KB
+}));
+
 app.use(express.json());
 app.use(cors());
 app.use(express.json({
@@ -282,6 +300,35 @@ async function ensureColumn(table, column, typeDef) {
     await db.run(`CREATE INDEX IF NOT EXISTS idx_likes_externos_user_id ON likes_externos(user_id)`);
     await db.run(`CREATE INDEX IF NOT EXISTS idx_likes_externos_cancion_externa_id ON likes_externos(cancion_externa_id)`);
     logStatus("Likes Externos", true, "Tabla 'likes_externos' lista.");
+
+    // --- ÍNDICES DE OPTIMIZACIÓN (Performance Boost) ---
+    console.log("\n🚀 Aplicando índices de optimización de performance...\n");
+
+    // Índices compuestos para queries frecuentes en canciones
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_canciones_artist_album ON canciones(artista_id, album_id)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_canciones_fecha_subida ON canciones(fecha_subida DESC)`);
+    logStatus("Índices Canciones", true, "Índices compuestos para búsquedas optimizadas");
+
+    // Índices para likes (operaciones frecuentes)
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_likes_user_song ON likes(user_id, song_id)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_likes_user_id ON likes(user_id)`);
+    logStatus("Índices Likes", true, "Índices para verificación rápida de likes");
+
+    // Índices para álbumes por artista (navegación común)
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_albumes_artista_id ON albumes(artista_id)`);
+    logStatus("Índices Álbumes", true, "Índice para listado por artista");
+
+    // Índices para playlists
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_playlists_usuario_id ON playlists(usuario_id)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_playlist_canciones_playlist ON playlist_canciones(playlist_id)`);
+    logStatus("Índices Playlists", true, "Índices para consultas de playlists");
+
+    // Índices para homeRecomendations (página de inicio)
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_home_recs_user_id ON homeRecomendations(user_id)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_home_recs_played_at ON homeRecomendations(played_at DESC)`);
+    logStatus("Índices Home", true, "Índices para recomendaciones de inicio");
+
+    console.log("✅ Todos los índices de optimización aplicados correctamente.\n");
 
     //NO TOCAR ES PARA SERVIR EL FRONTEND
     //NO TOCAR

@@ -4,12 +4,11 @@ import MediaCarousel from '../MediaCarousel';
 import ListGrid from '../ListGrid';
 
 export default function HomeAllView({ data, onPlay }) {
-    const { recentListenings, quickSelection, recommendations, programs, albums, coversRemixes } = data || {};
+    const { recentListenings, quickSelection, recommendations, albums, coversRemixes } = data || {};
 
     const recentRef = useRef(null);
     const quickRef = useRef(null);
     const recsRef = useRef(null);
-    const programsRef = useRef(null);
     const albumsRef = useRef(null);
     const coversRef = useRef(null);
 
@@ -74,23 +73,6 @@ export default function HomeAllView({ data, onPlay }) {
                 </SectionBlock>
             )}
 
-            {/* Programs / Podcasts (Carousel) */}
-            {programs && programs.length > 0 && (
-                <SectionBlock
-                    title="Podcasts y Programas"
-                    subtitle="Internet Archive"
-                    showControls
-                    onPrev={() => handleScroll(programsRef, 'left')}
-                    onNext={() => handleScroll(programsRef, 'right')}
-                >
-                    <MediaCarousel
-                        ref={programsRef}
-                        items={programs}
-                        onPlay={(item, index) => onPlay(item, index, programs)}
-                    />
-                </SectionBlock>
-            )}
-
             {/* Albums (Carousel) */}
             {albums && albums.length > 0 && (
                 <SectionBlock
@@ -127,5 +109,3 @@ export default function HomeAllView({ data, onPlay }) {
         </div>
     );
 }
-
-
