@@ -1,6 +1,6 @@
 // src/components/PlayerBar.jsx
 import { useEffect, useMemo, memo, useRef, useState } from 'react';
-import { usePlayer } from '../context/PlayerContext';
+import { usePlayerState, usePlayerProgress, usePlayerActions } from '../context/PlayerContext';
 import './PlayerBar.css';
 import { useSwipeable } from 'react-swipeable';
 import {
@@ -14,7 +14,7 @@ import {
   IoVolumeMuteSharp,
 } from 'react-icons/io5';
 
-// Componente memoizado para la portada (evita re-renders innecesarios)
+// Componente memoizado para la portada
 const AlbumCover = memo(({ src, alt, onClick }) => (
   <img
     src={src || '/default_cover.png'}
@@ -25,38 +25,74 @@ const AlbumCover = memo(({ src, alt, onClick }) => (
     decoding="async"
   />
 ));
-
 AlbumCover.displayName = 'AlbumCover';
 
-export default function PlayerBar({ isSheetMode = false }) {
+// Componente memoizado para el progreso (se actualiza 60fps)
+const ProgressBar = memo(({ isDragging, onSeekStart, onSeekChange, onSeekEnd, localProgress }) => {
+  const { currentTime, duration, progress } = usePlayerProgress();
+
+  const displayProgress = isDragging ? localProgress : (progress || 0);
+  const displayTime = isDragging ? (localProgress / 100) * duration : currentTime;
+
+  const formatTime = (seconds) => {
+    if (!seconds || isNaN(seconds)) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <div className="progress-container">
+      <span className="time-current">{formatTime(displayTime)}</span>
+      <input
+        type="range"
+        min="0"
+        max="100"
+        value={displayProgress}
+        onMouseDown={onSeekStart}
+        onTouchStart={onSeekStart}
+        onChange={onSeekChange}
+        onMouseUp={onSeekEnd}
+        onTouchEnd={onSeekEnd}
+        className="progress-bar"
+      />
+      <span className="time-duration">{formatTime(duration)}</span>
+    </div>
+  );
+});
+ProgressBar.displayName = 'ProgressBar';
+
+// Componente memoizado para la barra superior en móvil
+const MobileProgressBar = memo(() => {
+  const { progress } = usePlayerProgress();
+  return (
+    <div className="progress-line-container">
+      <div className="progress-line-bar" style={{ width: `${progress || 0}%` }}></div>
+    </div>
+  );
+});
+MobileProgressBar.displayName = 'MobileProgressBar';
+
+const PlayerBar = memo(function PlayerBar({ isSheetMode = false }) {
+  // Usar contextos separados para evitar re-renders innecesarios
+  const { currentSong, isPlaying, volume, isMuted, isFullScreenOpen } = usePlayerState();
   const {
-    currentSong,
-    isPlaying,
-    volume,
-    isMuted,
-    currentTime,
-    duration,
-    progress,
     togglePlayPause,
     nextSong,
     previousSong,
     changeVolume,
     toggleMute,
     seek,
-    toggleFullScreenPlayer,
-    isFullScreenOpen
-  } = usePlayer();
+    toggleFullScreenPlayer
+  } = usePlayerActions();
 
-  // Estado local para el slider de progreso (evita saltos al arrastrar)
+  // Necesitamos duration del progress context para cálculos de seek, 
+  // pero solo lo usamos en el handler, no renderizamos
+  const { duration } = usePlayerProgress();
+
+  // Estado local para el slider de progreso
   const [isDragging, setIsDragging] = useState(false);
   const [localProgress, setLocalProgress] = useState(0);
-
-  // Sincronizar progreso local con el real cuando no se está arrastrando
-  useEffect(() => {
-    if (!isDragging) {
-      setLocalProgress(progress || 0);
-    }
-  }, [progress, isDragging]);
 
   // Cargar volumen de localStorage al inicio
   useEffect(() => {
@@ -67,9 +103,7 @@ export default function PlayerBar({ isSheetMode = false }) {
   }, [changeVolume]);
 
   // Manejadores del Slider de Progreso
-  const handleSeekStart = () => {
-    setIsDragging(true);
-  };
+  const handleSeekStart = () => setIsDragging(true);
 
   const handleSeekChange = (e) => {
     setLocalProgress(parseFloat(e.target.value));
@@ -89,146 +123,9 @@ export default function PlayerBar({ isSheetMode = false }) {
     localStorage.setItem('userPreferences.volume', newVolume);
   };
 
-  // Refs para tracking y evitar actualizaciones innecesarias
-  const lastPositionUpdateRef = useRef(0);
-  const mediaSessionInitializedRef = useRef(false);
-
-  // Configurar Metadata de Media Session (solo cuando cambia la canción)
-  useEffect(() => {
-    if (!currentSong || !('mediaSession' in navigator)) return;
-
-    // Evitar actualizaciones si la metadata es la misma
-    const currentMetadata = navigator.mediaSession.metadata;
-    if (
-      currentMetadata &&
-      currentMetadata.title === currentSong.titulo &&
-      currentMetadata.artist === currentSong.artista &&
-      currentMetadata.album === currentSong.album
-    ) {
-      return;
-    }
-
-    try {
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: currentSong.titulo || 'Canción Desconocida',
-        artist: currentSong.artista || 'Artista Desconocido',
-        album: currentSong.album || 'Álbum Desconocido',
-        artwork: [
-          {
-            src: currentSong.portada || '/default_cover.png',
-            sizes: '96x96',
-            type: 'image/jpeg'
-          },
-          {
-            src: currentSong.portada || '/default_cover.png',
-            sizes: '128x128',
-            type: 'image/jpeg'
-          },
-          {
-            src: currentSong.portada || '/default_cover.png',
-            sizes: '192x192',
-            type: 'image/jpeg'
-          },
-          {
-            src: currentSong.portada || '/default_cover.png',
-            sizes: '256x256',
-            type: 'image/jpeg'
-          },
-          {
-            src: currentSong.portada || '/default_cover.png',
-            sizes: '384x384',
-            type: 'image/jpeg'
-          },
-          {
-            src: currentSong.portada || '/default_cover.png',
-            sizes: '512x512',
-            type: 'image/jpeg'
-          }
-        ]
-      });
-    } catch (error) {
-      console.error('Error configurando Media Session metadata:', error);
-    }
-  }, [currentSong?.id, currentSong?.titulo, currentSong?.artista, currentSong?.album, currentSong?.portada]);
-
-  // Configurar Action Handlers
-  useEffect(() => {
-    if (!('mediaSession' in navigator)) return;
-
-    try {
-      navigator.mediaSession.setActionHandler('play', () => {
-        if (!isPlaying) togglePlayPause();
-      });
-
-      navigator.mediaSession.setActionHandler('pause', () => {
-        if (isPlaying) togglePlayPause();
-      });
-
-      navigator.mediaSession.setActionHandler('previoustrack', () => {
-        previousSong();
-      });
-
-      navigator.mediaSession.setActionHandler('nexttrack', () => {
-        nextSong();
-      });
-
-      navigator.mediaSession.setActionHandler('seekto', (details) => {
-        if (details.seekTime !== undefined && details.seekTime >= 0) {
-          seek(details.seekTime);
-          lastPositionUpdateRef.current = 0;
-        }
-      });
-    } catch (error) {
-      console.error('Error configurando Media Session handlers:', error);
-    }
-  }, [isPlaying, togglePlayPause, nextSong, previousSong, seek]);
-
-  // Actualizar el estado de reproducción
-  useEffect(() => {
-    if (!('mediaSession' in navigator)) return;
-
-    try {
-      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
-    } catch (error) {
-      console.error('Error actualizando playback state:', error);
-    }
-  }, [isPlaying]);
-
-  // Actualizar posición de reproducción
-  useEffect(() => {
-    if (!('mediaSession' in navigator) || !currentSong || !duration || duration <= 0) return;
-
-    const now = Date.now();
-    const timeSinceLastUpdate = now - lastPositionUpdateRef.current;
-
-    const shouldUpdate =
-      !mediaSessionInitializedRef.current ||
-      currentTime === 0 ||
-      Math.abs(currentTime - duration) < 0.5 ||
-      timeSinceLastUpdate > 10000;
-
-    if (!shouldUpdate) return;
-
-    try {
-      if ('setPositionState' in navigator.mediaSession) {
-        const validDuration = Math.max(0, Math.floor(duration));
-        const validPosition = Math.max(0, Math.min(Math.floor(currentTime), validDuration));
-
-        navigator.mediaSession.setPositionState({
-          duration: validDuration,
-          playbackRate: 1.0,
-          position: validPosition
-        });
-
-        lastPositionUpdateRef.current = now;
-        mediaSessionInitializedRef.current = true;
-      }
-    } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.debug('MediaSession position update skipped:', error.message);
-      }
-    }
-  }, [currentSong?.id, duration, isPlaying]);
+  // Media Session logic moved to PlayerContext or handled here if UI specific?
+  // Logic for Media Session is better in Context/Provider as it's global behavior.
+  // We removed it from here to avoid duplication and re-renders.
 
   const [isDesktop, setIsDesktop] = useState(window.innerWidth > 768);
 
@@ -247,13 +144,6 @@ export default function PlayerBar({ isSheetMode = false }) {
   });
 
   const handlers = isDesktop ? {} : swipeHandlers;
-
-  const formatTime = (seconds) => {
-    if (!seconds || isNaN(seconds)) return '0:00';
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
 
   const quality = useMemo(() => {
     if (!currentSong) return 'N/A';
@@ -277,10 +167,8 @@ export default function PlayerBar({ isSheetMode = false }) {
 
   return (
     <footer className={`player-container glass-card ${isSheetMode ? 'in-sheet' : ''}`} {...handlers}>
-      {/* Barra de progreso superior (solo móvil) */}
-      <div className="progress-line-container">
-        <div className="progress-line-bar" style={{ width: `${progress || 0}%` }}></div>
-      </div>
+      {/* Barra de progreso superior (solo móvil) - Componente separado */}
+      <MobileProgressBar />
 
       {/* Left section */}
       <div className="player-left">
@@ -310,22 +198,15 @@ export default function PlayerBar({ isSheetMode = false }) {
             <IoPlaySkipForwardSharp />
           </button>
         </div>
-        <div className="progress-container">
-          <span className="time-current">{formatTime(isDragging ? (localProgress / 100) * duration : currentTime)}</span>
-          <input
-            type="range"
-            min="0"
-            max="100"
-            value={localProgress}
-            onMouseDown={handleSeekStart}
-            onTouchStart={handleSeekStart}
-            onChange={handleSeekChange}
-            onMouseUp={handleSeekEnd}
-            onTouchEnd={handleSeekEnd}
-            className="progress-bar"
-          />
-          <span className="time-duration">{formatTime(duration)}</span>
-        </div>
+
+        {/* Progress Bar aislado */}
+        <ProgressBar
+          isDragging={isDragging}
+          onSeekStart={handleSeekStart}
+          onSeekChange={handleSeekChange}
+          onSeekEnd={handleSeekEnd}
+          localProgress={localProgress}
+        />
       </div>
 
       {/* Right section */}
@@ -358,4 +239,6 @@ export default function PlayerBar({ isSheetMode = false }) {
       </div>
     </footer>
   );
-}
+});
+
+export default PlayerBar;

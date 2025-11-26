@@ -4,14 +4,25 @@ import React, {
   useState,
   useRef,
   useEffect,
-  useCallback
+  useCallback,
+  useMemo
 } from 'react';
 import api from '../api/axiosConfig';
 
-const PlayerContext = createContext();
-export const usePlayer = () => useContext(PlayerContext);
+// --- Context Definitions ---
+const PlayerStateContext = createContext();
+const PlayerProgressContext = createContext();
+const PlayerActionsContext = createContext();
+const PlayerContext = createContext(); // Legacy for backward compatibility
+
+// --- Hooks ---
+export const usePlayerState = () => useContext(PlayerStateContext);
+export const usePlayerProgress = () => useContext(PlayerProgressContext);
+export const usePlayerActions = () => useContext(PlayerActionsContext);
+export const usePlayer = () => useContext(PlayerContext); // Legacy hook
 
 export function PlayerProvider({ children }) {
+  // --- State ---
   const [currentSong, setCurrentSong] = useState(null);
   const [originalQueue, setOriginalQueue] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -20,30 +31,33 @@ export function PlayerProvider({ children }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // High frequency updates
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [progress, setProgress] = useState(0);
+
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
 
   const [isFullScreenOpen, setIsFullScreenOpen] = useState(false);
-  const openFullScreenPlayer = () => setIsFullScreenOpen(true);
-  const toggleFullScreenPlayer = () => setIsFullScreenOpen(prev => !prev);
-  const closeFullScreenPlayer = () => setIsFullScreenOpen(false);
 
-  // likedSongs como Set
+  // Liked songs
   const [likedSongs, setLikedSongs] = useState(new Set());
   const prevLikeRef = useRef(null);
 
   const audioRef = useRef(null);
   const hasUserInteracted = useRef(false);
 
-  // ---------- helpers ----------
+  // --- Actions ---
+  const openFullScreenPlayer = useCallback(() => setIsFullScreenOpen(true), []);
+  const toggleFullScreenPlayer = useCallback(() => setIsFullScreenOpen(prev => !prev), []);
+  const closeFullScreenPlayer = useCallback(() => setIsFullScreenOpen(false), []);
+
   const addToHistory = useCallback((songId) => {
     setPlayedHistory(prev => prev.includes(songId) ? prev : [...prev, songId]);
   }, []);
 
-  // Cargar TODOS los liked songs (locales y de IA) al inicio
+  // Fetch liked songs
   useEffect(() => {
     let mounted = true;
     const fetchAllLikedSongs = async () => {
@@ -157,7 +171,6 @@ export function PlayerProvider({ children }) {
     });
   }, [likedSongs]);
 
-  // Reproduce una lista
   const playSongList = useCallback((songs, startIndex = 0) => {
     if (!songs || songs.length === 0) return;
     setOriginalQueue(songs);
@@ -167,7 +180,6 @@ export function PlayerProvider({ children }) {
     addToHistory(mainSong.id);
   }, [addToHistory, likedSongs]);
 
-  // Radio infinita
   const fetchRecommendations = useCallback(async (songToUse) => {
     if (!songToUse) return;
     setIsLoading(true);
@@ -253,7 +265,6 @@ export function PlayerProvider({ children }) {
     }
   }, [currentIndex, originalQueue, likedSongs]);
 
-  // --- Queue Management ---
   const addToQueue = useCallback((song) => {
     setOriginalQueue(prev => [...prev, song]);
   }, []);
@@ -267,7 +278,6 @@ export function PlayerProvider({ children }) {
   }, [currentIndex]);
 
   const reorderQueue = useCallback((newQueue) => {
-    // Encontrar la canción actual en la nueva cola para actualizar el índice
     if (currentSong) {
       const newIndex = newQueue.findIndex(s => s.id === currentSong.id);
       if (newIndex !== -1) {
@@ -312,7 +322,7 @@ export function PlayerProvider({ children }) {
     setVolume(audio.volume);
   }, []);
 
-  // Actualiza audio.src y gatea autoplay por interacción del usuario
+  // Audio Logic
   const currentSongIdRef = useRef(null);
   const lastPlayRequestIdRef = useRef(null);
 
@@ -368,7 +378,6 @@ export function PlayerProvider({ children }) {
     }).catch(err => console.error("DB Historial error:", err));
   }, [currentSong]);
 
-  // Eventos del audio
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -399,19 +408,12 @@ export function PlayerProvider({ children }) {
       setIsPlaying(false);
     };
 
-    const onLoadStart = () => {
-      setIsLoading(true);
-    };
-
-    const onCanPlay = () => {
-      setIsLoading(false);
-    };
-
+    const onLoadStart = () => setIsLoading(true);
+    const onCanPlay = () => setIsLoading(false);
     const onEnded = () => {
       setIsPlaying(false);
       nextSong();
     };
-
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
     const onVolumeChange = () => {
@@ -477,43 +479,66 @@ export function PlayerProvider({ children }) {
     }
   }, [isPlaying]);
 
+  // --- Context Values ---
+
+  // 1. State Context (Low frequency)
+  const playerState = useMemo(() => ({
+    currentSong,
+    isPlaying,
+    isLoading,
+    volume,
+    isMuted,
+    isFullScreenOpen,
+    likedSongs,
+    originalQueue,
+    currentIndex,
+    hasNext: originalQueue.length > 0,
+    hasPrevious: currentIndex > 0 || currentTime > 3,
+  }), [currentSong, isPlaying, isLoading, volume, isMuted, isFullScreenOpen, likedSongs, originalQueue, currentIndex, currentTime]);
+
+  // 2. Progress Context (High frequency - 60fps)
+  const playerProgress = useMemo(() => ({
+    currentTime,
+    duration,
+    progress
+  }), [currentTime, duration, progress]);
+
+  // 3. Actions Context (Static)
+  const playerActions = useMemo(() => ({
+    playSongList,
+    togglePlayPause,
+    nextSong,
+    previousSong,
+    addToQueue,
+    playNext,
+    changeVolume,
+    toggleMute,
+    seek,
+    openFullScreenPlayer,
+    toggleFullScreenPlayer,
+    closeFullScreenPlayer,
+    toggleLike,
+    isSongLiked,
+    reorderQueue
+  }), [playSongList, togglePlayPause, nextSong, previousSong, addToQueue, playNext, changeVolume, toggleMute, seek, openFullScreenPlayer, toggleFullScreenPlayer, closeFullScreenPlayer, toggleLike, isSongLiked, reorderQueue]);
+
+  // Legacy Context (Combined)
+  const legacyContext = useMemo(() => ({
+    audioRef,
+    ...playerState,
+    ...playerProgress,
+    ...playerActions
+  }), [playerState, playerProgress, playerActions]);
+
   return (
-    <PlayerContext.Provider
-      value={{
-        audioRef,
-        currentSong,
-        isPlaying,
-        isLoading,
-        volume,
-        isMuted,
-        currentTime,
-        duration,
-        progress,
-        hasNext: originalQueue.length > 0,
-        hasPrevious: currentIndex > 0 || currentTime > 3,
-        playSongList,
-        togglePlayPause,
-        nextSong,
-        previousSong,
-        addToQueue,
-        playNext,
-        changeVolume,
-        toggleMute,
-        seek,
-        isFullScreenOpen,
-        openFullScreenPlayer,
-        toggleFullScreenPlayer,
-        closeFullScreenPlayer,
-        toggleLike,
-        isSongLiked,
-        isSongLiked,
-        likedSongs,
-        originalQueue,
-        currentIndex,
-        reorderQueue
-      }}
-    >
-      {children}
-    </PlayerContext.Provider>
+    <PlayerStateContext.Provider value={playerState}>
+      <PlayerProgressContext.Provider value={playerProgress}>
+        <PlayerActionsContext.Provider value={playerActions}>
+          <PlayerContext.Provider value={legacyContext}>
+            {children}
+          </PlayerContext.Provider>
+        </PlayerActionsContext.Provider>
+      </PlayerProgressContext.Provider>
+    </PlayerStateContext.Provider>
   );
 }

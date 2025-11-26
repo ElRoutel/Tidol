@@ -1,121 +1,56 @@
-/* src/index.css */
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* En tu archivo CSS global o AppBlur.css */
-* {
-  touch-action: manipulation;
-  /* Deshabilita double-tap zoom pero mantiene pinch */
-}
+@layer base {
+  * {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
 
-/* ============================================
-   GLOBAL RESET - ELIMINAR MARGENES DEL BODY
-   ============================================ */
-html,
-body {
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  height: 100%;
-  overflow-x: hidden;
-  /* Previene scroll horizontal accidental */
-  -webkit-tap-highlight-color: transparent;
-  /* Elimina highlight azul en tap */
-}
-
-/* Soporte para áreas seguras en móviles (Notch, Home Indicator) */
-:root {
-  --sat: env(safe-area-inset-top);
-  --sar: env(safe-area-inset-right);
-  --sab: env(safe-area-inset-bottom);
-  --sal: env(safe-area-inset-left);
-}
-
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  /* Asegura que el padding no aumente el tamaño de los elementos */
-}
-
-/* ============================================
-   APP BLUR STYLES - SOLO PARA LAYOUT PRINCIPAL
-   ... (Aquí continúa tu código original)
-   ============================================ */
-/* Alternativa más específica para elementos interactivos */
-button,
-a,
-input,
-textarea,
-select,
-[role="button"] {
-  touch-action: manipulation;
-}
-
-/* En tu archivo CSS - iOS no hace zoom si font-size >= 16px */
-input[type="text"],
-input[type="email"],
-input[type="password"],
-input[type="search"],
-input[type="tel"],
-input[type="url"],
-input[type="number"],
-textarea,
-select {
-  font-size: 16px !important;
-  /* Previene auto-zoom en focus */
-}
-
-/* Si necesitas un tamaño visual diferente, usa transform */
-input.small-text {
-  font-size: 16px;
-  transform: scale(0.875);
-  /* Visualmente 14px */
-  transform-origin: left top;
-}
-
-/* Con v3, esta es la forma recomendada de aplicar estilos
-  globales, y ahora sí funcionará.
-*/
-body {
-  @apply bg-background text-text font-sans;
-  padding: 1rem;
-}
-
-@media (max-width: 768px) {
+  html,
   body {
-    padding: 0rem;
+    @apply m-0 p-0 w-full h-full overflow-x-hidden bg-background text-white font-sans;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.3);
   }
 }
 
-/* === PASO 1: CSS GLOBAL (Scrollbar de Cristal) === */
-/* Para navegadores Webkit (Chrome, Safari, Edge) */
-::-webkit-scrollbar {
-  width: 0px;
-  /* Ancho de la scrollbar */
-}
+@layer components {
 
-/* El "track" o fondo de la scrollbar */
-::-webkit-scrollbar-track {
-  background: transparent;
-  /* Fondo totalmente transparente */
-}
+  /* Liquid Distortion Effect */
+  .liquid-distortion {
+    filter: url(#liquid-distortion);
+  }
 
-/* El "thumb" o la parte que se arrastra */
-::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.2);
-  /* Blanco semi-transparente */
-  border-radius: 10px;
-  /* Bordes redondeados */
-  border: 1px solid transparent;
-  /* Borde transparente para el efecto "flotante" */
-  background-clip: content-box;
-  /* Asegura que el borde no tenga color de fondo */
-}
+  /* Utility for hiding scrollbar but keeping functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
+  }
 
-::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 255, 255, 0.3);
-  /* Un poco más visible al pasar el mouse */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
 }

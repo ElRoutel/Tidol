@@ -1,7 +1,5 @@
 import React, { useRef, useImperativeHandle, forwardRef, useState, useEffect } from 'react';
-import SongShelfCard from '../cards/SongShelfCard';
-import AlbumCard from '../AlbumCard';
-import SongGridCard from '../cards/SongGridCard';
+import UniversalCard from '../cards/UniversalCard';
 import { IoChevronBack, IoChevronForward } from 'react-icons/io5';
 
 const MediaCarousel = forwardRef(({ items, type = 'song', onPlay }, ref) => {
@@ -67,7 +65,7 @@ const MediaCarousel = forwardRef(({ items, type = 'song', onPlay }, ref) => {
                 className={`
                     ${isCompact
                         ? 'grid grid-rows-3 grid-flow-col auto-cols-max gap-y-2 gap-x-4 md:flex md:flex-row md:gap-4'
-                        : 'flex'
+                        : 'flex gap-4'
                     }
                     overflow-x-auto px-4 md:px-0 pb-4 snap-x scrollbar-hide md:scrollbar-default
                 `}
@@ -78,21 +76,22 @@ const MediaCarousel = forwardRef(({ items, type = 'song', onPlay }, ref) => {
             >
                 {items.map((item, index) => (
                     <div key={item.id || index} className="snap-start shrink-0">
-                        {type === 'song' ? (
-                            <SongShelfCard
-                                song={item}
-                                onPlay={() => onPlay && onPlay(item, index)}
-                            />
-                        ) : type === 'album' ? (
-                            <AlbumCard album={item} />
-                        ) : (
-                            /* type === 'compact' */
+                        {isCompact ? (
                             <div className="w-[85vw] md:w-72">
-                                <SongGridCard
-                                    song={item}
+                                <UniversalCard
+                                    data={item}
+                                    type="song"
+                                    variant="grid"
                                     onPlay={() => onPlay && onPlay(item, index)}
                                 />
                             </div>
+                        ) : (
+                            <UniversalCard
+                                data={item}
+                                type={type === 'album' ? 'album' : 'song'}
+                                variant="shelf"
+                                onPlay={() => onPlay && onPlay(item, index)}
+                            />
                         )}
                     </div>
                 ))}
@@ -102,3 +101,4 @@ const MediaCarousel = forwardRef(({ items, type = 'song', onPlay }, ref) => {
 });
 
 export default MediaCarousel;
+

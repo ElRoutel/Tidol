@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { usePlayer } from '../context/PlayerContext';
 import { usePlaylist } from '../context/PlaylistContext';
+import UniversalCard from '../components/cards/UniversalCard';
 import { IoPlaySharp, IoShuffle, IoEllipsisHorizontal, IoTrashOutline, IoTimeOutline } from 'react-icons/io5';
 import '../styles/glass.css';
 import './ImmersiveLayout.css'; // Mantener estilos específicos de layout inmersivo si son necesarios
@@ -176,44 +177,24 @@ export default function PlaylistPage() {
                             <p className="text-sm">Agrega canciones desde el menú contextual</p>
                         </div>
                     ) : (
-                        songs.map((song, index) => {
-                            const isPlaying = currentSong?.id === song.id;
-                            return (
-                                <div
-                                    key={song.id || index}
-                                    className={`group grid grid-cols-[auto_1fr_auto_auto] gap-4 px-6 py-3 items-center hover:bg-white/5 transition-colors cursor-pointer border-b border-white/5 last:border-0 ${isPlaying ? 'bg-white/10' : ''}`}
-                                    onClick={() => handleSongClick(index)}
+                        songs.map((song, index) => (
+                            <UniversalCard
+                                key={song.id || index}
+                                data={song}
+                                type="song"
+                                variant="list"
+                                index={index}
+                                onPlay={() => handleSongClick(index)}
+                            >
+                                <button
+                                    className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2"
+                                    onClick={(e) => handleDeleteSong(e, song.id)}
+                                    title="Quitar de playlist"
                                 >
-                                    <div className="w-8 text-center text-gray-400 group-hover:text-white relative flex items-center justify-center">
-                                        <span className={`group-hover:hidden ${isPlaying ? 'text-[#1db954]' : ''}`}>{index + 1}</span>
-                                        <IoPlaySharp className="hidden group-hover:block text-white" />
-                                    </div>
-
-                                    <div className="min-w-0">
-                                        <div className={`font-medium truncate ${isPlaying ? 'text-[#1db954]' : 'text-white'}`}>
-                                            {song.titulo || song.title}
-                                        </div>
-                                        <div className="text-sm text-gray-400 truncate group-hover:text-gray-300">
-                                            {song.artista || song.artist}
-                                        </div>
-                                    </div>
-
-                                    <div className="hidden md:block text-sm text-gray-400 font-variant-numeric tabular-nums">
-                                        {formatDuration(song.duracion || song.duration)}
-                                    </div>
-
-                                    <div className="w-8 flex justify-end">
-                                        <button
-                                            className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2"
-                                            onClick={(e) => handleDeleteSong(e, song.id)}
-                                            title="Quitar de playlist"
-                                        >
-                                            <IoTrashOutline size={18} />
-                                        </button>
-                                    </div>
-                                </div>
-                            );
-                        })
+                                    <IoTrashOutline size={18} />
+                                </button>
+                            </UniversalCard>
+                        ))
                     )}
                 </div>
             </div>

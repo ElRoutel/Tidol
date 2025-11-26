@@ -1,28 +1,84 @@
-// tailwind.config.js
-
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
     "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx,css}", // <-- La ruta con 'css' está bien
+    "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
-    // En v3, las personalizaciones van dentro de 'extend'
     extend: {
       colors: {
-        background: '#181818',
-        surface: '#282828',
-        primary: '#1DB954',
-        'primary-hover': '#1ED760',
-        text: '#FFFFFF',
-        'text-subdued': '#B3B3B3',
-        'interactive-bg': '#383838',
+        primary: {
+          DEFAULT: '#1DB954',
+          hover: '#1ED760',
+          dark: '#169c46',
+        },
+        background: {
+          DEFAULT: '#0A0A0A',
+          elevated: '#181818',
+          surface: '#282828',
+        },
+        text: {
+          base: '#FFFFFF',
+          secondary: '#B3B3B3',
+          tertiary: '#808080',
+        }
       },
       fontFamily: {
-        // Asegúrate de tener la fuente 'Montserrat' importada en tu index.html
-        'sans': ['Montserrat', 'sans-serif'],
+        sans: ['Montserrat', 'Inter', 'system-ui', 'sans-serif'],
+      },
+      spacing: {
+        'safe-top': 'env(safe-area-inset-top)',
+        'safe-bottom': 'env(safe-area-inset-bottom)',
+        'safe-left': 'env(safe-area-inset-left)',
+        'safe-right': 'env(safe-area-inset-right)',
+      },
+      backdropBlur: {
+        'glass-sm': 'var(--glass-blur-sm)',
+        'glass-md': 'var(--glass-blur-md)',
+        'glass-lg': 'var(--glass-blur-lg)',
+      },
+      zIndex: {
+        'negative': 'var(--z-negative)',
+        'elevated': 'var(--z-elevated)',
+        'sticky': 'var(--z-sticky)',
+        'overlay': 'var(--z-overlay)',
+        'modal': 'var(--z-modal)',
+        'toast': 'var(--z-toast)',
+      },
+      transitionDuration: {
+        'fast': '150ms',
+        'normal': '250ms',
+        'slow': '350ms',
+      },
+      transitionTimingFunction: {
+        'default': 'cubic-bezier(0.4, 0, 0.2, 1)',
       }
     },
   },
-  plugins: [],
+  plugins: [
+    function ({ addComponents }) {
+      addComponents({
+        '.glass-card': {
+          background: 'var(--glass-bg)',
+          backdropFilter: 'blur(var(--glass-blur-md)) saturate(180%)',
+          border: '1px solid var(--glass-border)',
+          borderTopColor: 'rgba(255, 255, 255, 0.15)',
+          transition: 'all var(--transition-normal)',
+        },
+        '.glass-card-hover': {
+          '&:hover': {
+            background: 'var(--glass-bg-hover)',
+            borderColor: 'var(--glass-border-hover)',
+            transform: 'translateY(-2px)',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.2)',
+          }
+        },
+        '.glass-panel': {
+          background: 'rgba(24, 24, 24, 0.7)',
+          backdropFilter: 'blur(var(--glass-blur-lg))',
+          border: '1px solid var(--glass-border)',
+        }
+      })
+    }
+  ],
 }

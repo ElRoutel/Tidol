@@ -1,5 +1,5 @@
 import React from 'react';
-import SongGridCard from '../cards/SongGridCard';
+import UniversalCard from '../cards/UniversalCard';
 
 export default function ListGrid({ items, onPlay }) {
     if (!items || items.length === 0) return null;
@@ -7,9 +7,11 @@ export default function ListGrid({ items, onPlay }) {
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 px-4 md:px-0">
             {items.map((item, index) => (
-                <SongGridCard
+                <UniversalCard
                     key={item.id || index}
-                    song={item}
+                    data={item}
+                    type="song"
+                    variant="grid"
                     onPlay={() => onPlay && onPlay(item, index)}
                 />
             ))}

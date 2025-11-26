@@ -2,10 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../api/axiosConfig';
-import { usePlayer } from '../context/PlayerContext';
-import AlbumCard from '../components/AlbumCard';
+import { usePlayerActions } from '../context/PlayerContext';
+import UniversalCard from '../components/cards/UniversalCard';
 import Slider from 'react-slick';
-import { IoPlaySharp, IoPauseSharp, IoCheckmarkCircle } from 'react-icons/io5';
+import { IoPlaySharp, IoCheckmarkCircle } from 'react-icons/io5';
 import '../styles/glass.css';
 
 import "slick-carousel/slick/slick.css"; 
@@ -13,7 +13,7 @@ import "slick-carousel/slick/slick-theme.css";
 
 export default function ArtistPage() {
   const { id } = useParams();
-  const { playSongList, currentSong } = usePlayer();
+  const { playSongList } = usePlayerActions();
 
   const [artist, setArtist] = useState(null);
   const [topSongs, setTopSongs] = useState([]);
@@ -44,13 +44,6 @@ fetchArtistData();
 
 const handlePlayTopSongs = () => {
   if (topSongs.length > 0) playSongList(topSongs, 0);
-};
-
-const formatDuration = s => {
-  if (!s || isNaN(s)) return '--:--';
-  const m = Math.floor(s / 60);
-  const sec = Math.floor(s % 60);
-  return `${m}:${sec.toString().padStart(2, '0')}`;
 };
 
 if (loading) return (
@@ -91,7 +84,7 @@ return (
     {/* Hero Section */}
     <div className="relative z-10 pt-32 pb-12 px-8 max-w-7xl mx-auto flex flex-col justify-end min-h-[50vh]">
       <div className="flex flex-col md:flex-row items-end gap-12">
-        {/* Artist Image (Optional circular or blended) */}
+        {/* Artist Image */}
         <div className="w-48 h-48 md:w-64 md:h-64 rounded-full overflow-hidden shadow-2xl border-4 border-white/10 hidden md:block">
           <img src={artist?.imagen} alt={artist?.nombre} className="w-full h-full object-cover" />
         </div>
@@ -124,9 +117,6 @@ return (
               <IoPlaySharp size={20} />
               Reproducir
             </button>
-            {/* <button className="px-8 py-3 rounded-full bg-white/10 border border-white/10 text-white font-bold hover:bg-white/20 transition-colors backdrop-blur-md">
-                        Seguir
-                    </button> */}
           </div>
         </div>
       </div>
@@ -140,41 +130,16 @@ return (
         <section>
           <h2 className="text-2xl font-bold text-white mb-6">Populares</h2>
           <div className="flex flex-col gap-2">
-            {topSongs.map((song, idx) => {
-              const isPlaying = currentSong?.id === song.id;
-              return (
-                <div
-                  key={song.id}
-                  className={`group grid grid-cols-[auto_auto_1fr_auto] gap-4 items-center p-3 rounded-xl hover:bg-white/10 transition-colors cursor-pointer ${isPlaying ? 'bg-white/10' : ''}`}
-                  onClick={() => playSongList(topSongs, idx)}
-                >
-                  <div className="w-8 text-center text-gray-400 font-medium group-hover:text-white">
-                    {idx + 1}
-                  </div>
-
-                  <div className="relative w-12 h-12 rounded overflow-hidden">
-                    <img src={song.portada} alt={song.titulo} className="w-full h-full object-cover" />
-                    <div className={`absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity ${isPlaying ? 'opacity-100' : ''}`}>
-                      {isPlaying ? <IoPauseSharp className="text-white" /> : <IoPlaySharp className="text-white" />}
-                    </div>
-                  </div>
-
-                  <div className="min-w-0">
-                    <div className={`font-medium truncate ${isPlaying ? 'text-[#1db954]' : 'text-white'}`}>
-                      {song.titulo}
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-400">
-                      <span className="bg-white/20 text-white/90 text-[10px] px-1 rounded font-bold">E</span>
-                      <span>{artist?.nombre}</span>
-                    </div>
-                  </div>
-
-                  <div className="text-sm text-gray-400 font-variant-numeric tabular-nums">
-                    {formatDuration(song.duracion)}
-                  </div>
-                </div>
-              );
-            })}
+            {topSongs.map((song, idx) => (
+              <UniversalCard
+                key={song.id}
+                data={song}
+                type="song"
+                variant="list"
+                index={idx}
+                onPlay={() => playSongList(topSongs, idx)}
+              />
+            ))}
           </div>
         </section>
       )}
@@ -187,7 +152,11 @@ return (
             <Slider {...albumSliderSettings}>
               {albums.map(album => (
                 <div key={album.id} className="px-3 pb-8">
-                  <AlbumCard album={album} />
+                  <UniversalCard
+                    data={album}
+                    type="album"
+                    variant="shelf"
+                  />
                 </div>
               ))}
             </Slider>
