@@ -5,6 +5,15 @@ import { usePlayer } from "../context/PlayerContext";
 import { useContextMenu } from "../context/ContextMenuContext";
 import Portal from "./Portal";
 import { useNavigate } from "react-router-dom";
+import {
+  IoPlaySkipForwardOutline,
+  IoAddOutline,
+  IoHeartOutline,
+  IoHeart,
+  IoListOutline,
+  IoAlbumsOutline,
+  IoPersonOutline
+} from "react-icons/io5";
 
 export default function ContextMenu() {
   const { menuState, closeContextMenu } = useContextMenu();
@@ -14,7 +23,6 @@ export default function ContextMenu() {
   const { addToQueue, playNext, toggleLike, isSongLiked } = usePlayer();
   const navigate = useNavigate();
 
-  // Adjust position to keep menu within viewport
   const menuRef = useRef(null);
   const [adjustedPosition, setAdjustedPosition] = useState(position);
 
@@ -24,6 +32,7 @@ export default function ContextMenu() {
       const { innerWidth, innerHeight } = window;
       let { x, y } = position;
 
+      // Smart positioning: adjust if menu would overflow
       if (x + rect.width > innerWidth) {
         x = innerWidth - rect.width - 10;
       }
@@ -40,7 +49,6 @@ export default function ContextMenu() {
   const handleAction = (action) => {
     const data = item.data;
 
-    // Helper to normalize song data
     const getSongData = () => ({
       id: data.id,
       titulo: data.titulo || data.title,
@@ -75,7 +83,6 @@ export default function ContextMenu() {
       case 'goArtist':
         if (data.artistId) navigate(`/artist/${data.artistId}`);
         break;
-      // Album/Artist specific actions could be added here
     }
     closeContextMenu();
   };
@@ -85,29 +92,52 @@ export default function ContextMenu() {
   if (item.type === "song") {
     const isLiked = isSongLiked(item.data.id);
 
+    // Detect Internet Archive tracks
+    const isInternetArchive =
+      item.data.url?.includes('archive.org') ||
+      item.data.source === 'internet_archive' ||
+      item.data.type === 'ia' ||
+      item.data.identifier;
+
     options.push(
-      { label: "Agregar a la cola", action: "addToQueue" },
-      { label: "Reproducir siguiente", action: "queueNext" },
-      { label: isLiked ? "Quitar de favoritos" : "Agregar a favoritos", action: "addFavorite" },
-      { label: "Agregar a playlist", action: "addToPlaylist" }
+      {
+        label: "Reproducir siguiente",
+        action: "queueNext",
+        icon: IoPlaySkipForwardOutline
+      },
+      {
+        label: "Agregar a la cola",
+        action: "addToQueue",
+        icon: IoAddOutline
+      },
+      {
+        label: isLiked ? "Quitar de favoritos" : "Agregar a favoritos",
+        action: "addFavorite",
+        icon: isLiked ? IoHeart : IoHeartOutline
+      },
+      {
+        label: "Agregar a playlist",
+        action: "addToPlaylist",
+        icon: IoListOutline
+      }
     );
 
     if (item.data.albumId) {
-      options.push({ label: "Ir al álbum", action: "goAlbum" });
+      options.push({
+        label: "Ir al álbum",
+        action: "goAlbum",
+        icon: IoAlbumsOutline
+      });
     }
-    if (item.data.artistId) {
-      options.push({ label: "Ir al artista", action: "goArtist" });
+
+    // Only show "Go to Artist" for local tracks (not Internet Archive)
+    if (item.data.artistId && !isInternetArchive) {
+      options.push({
+        label: "Ir al artista",
+        action: "goArtist",
+        icon: IoPersonOutline
+      });
     }
-  } else if (item.type === "album") {
-    options.push(
-      { label: "Reproducir todo", action: "playAlbum" },
-      { label: "Agregar a favoritos", action: "addAlbumFavorite" }
-    );
-  } else if (item.type === "artist") {
-    options.push(
-      { label: "Ver perfil", action: "goArtist" },
-      { label: "Reproducir top canciones", action: "playArtistTop" }
-    );
   }
 
   return (
@@ -121,9 +151,9 @@ export default function ContextMenu() {
           closeContextMenu();
         }}
       >
-        <ul
+        <div
           ref={menuRef}
-          className="absolute glass-card text-white p-1 min-w-[200px]"
+          className="absolute"
           style={{
             top: adjustedPosition.y,
             left: adjustedPosition.x,
@@ -132,16 +162,34 @@ export default function ContextMenu() {
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {options.map((opt) => (
-            <li
-              key={opt.label}
-              className="px-3 py-2 hover:bg-white/10 rounded-md cursor-pointer text-sm flex items-center gap-2 transition-colors"
-              onClick={() => handleAction(opt.action)}
-            >
-              {opt.label}
-            </li>
-          ))}
-        </ul>
+          {/* Glassmorphism Container */}
+          <div
+            className="min-w-[220px] rounded-xl overflow-hidden"
+            style={{
+              background: 'rgba(18, 18, 18, 0.95)',
+              backdropFilter: 'blur(40px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(40px) saturate(180%)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6)',
+            }}
+          >
+            <ul className="py-2">
+              {options.map((opt, index) => {
+                const Icon = opt.icon;
+                return (
+                  <li
+                    key={`${opt.action}-${index}`}
+                    className="px-4 py-2.5 hover:bg-white/10 cursor-pointer text-sm flex items-center gap-3 transition-colors text-white"
+                    onClick={() => handleAction(opt.action)}
+                  >
+                    <Icon size={18} className="flex-shrink-0 text-gray-300" />
+                    <span className="flex-1">{opt.label}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
       </div>
     </Portal>
   );

@@ -2,6 +2,7 @@ import React from 'react';
 import { usePlayer } from '../context/PlayerContext';
 import { useHome } from '../hooks/useHome';
 import useLazyCaching from '../hooks/useLazyCaching';
+import api from '../api/axiosConfig';
 import ChipsCarousel from '../components/home/ChipsCarousel';
 import HomeAllView from '../components/home/views/HomeAllView';
 import '../styles/glass.css';
@@ -52,22 +53,20 @@ export default function HomePage() {
   // Sincronizar canción local a Spectra
   const syncLocalToSpectra = async (song) => {
     try {
-      const response = await fetch('http://localhost:3001/sync-local-song', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          songId: song.id,
-          title: song.titulo || song.title,
-          artist: song.artista || song.artist || 'Unknown',
-          album: song.album || 'Local Music',
-          filepath: song.archivo || song.url,
-          coverpath: song.portada || null,
-          duration: song.duracion || song.duration || 0,
-          bitrate: song.bit_rate || 0
-        })
+      // Use api instance instead of fetch to handle base URL and headers automatically
+      // Endpoint is now /music/sync-local-song (mounted at /api/music)
+      const response = await api.post('/music/sync-local-song', {
+        songId: song.id,
+        title: song.titulo || song.title,
+        artist: song.artista || song.artist || 'Unknown',
+        album: song.album || 'Local Music',
+        filepath: song.archivo || song.url,
+        coverpath: song.portada || null,
+        duration: song.duracion || song.duration || 0,
+        bitrate: song.bit_rate || 0
       });
 
-      const data = await response.json();
+      const data = response.data;
       if (data.success && !data.alreadyExists) {
         console.log('📊 Canción local sincronizada a Spectra para análisis:', song.titulo);
       }
@@ -85,7 +84,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="relative min-h-screen pb-32 overflow-x-hidden">
+    <div className="pb-32">
 
       {/* Header / Chips Section */}
       {/* Mobile: px-4, Desktop: px-12. Top padding adjusted. */}

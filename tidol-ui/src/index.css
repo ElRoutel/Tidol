@@ -10,7 +10,7 @@
 
   html,
   body {
-    @apply m-0 p-0 w-full h-full overflow-x-hidden bg-background text-white font-sans;
+    @apply m-0 p-0 w-full h-full overflow-x-hidden bg-[#030303] text-white font-sans;
   }
 
   /* Custom scrollbar */
@@ -53,4 +53,57 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  /* Smart Scrollbar (Visible on Hover) */
+  .hover-scrollbar {
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    transition: scrollbar-color 0.3s;
+  }
+
+  .hover-scrollbar:hover {
+    scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+  }
+
+  .hover-scrollbar::-webkit-scrollbar {
+    height: 8px;
+    background: transparent;
+  }
+
+  .hover-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .hover-scrollbar::-webkit-scrollbar-thumb {
+    background-color: transparent;
+    border-radius: 4px;
+  }
+
+  .hover-scrollbar:hover::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.3);
+  }
+}
+
+/* Layout Utilities */
+.tidol-main-content {
+  @apply w-full min-h-screen transition-all duration-300;
+  padding-top: 4rem;
+  /* h-16 for Header */
+}
+
+@media (min-width: 768px) {
+  .tidol-main-content {
+    padding-left: 16rem;
+    /* w-64 for Sidebar */
+  }
+}
+
+.tidol-main-content.no-padding {
+  padding-top: 0 !important;
+}
+
+.tidol-main-content.has-player {
+  padding-bottom: 6rem;
+  /* Space for PlayerBar */
 }

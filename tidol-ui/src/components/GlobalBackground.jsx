@@ -21,29 +21,29 @@ export default function GlobalBackground() {
 
   return (
     <div className={`global-bg-wrapper ${isVisible ? 'visible' : ''}`}>
-      
+
       {/* Capa de Imagen Difuminada */}
-      <div 
+      <div
         className="global-bg-image"
-        style={{ 
+        style={{
           backgroundImage: `url(${activeCover})`,
           // Si está en pausa, oscurecemos un poco más el fondo para dar efecto "dim"
-          opacity: isPlaying ? 1 : 0.8 
-        }} 
+          opacity: isPlaying ? 1 : 0.8
+        }}
       />
 
       {/* Capa de Oscurecimiento (Vignette + Overlay) */}
       {/* Esto asegura que el texto blanco de la app siempre se lea */}
       <div className="global-bg-overlay" />
 
-      <style jsx>{`
+      <style>{`
         .global-bg-wrapper {
           position: fixed;
           top: 0;
           left: 0;
           width: 100vw;
           height: 100vh;
-          z-index: -10; /* Detrás de todo (App, Sidebar, etc) */
+          z-index: 0; /* Detrás del contenido, pero sobre el body */
           pointer-events: none; /* Click-through */
           background-color: #000; /* Fondo negro base para evitar parpadeos */
           opacity: 0;

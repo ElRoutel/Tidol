@@ -4,6 +4,7 @@ import './FullScreenPlayer.css';
 import './FullScreenPlayerLyrics.css';
 import { motion, Reorder } from 'framer-motion';
 import { usePlayer } from '../context/PlayerContext';
+import useSpectraSync from '../hooks/useSpectraSync';
 import { useSwipeable } from 'react-swipeable';
 import api from '../api/axiosConfig';
 import {
@@ -36,8 +37,11 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
     originalQueue,
     currentIndex,
     playSongList,
-    reorderQueue
+    reorderQueue,
+    spectraData
   } = usePlayer();
+
+  const { fetchLyrics: fetchSpectraLyrics } = useSpectraSync();
 
   const [showLyrics, setShowLyrics] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
@@ -84,24 +88,15 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
 
   const fetchLyrics = async () => {
     try {
-      const response = await api.get(`/lyrics?title=${encodeURIComponent(currentSong.titulo)}&artist=${encodeURIComponent(currentSong.artista)}`);
-      if (response.data && response.data.lyrics) {
-        setLyrics(parseLyrics(response.data.lyrics));
-      } else {
-        setLyrics([]);
-      }
+      const lyricsData = await fetchSpectraLyrics();
+      setLyrics(lyricsData);
     } catch (error) {
       console.error('Error fetching lyrics:', error);
       setLyrics([]);
     }
   };
 
-  const parseLyrics = (lyricsText) => {
-    return lyricsText.split('\n').map((line, index) => ({
-      time: 0, // Placeholder, real parsing would need synced lyrics format
-      text: line
-    }));
-  };
+
 
   const [isDesktop, setIsDesktop] = useState(window.innerWidth > 768);
 
@@ -232,6 +227,20 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
               {currentSong.album}
             </p>
           )}
+
+          {/* Spectra Metadata */}
+          <div className="flex justify-center gap-4 text-sm text-white/60 mt-3 font-mono">
+            {spectraData?.bpm && (
+              <span className="flex items-center gap-1 bg-white/10 px-2 py-1 rounded-full">
+                🎵 {Math.round(spectraData.bpm)} BPM
+              </span>
+            )}
+            {spectraData?.key && (
+              <span className="flex items-center gap-1 bg-white/10 px-2 py-1 rounded-full">
+                🎹 {spectraData.key}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -330,7 +339,7 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
               className={`fsp-lyric-line transition-all duration-300 ${i === currentLineIndex ? 'fsp-active' : ''}`}
               style={{ transitionDelay: `${i * 20}ms` }}
             >
-              {line.line}
+              {line.text}
             </p>
           ))
         )}

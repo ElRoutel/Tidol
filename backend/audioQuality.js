@@ -1,7 +1,10 @@
 import { exec } from "child_process";
 import path from "path";
 import fs from "fs";
-import db from "./models/db.js";
+import axios from "axios";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const SPECTRO_DIR = "./uploads/spectros"; // carpeta para los PNG
 if (!fs.existsSync(SPECTRO_DIR)) fs.mkdirSync(SPECTRO_DIR, { recursive: true });
@@ -61,23 +64,42 @@ export const clasificarCalidad = ({ bitDepth, sampleRate, codec }) => {
 };
 
 /**
- * Guarda los datos en la tabla calidad_audio
+ * Guarda los datos en la tabla calidad_audio VIA API INTERNA
+ * Evita concurrencia directa con SQLite
  */
 export const guardarCalidad = async (cancionId, data) => {
-  const { bitDepth, sampleRate, bitRate, codec, clasificacion, espectrograma, sospechoso } = data;
-  const exists = await db.get("SELECT * FROM calidad_audio WHERE cancion_id = ?", [cancionId]);
-  if (exists) {
-    await db.run(
-      `UPDATE calidad_audio
-       SET bit_depth=?, sample_rate=?, bit_rate=?, codec=?, clasificacion=?, espectrograma=?, sospechoso=?, fecha_analisis=CURRENT_TIMESTAMP
-       WHERE cancion_id=?`,
-      [bitDepth, sampleRate, bitRate, codec, clasificacion, espectrograma, sospechoso ? 1 : 0, cancionId]
+  try {
+    const secret = process.env.SPECTRA_SECRET;
+    if (!secret) {
+      throw new Error("SPECTRA_SECRET no definido en variables de entorno");
+    }
+
+    // URL del backend (asumimos localhost:3000 por defecto si no se configura otra cosa)
+    const backendUrl = process.env.BACKEND_URL || "http://localhost:3000";
+    const endpoint = `${backendUrl}/api/internal/spectra/analysis`;
+
+    const response = await axios.post(
+      endpoint,
+      { cancionId, data },
+      {
+        headers: {
+          "x-spectra-secret": secret,
+          "Content-Type": "application/json"
+        }
+      }
     );
-  } else {
-    await db.run(
-      `INSERT INTO calidad_audio (cancion_id, bit_depth, sample_rate, bit_rate, codec, clasificacion, espectrograma, sospechoso)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [cancionId, bitDepth, sampleRate, bitRate, codec, clasificacion, espectrograma, sospechoso ? 1 : 0]
-    );
+
+    if (response.data && response.data.success) {
+      // console.log(`✅ Calidad guardada vía API para canción ${cancionId}`);
+    } else {
+      console.warn(`⚠️ Respuesta inesperada al guardar calidad para canción ${cancionId}:`, response.data);
+    }
+
+  } catch (error) {
+    console.error(`❌ Error guardando calidad vía API para canción ${cancionId}:`, error.message);
+    if (error.response) {
+      console.error("Detalles del error:", error.response.data);
+    }
+    throw error; // Re-lanzar para que el llamador sepa que falló
   }
 };

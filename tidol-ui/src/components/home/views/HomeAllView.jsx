@@ -1,110 +1,104 @@
-import React, { useRef } from 'react';
-import SectionBlock from '../SectionBlock';
-import MediaCarousel from '../MediaCarousel';
-import ListGrid from '../ListGrid';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { usePlayer } from '../../../context/PlayerContext';
+import { useAuth } from '../../../context/AuthContext';
+import Shelf from '../../Shelf';
+import QuickSelectionCard from '../../cards/QuickSelectionCard';
+import ListenAgainCard from '../../cards/ListenAgainCard';
 
 export default function HomeAllView({ data, onPlay }) {
     const { recentListenings, quickSelection, recommendations, albums, coversRemixes } = data || {};
+    const { currentSong, isPlaying } = usePlayer();
+    const { user } = useAuth();
+    const navigate = useNavigate();
 
-    const recentRef = useRef(null);
-    const quickRef = useRef(null);
-    const recsRef = useRef(null);
-    const albumsRef = useRef(null);
-    const coversRef = useRef(null);
-
-    const handleScroll = (ref, direction) => {
-        if (ref.current) {
-            direction === 'left' ? ref.current.scrollLeft() : ref.current.scrollRight();
-        }
-    };
+    const isCurrentSong = (item) => currentSong?.id === item.id;
+    const isSongPlaying = (item) => isCurrentSong(item) && isPlaying;
 
     return (
-        <div className="flex flex-col gap-8 pb-20 animate-fade-in">
+        <div className="flex flex-col gap-2 pb-32 animate-fade-in">
 
-            {/* Recent Listenings (Carousel) - MOVED TO TOP */}
+            {/* Volver a escuchar (Listen Again) - Large Cards */}
             {recentListenings && recentListenings.length > 0 && (
-                <SectionBlock
-                    title="Volver a escuchar"
-                    subtitle="Tu historia"
-                    showControls
-                    onPrev={() => handleScroll(recentRef, 'left')}
-                    onNext={() => handleScroll(recentRef, 'right')}
-                >
-                    <MediaCarousel
-                        ref={recentRef}
-                        items={recentListenings}
-                        onPlay={(item, index) => onPlay(item, index, recentListenings)}
-                    />
-                </SectionBlock>
+                <Shelf title="Volver a escuchar" subtitle={user?.username || 'Routel'}>
+                    {recentListenings.map((item, index) => (
+                        <ListenAgainCard
+                            key={item.id || index}
+                            item={item}
+                            isActive={isCurrentSong(item)}
+                            isPlaying={isSongPlaying(item)}
+                            onClick={() => onPlay(item, index, recentListenings)}
+                            onPlay={() => onPlay(item, index, recentListenings)}
+                        />
+                    ))}
+                </Shelf>
             )}
 
-            {/* Quick Selection (Carousel - Compact) */}
+            {/* Selección Rápida (Quick Picks) - Grid/List style */}
             {quickSelection && quickSelection.length > 0 && (
-                <SectionBlock
-                    title="Selección rápida"
-                    subtitle="Para empezar"
-                    showControls
-                    onPrev={() => handleScroll(quickRef, 'left')}
-                    onNext={() => handleScroll(quickRef, 'right')}
-                >
-                    <MediaCarousel
-                        ref={quickRef}
-                        items={quickSelection}
-                        type="compact"
-                        onPlay={(item, index) => onPlay(item, index, quickSelection)}
-                    />
-                </SectionBlock>
+                <div className="px-4 md:px-0 py-6">
+                    <span className="text-[#aaaaaa] text-xs font-bold uppercase tracking-wider mb-1 block">
+                        Para empezar
+                    </span>
+                    <h2 className="text-white text-2xl font-bold mb-4">Selección rápida</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {quickSelection.map((item, index) => (
+                            <QuickSelectionCard
+                                key={item.id || index}
+                                item={item}
+                                isActive={isCurrentSong(item)}
+                                isPlaying={isSongPlaying(item)}
+                                onClick={() => onPlay(item, index, quickSelection)}
+                            />
+                        ))}
+                    </div>
+                </div>
             )}
 
-            {/* Recommendations (Carousel) */}
+            {/* Recomendaciones - Shelf */}
             {recommendations && recommendations.length > 0 && (
-                <SectionBlock
-                    title="Recomendado para ti"
-                    subtitle="Basado en tus gustos"
-                    showControls
-                    onPrev={() => handleScroll(recsRef, 'left')}
-                    onNext={() => handleScroll(recsRef, 'right')}
-                >
-                    <MediaCarousel
-                        ref={recsRef}
-                        items={recommendations}
-                        onPlay={(item, index) => onPlay(item, index, recommendations)}
-                    />
-                </SectionBlock>
+                <Shelf title="Recomendado para ti" subtitle="Basado en tus gustos">
+                    {recommendations.map((item, index) => (
+                        <ListenAgainCard
+                            key={item.id || index}
+                            item={item}
+                            isActive={isCurrentSong(item)}
+                            isPlaying={isSongPlaying(item)}
+                            onClick={() => onPlay(item, index, recommendations)}
+                            onPlay={() => onPlay(item, index, recommendations)}
+                        />
+                    ))}
+                </Shelf>
             )}
 
-            {/* Albums (Carousel) */}
+            {/* Álbumes Populares - Shelf */}
             {albums && albums.length > 0 && (
-                <SectionBlock
-                    title="Álbumes populares"
-                    subtitle="Tendencias"
-                    showControls
-                    onPrev={() => handleScroll(albumsRef, 'left')}
-                    onNext={() => handleScroll(albumsRef, 'right')}
-                >
-                    <MediaCarousel
-                        ref={albumsRef}
-                        items={albums}
-                        type="album"
-                    />
-                </SectionBlock>
+                <Shelf title="Álbumes populares" subtitle="Tendencias">
+                    {albums.map((item, index) => (
+                        <ListenAgainCard
+                            key={item.id || index}
+                            item={item}
+                            isActive={isCurrentSong(item)}
+                            isPlaying={isSongPlaying(item)}
+                            onClick={() => navigate(`/album/${item.id}`)}
+                        />
+                    ))}
+                </Shelf>
             )}
 
-            {/* Covers & Remixes (Carousel) */}
+            {/* Covers y Remixes - Shelf */}
             {coversRemixes && coversRemixes.length > 0 && (
-                <SectionBlock
-                    title="Covers y Remixes"
-                    subtitle="Descubrimientos"
-                    showControls
-                    onPrev={() => handleScroll(coversRef, 'left')}
-                    onNext={() => handleScroll(coversRef, 'right')}
-                >
-                    <MediaCarousel
-                        ref={coversRef}
-                        items={coversRemixes}
-                        onPlay={(item, index) => onPlay(item, index, coversRemixes)}
-                    />
-                </SectionBlock>
+                <Shelf title="Covers y Remixes" subtitle="Descubrimientos">
+                    {coversRemixes.map((item, index) => (
+                        <ListenAgainCard
+                            key={item.id || index}
+                            item={item}
+                            isActive={isCurrentSong(item)}
+                            isPlaying={isSongPlaying(item)}
+                            onClick={() => onPlay(item, index, coversRemixes)}
+                        />
+                    ))}
+                </Shelf>
             )}
         </div>
     );

@@ -15,8 +15,9 @@ const db = await open({
   driver: sqlite3.Database,
 });
 
-// Activar claves foráneas
+// Activar claves foráneas y WAL mode para concurrencia
 await db.exec("PRAGMA foreign_keys = ON;");
+await db.exec("PRAGMA journal_mode = WAL;");
 
 // 1️⃣ Crear DB si no existe
 if (!fs.existsSync(dbPath)) {
@@ -148,6 +149,22 @@ try {
     );
     CREATE INDEX IF NOT EXISTS idx_canciones_titulo ON canciones(titulo);
   `);
+
+  // ========== MIGRACIONES DE COLUMNAS FALTANTES ==========
+  try {
+    await db.exec(`ALTER TABLE canciones ADD COLUMN bit_depth INTEGER DEFAULT 0;`);
+    console.log("🆕 Columna 'bit_depth' agregada a canciones");
+  } catch (err) { if (!/duplicate column/i.test(err.message)) console.error(err.message); }
+
+  try {
+    await db.exec(`ALTER TABLE canciones ADD COLUMN sample_rate INTEGER DEFAULT 44100;`);
+    console.log("🆕 Columna 'sample_rate' agregada a canciones");
+  } catch (err) { if (!/duplicate column/i.test(err.message)) console.error(err.message); }
+
+  try {
+    await db.exec(`ALTER TABLE canciones ADD COLUMN bit_rate INTEGER DEFAULT 0;`);
+    console.log("🆕 Columna 'bit_rate' agregada a canciones");
+  } catch (err) { if (!/duplicate column/i.test(err.message)) console.error(err.message); }
 
   // ========== PLAYLISTS ==========
   await db.exec(`

@@ -2,7 +2,8 @@ import React from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import MobileHeader from '../components/MobileHeader';
-import MobileNav from '../components/MobileNav';
+import DesktopHeader from '../components/DesktopHeader';
+
 import PlayerSheet from '../components/PlayerSheet';
 import ContextMenu from '../components/ContextMenu';
 import AddToPlaylistModal from '../components/AddToPlaylistModal';
@@ -23,10 +24,10 @@ export default function ImmersiveLayout() {
 
     return (
         <>
-            {/* Fondo Global (solo si no es página inmersiva) */}
-            {!isImmersivePage && <GlobalBackground />}
+            {/* Fondo Global */}
+            <GlobalBackground />
 
-            <div className="tidol-app-container" style={{ maxWidth: '100%' }}>
+            <div className="tidol-app-container relative z-10" style={{ maxWidth: '100%' }}>
                 {/* Orbes de fondo (solo visibles si no hay canción reproduciendo) */}
                 <div className={`tidol-app-background ${!currentSong ? 'visible' : ''}`}>
                     <div className="tidol-app-orb tidol-app-orb-1"></div>
@@ -40,6 +41,9 @@ export default function ImmersiveLayout() {
                         <Sidebar />
                     </aside>
 
+                    {/* Header (Desktop) */}
+                    <DesktopHeader />
+
                     {/* Header (Mobile) */}
                     <div className="tidol-mobile-header">
                         <MobileHeader />
@@ -52,11 +56,6 @@ export default function ImmersiveLayout() {
 
                     {/* Player Sheet (Reproductor) */}
                     <PlayerSheet />
-
-                    {/* Navegación (Mobile) */}
-                    <nav className="tidol-mobile-nav">
-                        <MobileNav />
-                    </nav>
 
                     {/* Componentes Globales */}
                     <ContextMenu />

@@ -1,8 +1,9 @@
 import React, { useMemo, useCallback } from 'react';
-import { usePlayerState, usePlayerActions } from '../../context/PlayerContext';
+import { usePlayerState, usePlayerProgress } from '../../context/PlayerContext';
 import { useContextMenu } from '../../context/ContextMenuContext';
 import { FaPlay, FaPause, FaEllipsisH } from 'react-icons/fa';
 import { IoPlaySharp, IoPauseSharp } from 'react-icons/io5';
+import MiniWaveform from '../audio/MiniWaveform';
 
 /**
  * Normalizes data from various sources (local, archive, etc.) into a standard format.
@@ -12,7 +13,7 @@ const normalizeData = (data) => {
     return {
         id: data.id || data.identifier,
         title: data.titulo || data.title || data.name || 'Unknown',
-        subtitle: data.artista || data.artist || data.creator || '',
+        subtitle: data.artista || data.artist || data.creator || data.autor || '',
         image: data.portada || data.cover_url || data.thumbnail || data.image || '/default_cover.png',
         url: data.url || data.file || data.playbackUrl,
         type: data.type || 'song', // Default to song if not specified
@@ -40,16 +41,25 @@ const UniversalCard = React.memo(({
     children
 }) => {
     const { currentSong, isPlaying: isGlobalPlaying } = usePlayerState();
+    const { currentTime, duration } = usePlayerProgress();
     const { openContextMenu } = useContextMenu();
 
     const item = useMemo(() => normalizeData(data), [data]);
 
+
     const isPlaying = useMemo(() => {
         if (type !== 'song') return false;
-        return currentSong && (currentSong.id === item.id || currentSong.identifier === item.identifier);
+        if (!currentSong) return false;
+
+        // Strict comparison: must match both id AND be the exact same song
+        const matchesById = currentSong.id && item.id && currentSong.id === item.id;
+        const matchesByIdentifier = currentSong.identifier && item.identifier &&
+            currentSong.identifier === item.identifier;
+
+        return matchesById || matchesByIdentifier;
     }, [currentSong, item.id, item.identifier, type]);
 
-    const showPause = isPlaying && isGlobalPlaying;
+    // const showPause = isPlaying && isGlobalPlaying; // Removed as per user request
 
     const handlePlay = useCallback((e) => {
         e.stopPropagation();
@@ -96,15 +106,29 @@ const UniversalCard = React.memo(({
                         loading="lazy"
                     />
 
-                    {/* Hover Overlay with Play Button */}
-                    <div className={`absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center ${isPlaying ? 'opacity-100' : ''}`}>
-                        <button
-                            className="w-12 h-12 rounded-full bg-primary text-black flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform hover:bg-primary-hover"
-                            onClick={handlePlay}
-                        >
-                            {showPause ? <IoPauseSharp size={24} /> : <IoPlaySharp size={24} className="ml-1" />}
-                        </button>
-                    </div>
+                    {/* Hover Overlay with Play Button (only when NOT playing) */}
+                    {!isPlaying && (
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <button
+                                className="w-12 h-12 rounded-full bg-primary text-black flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform hover:bg-primary-hover"
+                                onClick={handlePlay}
+                            >
+                                <IoPlaySharp size={24} className="ml-1" />
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Waveform Overlay when playing */}
+                    {isPlaying && (
+                        <div className="absolute bottom-2 left-2 right-2">
+                            <MiniWaveform
+                                variant="compact"
+                                currentTime={currentTime}
+                                duration={duration}
+                                isPlaying={isGlobalPlaying}
+                            />
+                        </div>
+                    )}
 
                     {/* Menu Button (Top Right) */}
                     <button
@@ -139,10 +163,15 @@ const UniversalCard = React.memo(({
                         className="w-full h-full object-cover rounded"
                         loading="lazy"
                     />
-                    {/* Overlay for playing state */}
+                    {/* Waveform overlay when playing */}
                     {isPlaying && (
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded">
-                            <div className="w-3 h-3 bg-primary rounded-full animate-pulse" />
+                        <div className="absolute inset-0 bg-black/70 flex items-center justify-center rounded p-1">
+                            <MiniWaveform
+                                variant="compact"
+                                currentTime={currentTime}
+                                duration={duration}
+                                isPlaying={isGlobalPlaying}
+                            />
                         </div>
                     )}
                 </div>
@@ -163,7 +192,7 @@ const UniversalCard = React.memo(({
                         className="w-8 h-8 rounded-full bg-primary text-black flex items-center justify-center shadow-sm hover:scale-105 transition-transform"
                         onClick={handlePlay}
                     >
-                        {showPause ? <IoPauseSharp size={14} /> : <IoPlaySharp size={14} className="ml-0.5" />}
+                        <IoPlaySharp size={14} className="ml-0.5" />
                     </button>
                 </div>
             </div>
@@ -180,14 +209,25 @@ const UniversalCard = React.memo(({
                 {...dataAttributes}
             >
                 {index !== undefined && (
-                    <span className="w-6 text-center text-sm text-text-secondary group-hover:hidden">
-                        {isPlaying ? <span className="text-primary animate-pulse">♫</span> : index + 1}
-                    </span>
-                )}
-                {index !== undefined && (
-                    <button className="w-6 hidden group-hover:flex items-center justify-center text-white" onClick={handlePlay}>
-                        {showPause ? <IoPauseSharp size={14} /> : <IoPlaySharp size={14} />}
-                    </button>
+                    <div className="w-6 flex items-center justify-center">
+                        {isPlaying ? (
+                            <MiniWaveform
+                                variant="compact"
+                                currentTime={currentTime}
+                                duration={duration}
+                                isPlaying={isGlobalPlaying}
+                            />
+                        ) : (
+                            <>
+                                <span className="text-center text-sm text-text-secondary group-hover:hidden">
+                                    {index + 1}
+                                </span>
+                                <button className="hidden group-hover:flex items-center justify-center text-white" onClick={handlePlay}>
+                                    <IoPlaySharp size={14} />
+                                </button>
+                            </>
+                        )}
+                    </div>
                 )}
 
                 <img

@@ -11,6 +11,7 @@ import {
   IoCloudUploadOutline,
   IoAdd,
   IoHeartOutline,
+  IoLibrarySharp,
 } from "react-icons/io5";
 
 // ✅ Logo (Ajustado padding para alinearse al nuevo diseño)
@@ -25,28 +26,27 @@ function Logo() {
 
 // ✅ Navegación principal
 function MainNav() {
-  // Quitamos bordes redondeados extremos y ajustamos el hover para que llene el ancho
   const linkClass = ({ isActive }) =>
-    `flex items-center gap-4 px-6 py-3 transition-all duration-200 font-bold border-l-4 ${isActive
-      ? 'text-white bg-white/10 border-green-500' // Borde verde activo a la izquierda
-      : 'text-gray-400 hover:text-white hover:bg-white/5 border-transparent'
+    `flex items-center gap-5 px-6 py-2.5 transition-all duration-200 text-sm ${isActive
+      ? 'text-white bg-[#212121] font-bold' // Active: Bold
+      : 'text-[#aaaaaa] hover:text-white hover:bg-white/5 font-medium' // Inactive: Medium
     }`;
 
   return (
-    <nav className="flex flex-col">
+    <nav className="flex flex-col mt-2">
       <NavLink to="/" className={linkClass}>
         <IoHomeSharp size={24} />
-        <span>Inicio</span>
+        <span>Principal</span>
       </NavLink>
 
       <NavLink to="/search" className={linkClass}>
         <IoSearch size={24} />
-        <span>Buscar</span>
+        <span>Explorar</span>
       </NavLink>
 
-      <NavLink to="/upload" className={linkClass}>
-        <IoCloudUploadOutline size={24} />
-        <span>Subir</span>
+      <NavLink to="/library" className={linkClass}>
+        <IoLibrarySharp size={24} />
+        <span>Biblioteca</span>
       </NavLink>
     </nav>
   );
@@ -140,9 +140,9 @@ export default function Sidebar() {
     // CAMBIOS CLAVE:
     // 1. 'h-screen': Fuerza altura completa de la pantalla.
     // 2. 'w-64' (o el ancho que prefieras): Ancho fijo.
-    // 3. 'fixed left-0 top-0': Se queda pegado a la izquierda.
+    // 3. 'fixed left-0 top-16': Se queda pegado a la izquierda, debajo del header.
     // 4. Fondo aplicado directamente aquí, sin bordes redondeados.
-    <aside className="hidden md:flex flex-col w-full h-screen fixed left-0 top-0 z-50 bg-black border-r border-white/10">
+    <aside className="hidden md:flex flex-col w-64 h-[calc(100vh-4rem)] fixed left-0 top-16 z-[50] bg-[#030303]">
 
       {/* Efecto de fondo sutil (opcional, si quieres que no sea negro plano) */}
       <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />

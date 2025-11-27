@@ -38,12 +38,12 @@ async function fetchWithRetry(url, retries = FETCH_RETRIES) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const res = await fetchWithProxy(url);
-      
+
       const ok = res && (
-          (res.response && Array.isArray(res.response.docs)) || 
-          Array.isArray(res.files) ||                                 
-          (res.items && Array.isArray(res.items)) ||            
-          Array.isArray(res)                                    
+        (res.response && Array.isArray(res.response.docs)) ||
+        Array.isArray(res.files) ||
+        (res.items && Array.isArray(res.items)) ||
+        Array.isArray(res)
       );
 
       if (ok) return res;
@@ -123,14 +123,14 @@ async function pruneCache() {
       }
     }
   } catch (err) {
-    try { await db.run("ROLLBACK"); } catch {}
+    try { await db.run("ROLLBACK"); } catch { }
     console.error("❌ Error limpiando el caché:", err.message);
   }
 }
 
 // ----------------- LOGICA DE CLICKS Y CACHÉ -----------------
 async function _registerClickInternal(queryRaw, identifier, title = "", creator = "") {
-  await ensureIaTables(); 
+  await ensureIaTables();
   try {
     const query = normalizeQuery(queryRaw);
     const now = Date.now();
@@ -147,7 +147,7 @@ async function _registerClickInternal(queryRaw, identifier, title = "", creator 
 }
 
 async function maybeComputeHitFromClicks(queryRaw) {
-  await ensureIaTables(); 
+  await ensureIaTables();
   try {
     const query = normalizeQuery(queryRaw);
     const rows = await db.all(`SELECT identifier, clicks FROM ia_clicks WHERE query = ? ORDER BY clicks DESC LIMIT 10`, [query]);
@@ -210,7 +210,7 @@ async function _searchArchive(originalQuery) {
       } else if (ts >= smartExpirationLimit) {
         await db.run(`UPDATE ia_cache SET last_access = ? WHERE query = ?`, [now, queryKey]);
         logStatus("Caché IA", true, `HIT viejo-background`);
-        (async () => { try { await _searchArchiveForceFetch(originalQuery); } catch {} })();
+        (async () => { try { await _searchArchiveForceFetch(originalQuery); } catch { } })();
         return JSON.parse(cached.results);
       }
     }
@@ -234,7 +234,7 @@ async function _searchArchiveForceFetch(originalQuery) {
   if (queryKey.length > 0) {
     searchQueries.push({ q: `(title:"${queryKey}" OR creator:"${queryKey}") AND ${mediaFilter}`, rows: 60 });
   }
-  
+
   // 2. Búsqueda Estricta (AND)
   if (baseTerms.length > 1) {
     const termsAnd = baseTerms.map(t => `"${t}"`).join(" AND ");
@@ -266,8 +266,8 @@ async function _searchArchiveForceFetch(originalQuery) {
 
   flatResults.forEach(item => {
     if (!item || !item.identifier) return;
-    if (item.identifier.match(/\.(mp3|flac|wav|jpg|png|xml|txt)$/i)) return; 
-    if (item.identifier.includes(" ")) return; 
+    if (item.identifier.match(/\.(mp3|flac|wav|jpg|png|xml|txt)$/i)) return;
+    if (item.identifier.includes(" ")) return;
 
     const id = item.identifier;
     item.downloads = item.downloads ? parseInt(item.downloads, 10) : 0;
@@ -284,10 +284,10 @@ async function _searchArchiveForceFetch(originalQuery) {
     let scoreA = 0, scoreB = 0;
 
     queryWords.forEach(word => {
-        if (aText.includes(word)) scoreA += 3;
-        if (bText.includes(word)) scoreB += 3;
-        if (word.length > 4 && aText.includes(word.substring(0, 4))) scoreA += 1;
-        if (word.length > 4 && bText.includes(word.substring(0, 4))) scoreB += 1;
+      if (aText.includes(word)) scoreA += 3;
+      if (bText.includes(word)) scoreB += 3;
+      if (word.length > 4 && aText.includes(word.substring(0, 4))) scoreA += 1;
+      if (word.length > 4 && bText.includes(word.substring(0, 4))) scoreB += 1;
     });
 
     if (Math.abs(scoreA - scoreB) >= 2) return scoreB - scoreA;
@@ -331,42 +331,42 @@ async function _getIaSongDetails(identifier, limited = null) {
   try {
     const cleanId = identifier.replace(/\.(mp3|flac|wav|m4a)$/i, '');
     const encodedId = encodeURIComponent(cleanId);
-    
+
     const meta = await fetchWithRetry(`https://archive.org/metadata/${encodedId}`);
-    
+
     if (!meta) {
-        if (limited) {
-            const fallback = limited.find(x => x.identifier === identifier);
-            if (fallback) return fallback;
-        }
-        throw new Error("Metadata no encontrada");
+      if (limited) {
+        const fallback = limited.find(x => x.identifier === identifier);
+        if (fallback) return fallback;
+      }
+      throw new Error("Metadata no encontrada");
     }
 
     const files = meta?.files || [];
-    
+
     let audioFile = files.find(f => f.name && /(\.flac$)/i.test(f.name));
     if (!audioFile) audioFile = files.find(f => f.format === 'VBR MP3');
     if (!audioFile) audioFile = files.find(f => f.name && /(\.mp3$)/i.test(f.name));
     if (!audioFile) audioFile = files.find(f => f.format && /(flac|wav|m4a|mp3)/i.test(f.format));
-    
+
     const filename = audioFile ? audioFile.name : null;
-    
+
     if (!filename) throw new Error("No audio file found");
 
     const url = `https://archive.org/download/${encodedId}/${encodeURIComponent(filename)}`;
-    
+
     const imageFiles = files.filter(f => f.name && /\.(jpg|jpeg|png|gif)$/i.test(f.name));
     const preferred = imageFiles.find(f => ['cover.jpg', 'folder.jpg', 'album.jpg', 'front.jpg'].includes((f.name || "").toLowerCase()));
     const coverName = preferred ? preferred.name : (imageFiles[0]?.name);
-    const cover = coverName 
-        ? `https://archive.org/download/${encodedId}/${encodeURIComponent(coverName)}`
-        : `https://archive.org/services/img/${encodedId}`;
-    
+    const cover = coverName
+      ? `https://archive.org/download/${encodedId}/${encodeURIComponent(coverName)}`
+      : `https://archive.org/services/img/${encodedId}`;
+
     const metadata = meta.metadata || {};
-    
+
     let tituloFinal = audioFile?.title || metadata.title || "Sin título";
     if (tituloFinal === filename) {
-        tituloFinal = tituloFinal.replace(/\.(mp3|flac)$/i, '').replace(/^\d+\s*-?\s*/, '');
+      tituloFinal = tituloFinal.replace(/\.(mp3|flac)$/i, '').replace(/^\d+\s*-?\s*/, '');
     }
 
     return {
@@ -377,7 +377,7 @@ async function _getIaSongDetails(identifier, limited = null) {
       url,
       portada: cover,
       duration: audioFile.length ? Number(audioFile.length) : null,
-      album: metadata.title 
+      album: metadata.title
     };
 
   } catch (err) {
@@ -400,7 +400,7 @@ export const searchAll = async (req, res) => {
   if (!q || q.trim() === "") return res.status(400).json({ error: "Consulta vacía" });
   logStatus("Búsqueda Unificada", true, `Iniciando para: "${q}"`);
   try {
-    const [localResults, archiveResults] = await Promise.all([ _searchLocal(q), _searchArchive(q) ]);
+    const [localResults, archiveResults] = await Promise.all([_searchLocal(q), _searchArchive(q)]);
     res.json({ ...localResults, archive: archiveResults });
   } catch (err) {
     logStatus("Búsqueda Unificada", false, err.message);
@@ -533,11 +533,14 @@ export const checkIfLiked = async (req, res) => {
 
 export const getUserLikes = async (req, res) => {
   const userId = req.userId;
-  if (!userId) return res.status(401).json({ error: "No autorizado" });
+  if (userId === undefined || userId === null) return res.status(401).json({ error: "No autorizado" });
   try {
     const likes = await db.all(`SELECT c.id, c.titulo, a.nombre AS artista, c.portada, c.archivo AS url, c.duracion, c.bit_depth, c.sample_rate, c.bit_rate, al.titulo AS album, c.album_id AS albumId, l.id AS likeId FROM likes l JOIN canciones c ON c.id = l.song_id JOIN artistas a ON c.artista_id = a.id LEFT JOIN albumes al ON c.album_id = al.id WHERE l.user_id = ? ORDER BY l.id DESC`, [userId]);
     res.json(likes);
-  } catch (err) { res.status(500).json({ error: "Error al obtener canciones con like" }); }
+  } catch (err) {
+    console.error("❌ Error en getUserLikes:", err.message);
+    res.status(500).json({ error: "Error al obtener canciones con like", details: err.message });
+  }
 };
 
 export const registerIaClick = async (req, res) => {
@@ -579,12 +582,12 @@ export const toggleIaLike = async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(external_id, song_url) DO NOTHING`, // <--- ESTA ES LA LÍNEA MÁGICA
       [
-        identifier, 
-        songSource, 
-        title || 'Sin título', 
-        artist || 'Desconocido', 
-        url, 
-        portada || `https://archive.org/services/img/${identifier}`, 
+        identifier,
+        songSource,
+        title || 'Sin título',
+        artist || 'Desconocido',
+        url,
+        portada || `https://archive.org/services/img/${identifier}`,
         duration ? Number(duration) : 0
       ]
     );
@@ -631,18 +634,18 @@ export const checkIfIaLiked = async (req, res) => {
   try {
     // Lógica robusta: Si viene URL busca exacto, si no, busca genérico (fallback)
     let externalSong;
-    
+
     if (url) {
-        externalSong = await db.get(
-            `SELECT id FROM canciones_externas WHERE external_id = ? AND song_url = ?`, 
-            [identifier, url]
-        );
+      externalSong = await db.get(
+        `SELECT id FROM canciones_externas WHERE external_id = ? AND song_url = ?`,
+        [identifier, url]
+      );
     } else {
-        // Fallback peligroso pero útil si el frontend olvida la URL en alguna vista
-        externalSong = await db.get(
-            `SELECT id FROM canciones_externas WHERE external_id = ?`, 
-            [identifier]
-        );
+      // Fallback peligroso pero útil si el frontend olvida la URL en alguna vista
+      externalSong = await db.get(
+        `SELECT id FROM canciones_externas WHERE external_id = ?`,
+        [identifier]
+      );
     }
 
     if (!externalSong) return res.json({ liked: false });
@@ -651,10 +654,10 @@ export const checkIfIaLiked = async (req, res) => {
       `SELECT id FROM likes_externos WHERE user_id = ? AND cancion_externa_id = ?`,
       [userId, externalSong.id]
     );
-    
+
     res.json({ liked: !!like });
-  } catch (err) { 
-    res.status(500).json({ error: "Error al verificar like" }); 
+  } catch (err) {
+    res.status(500).json({ error: "Error al verificar like" });
   }
 };
 
@@ -681,14 +684,14 @@ export const getUserIaLikes = async (req, res) => {
     `, [userId]);
 
     const results = likedSongs.map(song => ({
-        id: `ia_${song.identifier}`,
-        identifier: song.identifier,
-        titulo: song.titulo,
-        artista: song.artista,
-        portada: song.portada,
-        url: song.url,
-        duration: song.duration,
-        source: 'internet_archive'
+      id: `ia_${song.identifier}`,
+      identifier: song.identifier,
+      titulo: song.titulo,
+      artista: song.artista,
+      portada: song.portada,
+      url: song.url,
+      duration: song.duration,
+      source: 'internet_archive'
     }));
 
     res.json(results);
@@ -700,20 +703,20 @@ export const getUserIaLikes = async (req, res) => {
 
 export const getCover = async (req, res) => {
   // Soporta tanto req.params.identifier como req.params[0] (wildcard)
-  const identifier = req.params.identifier || req.params[0]; 
-  
+  const identifier = req.params.identifier || req.params[0];
+
   if (!identifier) return res.status(400).json({ error: "Falta identifier" });
-  
+
   const cleanId = identifier.replace(/\.(mp3|flac|wav|m4a)$/i, '');
   try {
     const meta = await fetchWithRetry(`https://archive.org/metadata/${encodeURIComponent(cleanId)}`);
     if (!meta) throw new Error("No se encontró metadata");
-    
+
     const files = meta?.files || [];
     // Buscar imágenes priorizando portadas explícitas
     const imageFiles = files.filter(f => f.name && /\.(jpg|jpeg|png|gif)$/i.test(f.name));
     const preferred = imageFiles.find(f => ['cover.jpg', 'folder.jpg', 'album.jpg', 'front.jpg'].includes((f.name || "").toLowerCase()));
-    
+
     let cover;
     if (preferred) {
       cover = `https://archive.org/download/${cleanId}/${encodeURIComponent(preferred.name)}`;
@@ -721,7 +724,7 @@ export const getCover = async (req, res) => {
       cover = `https://archive.org/services/img/${cleanId}`;
     }
     res.json({ portada: cover });
-  } catch (err) { 
+  } catch (err) {
     // Fallback silencioso a la imagen por defecto de IA
     res.json({ portada: `https://archive.org/services/img/${cleanId}` });
   }
@@ -738,6 +741,18 @@ export const getArtistSongs = async (req, res) => {
   }
 };
 
+export const syncLocalSong = async (req, res) => {
+  try {
+    // For now, just log and return success to prevent 500 errors
+    // In the future, this will trigger Spectra analysis
+    // console.log("Syncing local song:", req.body.title);
+    return res.json({ success: true });
+  } catch (error) {
+    console.error("Error syncing local song:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 export default {
-  searchAll, search, searchArchive, getRecommendations, getSongs, getAlbums, getAlbumDetails, getAlbumSongs, getArtists, getArtistDetails, getArtistSongs, getHomeRecommendations, getLyricsBySong, toggleLike, checkIfLiked, getUserLikes, registerIaClick, registerComparatorRelation, registerIaComparator, toggleIaLike, checkIfIaLiked, getUserIaLikes, getCover
+  searchAll, search, searchArchive, getRecommendations, getSongs, getAlbums, getAlbumDetails, getAlbumSongs, getArtists, getArtistDetails, getArtistSongs, getHomeRecommendations, getLyricsBySong, toggleLike, checkIfLiked, getUserLikes, registerIaClick, registerComparatorRelation, registerIaComparator, toggleIaLike, checkIfIaLiked, getUserIaLikes, getCover, syncLocalSong
 };

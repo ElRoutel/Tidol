@@ -138,7 +138,7 @@ const PlayerSheet = () => {
             }}
         >
             {/* CONTENIDO */}
-            <div className="w-full h-full relative flex flex-col bg-black">
+            <div className="w-full h-full relative flex flex-col bg-background">
 
                 {/* MINI PLAYER (Visible cuando colapsado) */}
                 <motion.div

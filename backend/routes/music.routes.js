@@ -27,7 +27,8 @@ import {
   // IA Likes
   toggleIaLike,
   checkIfIaLiked,
-  getUserIaLikes
+  getUserIaLikes,
+  syncLocalSong
 } from "../controllers/music.controller.js";
 import { authMiddleware } from "../middleware/auth.middleware.js";
 import { getBestCover } from "../services/coverService.js";
@@ -81,6 +82,9 @@ router.get("/ia/likes", authMiddleware, getUserIaLikes);
 router.post("/ia/click", registerIaClick);
 router.post("/ia/comparator/relation", registerComparatorRelation);
 router.post("/ia/comparator", registerIaComparator);
+
+// --- Sync Local ---
+router.post("/sync-local-song", syncLocalSong);
 
 // --- Cover Art Service ---
 router.get("/getCover/:identifier", async (req, res) => {

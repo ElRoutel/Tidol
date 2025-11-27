@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
 import { useSearch } from '../hooks/useSearch';
 import SearchInput from '../components/SearchInput';
-import SearchResultCard from '../components/SearchResultCard';
+import UniversalCard from '../components/cards/UniversalCard';
 import { IoTimeOutline, IoCloseOutline } from 'react-icons/io5';
 import api from '../api/axiosConfig';
 import '../styles/glass.css';
@@ -86,7 +86,7 @@ export function SearchPage() {
       )}
 
       {/* 4. RESULTADOS */}
-      <div className="flex flex-col gap-10 mt-8">
+      <div className="flex flex-col gap-10 mt-8 pb-20">
         {/* Artistas */}
         {results.artists.length > 0 && (
           <div className="animate-fade-in">
@@ -95,12 +95,12 @@ export function SearchPage() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {results.artists.map(artist => (
-                <SearchResultCard
+                <UniversalCard
                   key={artist.id}
-                  image={artist.imagen}
-                  title={artist.nombre}
-                  subtitle="Artista"
-                  onClick={() => navigate(`/artist/${artist.id}`)}
+                  data={artist}
+                  type="artist"
+                  variant="shelf"
+                  onPlay={() => navigate(`/artist/${artist.id}`)}
                 />
               ))}
             </div>
@@ -115,12 +115,12 @@ export function SearchPage() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {results.albums.map(album => (
-                <SearchResultCard
+                <UniversalCard
                   key={album.id}
-                  image={album.portada}
-                  title={album.titulo}
-                  subtitle={album.autor}
-                  onClick={() => navigate(`/album/${album.id}`)}
+                  data={album}
+                  type="album"
+                  variant="shelf"
+                  onPlay={() => navigate(`/album/${album.id}`)}
                 />
               ))}
             </div>
@@ -135,12 +135,12 @@ export function SearchPage() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {results.canciones.map((song, index) => (
-                <SearchResultCard
+                <UniversalCard
                   key={song.id}
-                  image={song.portada}
-                  title={song.titulo}
-                  subtitle={song.artista}
-                  onClick={() => playSongList(results.canciones, index)}
+                  data={song}
+                  type="song"
+                  variant="shelf"
+                  onPlay={() => playSongList(results.canciones, index)}
                 />
               ))}
             </div>
@@ -157,14 +157,12 @@ export function SearchPage() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {results.archive.map((item, index) => (
-                <SearchResultCard
+                <UniversalCard
                   key={item.id || index}
-                  image={item.portada}
-                  title={item.titulo}
-                  subtitle={item.artista}
-                  onClick={() => handlePlayArchive(item)}
-                  isArchive={true}
-                  songData={item}
+                  data={item}
+                  type="song" // Or 'archive' if handled specifically
+                  variant="shelf"
+                  onPlay={() => handlePlayArchive(item)}
                 />
               ))}
             </div>

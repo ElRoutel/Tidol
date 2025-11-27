@@ -63,8 +63,9 @@ try {
         // Si no existe ninguna, lanzamos error controlado
         throw new Error("No se encuentra el archivo .sqlite en ninguna ruta estándar.");
     }
-    dbTidol = new Database(DB_PATH_TIDOL, { readonly: true });
-    console.log(`💾 TIDOL LEGACY DB: Conectada.`);
+    // dbTidol = new Database(DB_PATH_TIDOL, { readonly: true });
+    // console.log(`💾 TIDOL LEGACY DB: Conectada.`);
+    throw new Error("Bridge deshabilitado temporalmente para evitar corrupción de DB.");
 } catch (err) {
     console.warn(`⚠️  ADVERTENCIA: Bridge desactivado. (${err.message})`);
     dbTidol = null;

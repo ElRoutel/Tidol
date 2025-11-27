@@ -8,20 +8,24 @@ export default {
     extend: {
       colors: {
         primary: {
-          DEFAULT: '#1DB954',
-          hover: '#1ED760',
+          DEFAULT: '#ffffff', // White for primary text/active
+          hover: '#aaaaaa',   // Gray for secondary/hover
           dark: '#169c46',
         },
         background: {
-          DEFAULT: '#0A0A0A',
-          elevated: '#181818',
-          surface: '#282828',
+          DEFAULT: '#030303', // Deep black
+          elevated: '#212121', // Surface/Cards
+          surface: '#181818',
         },
         text: {
           base: '#FFFFFF',
-          secondary: '#B3B3B3',
+          secondary: '#aaaaaa',
           tertiary: '#808080',
         }
+      },
+      borderRadius: {
+        'card': '8px',
+        'pill': '20px',
       },
       fontFamily: {
         sans: ['Montserrat', 'Inter', 'system-ui', 'sans-serif'],

@@ -18,6 +18,7 @@ import uploadRoutes from "./routes/upload.routes.js";
 import historyRoutes from "./routes/history.routes.js";
 import playlistsRoutes from "./routes/playlists.js";
 import albumesRoutes from "./routes/albumes.js";
+import spectraRoutes from "./routes/spectra.routes.js";
 import helmet from "helmet";
 import compression from "compression";
 
@@ -100,6 +101,7 @@ app.use("/api/uploads", uploadRoutes);
 app.use("/api/history", historyRoutes);
 app.use("/api/playlists", playlistsRoutes);
 app.use("/api/albumes", albumesRoutes);
+app.use("/api/internal/spectra", spectraRoutes);
 // -------------------------
 
 // Helpers de migración

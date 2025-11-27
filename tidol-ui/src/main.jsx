@@ -15,7 +15,7 @@ import App from './App'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
         <PlayerProvider> {/* <--- 2. ENVUELVE LA APP CON EL PLAYER */}
           <PlaylistProvider>

@@ -13,6 +13,7 @@ export const authMiddleware = (req, res, next) => {
   try {
     const payload = jwt.verify(token, SECRET);
     req.userId = payload.id;
+    console.log(`🔑 AuthMiddleware: userId = ${req.userId} (type: ${typeof req.userId})`);
     next();
   } catch (err) {
     console.error("Token inválido:", err.message);

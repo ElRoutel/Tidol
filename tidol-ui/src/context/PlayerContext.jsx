@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   createContext,
   useContext,
   useState,
@@ -48,6 +48,18 @@ export function PlayerProvider({ children }) {
   const audioRef = useRef(null);
   const hasUserInteracted = useRef(false);
 
+  // Detected audio quality (for Internet Archive songs)
+  const [detectedQuality, setDetectedQuality] = useState(null);
+
+  // Spectra Analytics State (keeping it if it was there, or initializing default)
+  const [spectraData, setSpectraData] = useState({
+    waveform: [],
+    lyrics: [],
+    bpm: null,
+    key: null,
+    status: 'idle'
+  });
+
   // --- Actions ---
   const openFullScreenPlayer = useCallback(() => setIsFullScreenOpen(true), []);
   const toggleFullScreenPlayer = useCallback(() => setIsFullScreenOpen(prev => !prev), []);
@@ -55,6 +67,25 @@ export function PlayerProvider({ children }) {
 
   const addToHistory = useCallback((songId) => {
     setPlayedHistory(prev => prev.includes(songId) ? prev : [...prev, songId]);
+  }, []);
+
+  // Spectra Actions
+  const updateSpectraData = useCallback((data) => {
+    setSpectraData(prev => ({ ...prev, ...data }));
+  }, []);
+
+  const resetSpectraData = useCallback(() => {
+    setSpectraData({
+      waveform: [],
+      lyrics: [],
+      bpm: null,
+      key: null,
+      status: 'idle'
+    });
+  }, []);
+
+  const updateSpectraField = useCallback((field, value) => {
+    setSpectraData(prev => ({ ...prev, [field]: value }));
   }, []);
 
   // Fetch liked songs
@@ -82,7 +113,7 @@ export function PlayerProvider({ children }) {
         }
 
       } catch (err) {
-        console.error("Error al cargar todos los likes:", err);
+        // console.error("Error al cargar todos los likes:", err);
       }
     };
 
@@ -352,6 +383,38 @@ export function PlayerProvider({ children }) {
       audio.src = newSrc;
     }
 
+    // Detect if this is an Internet Archive song
+    const isInternetArchive = currentSong.url?.includes('archive.org');
+
+    // Parse quality info from format string (only for IA songs without metadata)
+    if (isInternetArchive && !currentSong.bit_depth && !currentSong.sample_rate) {
+      let bitDepth = null;
+      let sampleRate = null;
+
+      if (currentSong.format) {
+        const formatStr = currentSong.format.toLowerCase();
+
+        // Parse bit depth
+        if (formatStr.includes('24bit') || formatStr.includes('24-bit')) {
+          bitDepth = 24;
+        } else if (formatStr.includes('16bit') || formatStr.includes('16-bit')) {
+          bitDepth = 16;
+        } else if (formatStr.includes('32bit') || formatStr.includes('32-bit')) {
+          bitDepth = 32;
+        }
+
+        // Parse sample rate from common patterns
+        const khzMatch = formatStr.match(/(\d+)\s*khz/i);
+        if (khzMatch) {
+          sampleRate = parseFloat(khzMatch[1]) * 1000;
+        }
+      }
+
+      setDetectedQuality({ sample_rate: sampleRate, bit_depth: bitDepth });
+    } else {
+      setDetectedQuality(null);
+    }
+
     const safePlay = () => {
       const playPromise = audio.play();
       if (playPromise !== undefined) {
@@ -494,7 +557,9 @@ export function PlayerProvider({ children }) {
     currentIndex,
     hasNext: originalQueue.length > 0,
     hasPrevious: currentIndex > 0 || currentTime > 3,
-  }), [currentSong, isPlaying, isLoading, volume, isMuted, isFullScreenOpen, likedSongs, originalQueue, currentIndex, currentTime]);
+    spectraData,
+    detectedQuality, // Added detected quality for IA songs
+  }), [currentSong, isPlaying, isLoading, volume, isMuted, isFullScreenOpen, likedSongs, originalQueue, currentIndex, currentTime, spectraData, detectedQuality]);
 
   // 2. Progress Context (High frequency - 60fps)
   const playerProgress = useMemo(() => ({
@@ -519,8 +584,11 @@ export function PlayerProvider({ children }) {
     closeFullScreenPlayer,
     toggleLike,
     isSongLiked,
-    reorderQueue
-  }), [playSongList, togglePlayPause, nextSong, previousSong, addToQueue, playNext, changeVolume, toggleMute, seek, openFullScreenPlayer, toggleFullScreenPlayer, closeFullScreenPlayer, toggleLike, isSongLiked, reorderQueue]);
+    reorderQueue,
+    updateSpectraData,
+    resetSpectraData,
+    updateSpectraField
+  }), [playSongList, togglePlayPause, nextSong, previousSong, addToQueue, playNext, changeVolume, toggleMute, seek, openFullScreenPlayer, toggleFullScreenPlayer, closeFullScreenPlayer, toggleLike, isSongLiked, reorderQueue, updateSpectraData, resetSpectraData, updateSpectraField]);
 
   // Legacy Context (Combined)
   const legacyContext = useMemo(() => ({
