@@ -129,7 +129,7 @@ export function PlayerProvider({ children }) {
   }, []);
 
   const toggleVox = useCallback(async () => {
-    console.log('[PlayerContext] toggleVox called. spectraData:', spectraData);
+    console.log('[PlayerContext] toggleVox called');
     if (!currentSong) return;
 
     // If active, turn off
@@ -144,23 +144,69 @@ export function PlayerProvider({ children }) {
       return;
     }
 
-    // Check spectraData for stems (populated by useSpectraSync)
-    if (spectraData?.stems) {
-      setVoxTracks({
-        songId: currentSong.id,
-        // Ensure we point to the Spectra server (port 3001) via proxy
-        vocals: `/spectra${spectraData.stems.vocals}`,
-        accompaniment: `/spectra${spectraData.stems.accompaniment}`
-      });
-      setVoxMode(true);
-      setVoxType('accompaniment'); // Default to Karaoke mode (instrumental)
-      return;
+    // Call dedicated VOX separation endpoint
+    setIsVoxLoading(true);
+    try {
+      const isIA = currentSong.url?.includes('archive.org');
+      let voxEndpoint;
+      let params = {};
+
+      if (isIA) {
+        voxEndpoint = '/spectra/vox/separate';
+        params = { ia_id: currentSong.identifier || currentSong.id };
+      } else {
+        voxEndpoint = `/spectra/local/vox/separate/${currentSong.id}`;
+      }
+
+      const response = await axios.post(voxEndpoint, params);
+
+      if (response.data.status === 'success') {
+        // Stems already exist
+        setVoxTracks({
+          songId: currentSong.id,
+          vocals: `/spectra${response.data.vocals}`,
+          accompaniment: `/spectra${response.data.accompaniment}`
+        });
+        setVoxMode(true);
+        setVoxType('accompaniment');
+        setIsVoxLoading(false);
+      } else if (response.data.status === 'processing') {
+        // Polling for completion
+        console.log('[VOX] Separation started, polling for completion...');
+
+        const pollStems = async () => {
+          try {
+            const query = isIA ? `?ia_id=${currentSong.identifier || currentSong.id}` : `?tidol_id=${currentSong.id}`;
+            const analysisResponse = await axios.get(`/spectra/analysis${query}`);
+
+            if (analysisResponse.data.stems) {
+              setVoxTracks({
+                songId: currentSong.id,
+                vocals: `/spectra${analysisResponse.data.stems.vocals}`,
+                accompaniment: `/spectra${analysisResponse.data.stems.accompaniment}`
+              });
+              setVoxMode(true);
+              setVoxType('accompaniment');
+              setIsVoxLoading(false);
+              console.log('[VOX] Stems ready!');
+            } else {
+              setTimeout(pollStems, 3000);
+            }
+          } catch (error) {
+            console.error('[VOX] Polling error:', error);
+            setIsVoxLoading(false);
+          }
+        };
+
+        pollStems();
+      }
+    } catch (err) {
+      console.error("VOX Failed:", err);
+      alert("No se pudo activar Karaoke. Intenta de nuevo.");
+      setIsVoxLoading(false);
     }
+  }, [currentSong, voxMode, voxTracks]);
 
-    // Fallback: If no stems found, warn user
-    alert("Para usar el modo Karaoke, primero abre las letras para generar la separación de audio.");
-
-  }, [currentSong, voxMode, voxTracks, spectraData]);
 
   const toggleVoxType = useCallback(() => {
     setVoxType(prev => prev === 'vocals' ? 'accompaniment' : 'vocals');
@@ -697,7 +743,7 @@ export function PlayerProvider({ children }) {
     updateSpectraField,
     toggleVox,
     toggleVoxType
-  }), [playSongList, togglePlayPause, nextSong, previousSong, addToQueue, playNext, changeVolume, toggleMute, seek, openFullScreenPlayer, toggleFullScreenPlayer, closeFullScreenPlayer, toggleLike, isSongLiked, reorderQueue, updateSpectraData, resetSpectraData, updateSpectraField]);
+  }), [playSongList, togglePlayPause, nextSong, previousSong, addToQueue, playNext, changeVolume, toggleMute, seek, openFullScreenPlayer, toggleFullScreenPlayer, closeFullScreenPlayer, toggleLike, isSongLiked, reorderQueue, updateSpectraData, resetSpectraData, updateSpectraField, toggleVox, toggleVoxType]);
 
   // Legacy Context (Combined)
   const legacyContext = useMemo(() => ({
