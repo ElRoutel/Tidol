@@ -49,35 +49,37 @@ export default function ListenAgainCard({ item, onClick, onPlay, isActive }) {
         <div
             onClick={onClick}
             onContextMenu={handleContextMenu}
-            className="group/card flex flex-col gap-3 w-[150px] md:w-[180px] cursor-pointer flex-shrink-0"
+            className="group/card flex flex-col gap-3 w-[160px] md:w-[200px] cursor-pointer flex-shrink-0 transition-all duration-200"
         >
             {/* Image Container */}
-            <div className="relative aspect-square w-full">
+            <div className="relative aspect-square w-full overflow-hidden rounded-lg">
                 <img
                     src={image}
                     alt={title}
-                    className="w-full h-full object-cover rounded-md"
+                    className="w-full h-full object-cover transition-transform duration-300 group-hover/card:scale-105"
                 />
 
                 {/* Active State (Visualizer) OR Hover State (Play Button) */}
                 {isActive ? (
-                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-md">
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-lg">
                         <MiniVisualizer isPlaying={true} />
                     </div>
                 ) : onPlay ? (
                     <div
                         onClick={handlePlayClick}
-                        className="absolute inset-0 bg-black/40 opacity-0 group-hover/card:opacity-100 transition-opacity flex items-center justify-center rounded-md hover:bg-black/50"
+                        className="absolute inset-0 bg-black/40 opacity-0 group-hover/card:opacity-100 transition-all duration-200 flex items-center justify-center rounded-lg hover:bg-black/50"
                     >
-                        <IoPlay className="text-white drop-shadow-lg transform hover:scale-110 transition-transform" size={48} />
+                        <div className="w-12 h-12 md:w-14 md:h-14 bg-primary rounded-full flex items-center justify-center shadow-lg transform transition-transform group-hover/card:scale-110">
+                            <IoPlay className="text-black ml-0.5" size={24} />
+                        </div>
                     </div>
                 ) : null}
             </div>
 
             {/* Text Info */}
-            <div className="flex flex-col mt-2">
-                <h3 className="text-white font-bold text-sm truncate">{title}</h3>
-                <p className="text-[#aaaaaa] text-xs truncate">
+            <div className="flex flex-col">
+                <h3 className="text-white font-semibold text-sm md:text-base truncate leading-tight">{title}</h3>
+                <p className="text-[#aaa] text-xs md:text-sm truncate mt-1">
                     {subtitle}
                 </p>
             </div>

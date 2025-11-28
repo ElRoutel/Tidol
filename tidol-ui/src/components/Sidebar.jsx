@@ -1,7 +1,5 @@
 // src/components/Sidebar.jsx
 import { NavLink } from 'react-router-dom';
-import { useEffect, useState } from "react";
-import api from '../api/axiosConfig';
 import { usePlaylist } from '../context/PlaylistContext';
 
 // Iconos
@@ -123,19 +121,6 @@ function UserLibrary() {
 
 // ✅ Sidebar Principal
 export default function Sidebar() {
-  const [username, setUsername] = useState("Cargando...");
-
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) return setUsername("Invitado");
-
-    api.get("/auth/validate")
-      .then(res => {
-        setUsername(res.data?.username || "Usuario");
-      })
-      .catch(() => setUsername("Invitado"));
-  }, []);
-
   return (
     // CAMBIOS CLAVE:
     // 1. 'h-screen': Fuerza altura completa de la pantalla.
@@ -159,22 +144,6 @@ export default function Sidebar() {
         {/* SECCIÓN CENTRAL (Expandible) */}
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
           <UserLibrary />
-        </div>
-
-        {/* SECCIÓN INFERIOR (Usuario) - Pegado al fondo */}
-        <div className="border-t border-white/10 bg-black/20">
-          <NavLink
-            to="/profile"
-            className="flex items-center gap-3 p-4 cursor-pointer hover:bg-white/5 transition-colors group"
-          >
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center font-bold text-black shadow-lg group-hover:scale-105 transition-transform">
-              {username.charAt(0).toUpperCase()}
-            </div>
-            <div className="flex flex-col overflow-hidden">
-              <span className="font-bold text-white text-sm truncate">{username}</span>
-              <span className="text-xs text-green-400">Ver perfil</span>
-            </div>
-          </NavLink>
         </div>
 
       </div>

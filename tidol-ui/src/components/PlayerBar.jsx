@@ -192,7 +192,7 @@ const PlayerBar = memo(function PlayerBar({ isSheetMode = false }) {
   // Clases base para el contenedor
   // User feedback: "evita que ese gris se quede si esta el fondo interactivo" -> Usamos black/60 con blur fuerte
   const containerClasses = isSheetMode
-    ? "relative w-full h-full flex items-center bg-transparent"
+    ? "relative w-full h-full flex items-center bg-transparent px-4 overflow-hidden"
     : "fixed bottom-0 left-0 right-0 z-[1000] flex items-center justify-between px-4 py-2 pb-[env(safe-area-inset-bottom)] bg-black/80 backdrop-blur-xl border-t border-white/10 md:left-64 md:px-6 md:py-3 transition-all duration-300";
 
   return (

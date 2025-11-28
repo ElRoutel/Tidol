@@ -13,15 +13,15 @@ export default function Shelf({ title, subtitle, children }) {
   };
 
   return (
-    <div className="flex flex-col gap-4 py-6 group relative z-0">
+    <div className="flex flex-col gap-4 py-4 group relative z-0">
       {/* Header */}
-      <div className="flex flex-col px-4 md:px-0">
+      <div className="flex flex-col px-4 md:px-0 mb-2">
         {subtitle && (
-          <span className="text-[#aaaaaa] text-xs font-bold uppercase tracking-wider mb-1">
+          <span className="text-[#999] text-xs font-semibold uppercase tracking-wider mb-2">
             {subtitle}
           </span>
         )}
-        <h2 className="text-white text-2xl font-bold">{title}</h2>
+        <h2 className="text-white text-2xl md:text-3xl font-bold">{title}</h2>
       </div>
 
       {/* Container for Scroll + Buttons */}

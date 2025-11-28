@@ -85,22 +85,19 @@ export default function HomePage() {
   }
 
   return (
-    <div className="pb-32">
+    <div className="pb-24 md:pb-32">
 
       {/* Header / Chips Section */}
-      {/* Mobile: px-4, Desktop: px-12. Top padding adjusted. */}
-      <div className="pt-24 px-4 md:px-12 mb-6 md:mb-8">
-        <div className="w-full">
+      <div className="pt-20 md:pt-24 px-4 md:px-8 mb-8">
+        <div className="w-full max-w-[1600px] mx-auto">
           <ChipsCarousel selectedChip={selectedChip} onSelectChip={setSelectedChip} />
         </div>
       </div>
 
       {/* Content Section */}
-      {/* Mobile: px-0 (full width), Desktop: px-12 */}
-      <div className="flex flex-col gap-8 md:gap-12 px-0 md:px-12">
+      <div className="flex flex-col gap-10 md:gap-14 px-0 md:px-8 max-w-[1600px] mx-auto">
         <HomeAllView data={data} onPlay={handlePlaySong} />
       </div>
     </div>
   );
 }
-
