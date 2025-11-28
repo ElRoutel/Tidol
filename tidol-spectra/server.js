@@ -25,8 +25,46 @@ if (!fs.existsSync(UPLOADS_MUSIC_DIR)) fs.mkdirSync(UPLOADS_MUSIC_DIR, { recursi
 if (!fs.existsSync(UPLOADS_COVERS_DIR)) fs.mkdirSync(UPLOADS_COVERS_DIR, { recursive: true });
 
 // --- DB SPECTRA (Local) ---
-// AQUÍ ESTABA EL ERROR: Ahora se llama dbSpectra uniformemente
 const dbSpectra = new Database(DB_PATH_SPECTRA);
+dbSpectra.pragma('journal_mode = WAL'); // Enable WAL for concurrency
+
+// --- JOB QUEUE SYSTEM ---
+class JobQueue {
+    constructor(concurrency = 2) {
+        this.concurrency = concurrency;
+        this.running = 0;
+        this.queue = [];
+    }
+
+    add(jobFn) {
+        return new Promise((resolve, reject) => {
+            this.queue.push({ jobFn, resolve, reject });
+            this.process();
+        });
+    }
+
+    async process() {
+        if (this.running >= this.concurrency || this.queue.length === 0) return;
+
+        this.running++;
+        const { jobFn, resolve, reject } = this.queue.shift();
+
+        try {
+            const result = await jobFn();
+            resolve(result);
+        } catch (error) {
+            reject(error);
+        } finally {
+            this.running--;
+            this.process();
+        }
+    }
+}
+
+// Separate queues for different task types to prevent starvation
+const analysisQueue = new JobQueue(2); // Lightweight analysis
+const voxQueue = new JobQueue(1);      // Heavy VOX separation (Spleeter is RAM hungry)
+const lyricsQueue = new JobQueue(1);   // Lyrics generation (Future Whisper)
 
 // Tabla actualizada con todos los campos necesarios
 dbSpectra.exec(`
@@ -625,28 +663,89 @@ app.post('/sync-local-song', async (req, res) => {
             songId
         );
 
-        console.log(`✅ Sincronizada: "${title}" (ID: ${result.lastInsertRowid})`);
+        console.log(`✅ Sincronizada: "${title}" (ID: ${Number(result.lastInsertRowid)})`);
 
         // Disparar análisis
-        const fullPath = path.join(__dirname, '../backend/uploads/musica', path.basename(filepath));
+        // tidol-spectra and backend are sibling directories
+        const fullPath = path.join(__dirname, '..', 'backend', 'uploads', 'musica', path.basename(filepath));
 
         if (fs.existsSync(fullPath)) {
-            runPythonAnalysis(result.lastInsertRowid, fullPath);
+            runPythonAnalysis(Number(result.lastInsertRowid), fullPath);
         } else {
             console.warn(`⚠️  Archivo no encontrado: ${fullPath}`);
             dbSpectra.prepare('UPDATE tracks SET analysis_status = ? WHERE id = ?')
-                .run('failed', result.lastInsertRowid);
+                .run('failed', Number(result.lastInsertRowid));
         }
 
         res.json({
             success: true,
-            trackId: result.lastInsertRowid,
+            trackId: Number(result.lastInsertRowid),
             message: 'Song synced and analysis started',
             alreadyExists: false
         });
 
     } catch (error) {
         console.error('❌ Error en /sync-local-song:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 10b. Ingest Remote Song (Internet Archive)
+app.post('/ingest-remote', async (req, res) => {
+    try {
+        const { audioUrl, coverUrl, metadata } = req.body;
+
+        if (!audioUrl || !metadata) {
+            return res.status(400).json({ error: 'Missing audioUrl or metadata' });
+        }
+
+        const { title, artist, album, ia_id, duration } = metadata;
+
+        // Check if already exists
+        const existing = dbSpectra.prepare(
+            'SELECT id FROM tracks WHERE original_ia_id = ?'
+        ).get(ia_id);
+
+        if (existing) {
+            return res.json({
+                success: true,
+                trackId: existing.id,
+                message: 'Song already in Spectra',
+                alreadyExists: true
+            });
+        }
+
+        // For IA songs, we store the URL directly as filepath
+        // The actual download/caching happens lazily if needed
+        const insert = dbSpectra.prepare(`
+            INSERT INTO tracks (
+                title, artist, album, filepath, duration, 
+                coverpath, analysis_status, original_ia_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
+        `);
+
+        const result = insert.run(
+            title || 'Unknown Title',
+            artist || 'Unknown Artist',
+            album || 'Internet Archive',
+            audioUrl, // Store URL as filepath for remote songs
+            duration || 0,
+            coverUrl || null,
+            ia_id
+        );
+
+        console.log(`✅ IA Song ingested: "${title}" (ID: ${Number(result.lastInsertRowid)})`);
+
+        res.json({
+            success: true,
+            trackId: Number(result.lastInsertRowid),
+            message: 'Remote song ingested',
+            alreadyExists: false
+        });
+
+    } catch (error) {
+        console.error('❌ Error en /ingest-remote:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -764,40 +863,461 @@ app.get('/analysis-status', (req, res) => {
     }
 });
 
-// --- PYTHON WORKER ---
-function runPythonAnalysis(trackId, filePath) {
-    console.log(`🐍 Iniciando Python para Track #${trackId}...`);
-    const pythonProcess = spawn('python', ['analyzer.py', filePath]);
+// --- VOX MODULE (Vocal Separation) ---
 
-    let dataBuffer = '';
-    pythonProcess.stdout.on('data', (data) => dataBuffer += data.toString());
-    pythonProcess.stderr.on('data', (data) => console.error(`Python Debug: ${data}`));
+const UPLOADS_VOX_DIR = path.join(__dirname, 'uploads', 'vox');
+if (!fs.existsSync(UPLOADS_VOX_DIR)) fs.mkdirSync(UPLOADS_VOX_DIR, { recursive: true });
 
-    pythonProcess.on('close', (code) => {
-        if (code !== 0) {
-            console.log(`Python falló con código ${code}`);
-            dbSpectra.prepare('UPDATE tracks SET analysis_status = "failed" WHERE id = ?').run(trackId);
-            return;
+// 14. Trigger Vocal Separation
+app.post('/vox/separate', async (req, res) => {
+    try {
+        // Support both direct ID and lookup params
+        const track = getTrackByLookup(req.body) || (req.body.trackId ? dbSpectra.prepare('SELECT * FROM tracks WHERE id = ?').get(req.body.trackId) : null);
+
+        if (!track) return res.status(404).json({ error: 'Track not found' });
+        const trackId = track.id; // Ensure we use the internal ID for the rest of the logic
+
+        // Determine input path
+        let inputPath;
+        if (track.filepath.startsWith('uploads/')) {
+            inputPath = path.join(__dirname, track.filepath);
+        } else {
+            inputPath = path.join(MEDIA_DIR, track.filepath);
         }
+
+        if (!fs.existsSync(inputPath)) return res.status(404).json({ error: 'Audio file not found' });
+
+        // Determine output path (Spleeter creates a folder with the filename)
+        const filenameNoExt = path.basename(track.filepath, path.extname(track.filepath));
+        const outputDir = UPLOADS_VOX_DIR; // Spleeter will create subdir 'filenameNoExt' here
+
+        const expectedVocals = path.join(outputDir, filenameNoExt, 'vocals.wav');
+        const expectedInstr = path.join(outputDir, filenameNoExt, 'accompaniment.wav');
+
+        // Check if already separated
+        if (fs.existsSync(expectedVocals) && fs.existsSync(expectedInstr)) {
+            return res.json({
+                status: 'success',
+                message: 'Already separated',
+                vocals: `/vox/stream/${trackId}/vocals`,
+                accompaniment: `/vox/stream/${trackId}/accompaniment`
+            });
+        }
+
+        // Wrap in Queue
         try {
-            const result = JSON.parse(dataBuffer);
-            if (result.status === 'success') {
-                console.log(`✅ Análisis: ${result.bpm} BPM | ${result.key}`);
-                const update = dbSpectra.prepare(`
-                    UPDATE tracks SET bpm = ?, key_signature = ?, waveform_data = ?, analysis_status = 'analyzed'
-                    WHERE id = ?
-                `);
-                update.run(result.bpm, result.key, JSON.stringify(result.waveform), trackId);
-            } else {
-                console.log(`⚠️ Python Warning: ${result.error}`);
+            await voxQueue.add(() => new Promise((resolve, reject) => {
+                console.log(`🎤 [Queue] Iniciando VOX (Demucs) para Track #${trackId}...`);
+
+                // Use vox_demucs.py instead of vox.py
+                const pythonProcess = spawn('python', ['vox_demucs.py', inputPath, outputDir]);
+                let dataBuffer = '';
+
+                pythonProcess.stdout.on('data', (data) => dataBuffer += data.toString());
+                pythonProcess.stderr.on('data', (data) => console.error(`VOX Debug: ${data}`));
+
+                pythonProcess.on('close', (code) => {
+                    if (code !== 0) {
+                        reject(new Error(`VOX failed with code ${code}`));
+                        return;
+                    }
+                    try {
+                        const result = JSON.parse(dataBuffer);
+                        if (result.status === 'success') {
+                            resolve(result);
+                        } else {
+                            reject(new Error(result.message));
+                        }
+                    } catch (e) {
+                        reject(new Error('Invalid JSON from VOX script'));
+                    }
+                });
+            }));
+
+            res.json({
+                status: 'success',
+                vocals: `/vox/stream/${trackId}/vocals`,
+                accompaniment: `/vox/stream/${trackId}/accompaniment`
+            });
+
+        } catch (err) {
+            console.error("VOX Job Failed:", err);
+            res.status(500).json({ error: err.message });
+        }
+
+    } catch (error) {
+        console.error("VOX Error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 15. Stream Separated Tracks
+app.get('/vox/stream/:id/:type', (req, res) => {
+    const { id, type } = req.params; // type: 'vocals' | 'accompaniment'
+    if (type !== 'vocals' && type !== 'accompaniment') return res.status(400).send('Invalid type');
+
+    const track = dbSpectra.prepare('SELECT filepath FROM tracks WHERE id = ?').get(id);
+    if (!track) return res.status(404).send('Track not found');
+
+    const filenameNoExt = path.basename(track.filepath, path.extname(track.filepath));
+    const filePath = path.join(UPLOADS_VOX_DIR, filenameNoExt, `${type}.wav`);
+
+    if (!fs.existsSync(filePath)) return res.status(404).send('Stem not found (Run separation first)');
+
+    const stat = fs.statSync(filePath);
+    res.writeHead(200, {
+        'Content-Type': 'audio/wav',
+        'Content-Length': stat.size
+    });
+    fs.createReadStream(filePath).pipe(res);
+});
+
+// --- LYRICS MODULE ---
+
+// 16. Generate Lyrics (Mock/Placeholder for now)
+app.post('/generate-lyrics/:id', async (req, res) => {
+    // In a real implementation, this would call Whisper or similar
+    // For now, we return success to allow the frontend to proceed
+    res.json({ success: true, message: 'Lyrics generation started (mock)' });
+});
+
+// 17. Get Lyrics (Mock/Search)
+app.get('/lyrics/:id', async (req, res) => {
+    const trackId = req.params.id;
+    const track = dbSpectra.prepare('SELECT title, artist FROM tracks WHERE id = ?').get(trackId);
+
+    if (!track) return res.status(404).send('Track not found');
+
+    // Try to find a local .lrc file if it exists (optional feature)
+    // For now, return a dummy synced lyric for testing
+    const dummyLrc = `
+[00:00.00]🎵 (Instrumental Intro)
+[00:05.00]${track.title} - ${track.artist}
+[00:10.00]Lyrics provided by Spectra AI
+[00:15.00]...
+[00:20.00]This is a placeholder for real-time lyrics.
+[00:25.00]Implement Whisper or an API to get real lyrics.
+`;
+    res.send(dummyLrc.trim());
+});
+
+// --- PYTHON WORKER (Queued) ---
+function runPythonAnalysis(trackId, filePath) {
+    analysisQueue.add(() => new Promise((resolve, reject) => {
+        console.log(`🐍 [Queue] Iniciando Python para Track #${trackId}...`);
+        const pythonProcess = spawn('python', ['analyzer.py', filePath]);
+
+        let dataBuffer = '';
+        pythonProcess.stdout.on('data', (data) => dataBuffer += data.toString());
+        pythonProcess.stderr.on('data', (data) => console.error(`Python Debug: ${data}`));
+
+        pythonProcess.on('close', (code) => {
+            if (code !== 0) {
+                console.log(`Python falló con código ${code}`);
+                dbSpectra.prepare('UPDATE tracks SET analysis_status = "failed" WHERE id = ?').run(trackId);
+                resolve(); // Resolve anyway to free up queue
+                return;
+            }
+            try {
+                const result = JSON.parse(dataBuffer);
+                if (result.status === 'success') {
+                    console.log(`✅ Análisis: ${result.bpm} BPM | ${result.key}`);
+                    const update = dbSpectra.prepare(`
+                        UPDATE tracks SET bpm = ?, key_signature = ?, waveform_data = ?, analysis_status = 'analyzed'
+                        WHERE id = ?
+                    `);
+                    update.run(result.bpm, result.key, JSON.stringify(result.waveform), trackId);
+                } else {
+                    console.log(`⚠️ Python Warning: ${result.error}`);
+                    dbSpectra.prepare('UPDATE tracks SET analysis_status = "failed" WHERE id = ?').run(trackId);
+                }
+            } catch (parseErr) {
+                console.error(`❌ JSON Parse Error:`, parseErr);
                 dbSpectra.prepare('UPDATE tracks SET analysis_status = "failed" WHERE id = ?').run(trackId);
             }
-        } catch (parseErr) {
-            console.error(`❌ JSON Parse Error:`, parseErr);
-            dbSpectra.prepare('UPDATE tracks SET analysis_status = "failed" WHERE id = ?').run(trackId);
-        }
-    });
+            resolve();
+        });
+    }));
 }
+
+// --- LOOKUP ENDPOINTS (Resolve by Tidol ID or IA ID) ---
+
+function getTrackByLookup(query) {
+    if (!query || typeof query !== 'object') return null;
+
+    const { id, tidol_id, ia_id } = query;
+    if (id) return dbSpectra.prepare('SELECT * FROM tracks WHERE id = ?').get(id);
+    if (tidol_id) return dbSpectra.prepare('SELECT * FROM tracks WHERE original_tidol_id = ?').get(tidol_id);
+    if (ia_id) return dbSpectra.prepare('SELECT * FROM tracks WHERE original_ia_id = ?').get(ia_id);
+    return null;
+}
+
+// 18. Analysis Lookup
+app.get('/analysis', (req, res) => {
+    const track = getTrackByLookup(req.query);
+    if (!track) return res.status(404).json({ error: 'Track not found' });
+
+    if (track.waveform_data) {
+        try { track.waveform_data = JSON.parse(track.waveform_data); }
+        catch (e) { track.waveform_data = []; }
+    }
+    res.json({
+        id: track.id,
+        bpm: track.bpm,
+        key: track.key_signature,
+        waveform_data: track.waveform_data,
+        status: track.analysis_status
+    });
+});
+
+// 19. Lyrics Lookup
+app.get('/lyrics', (req, res) => {
+    const track = getTrackByLookup(req.query);
+    if (!track) return res.status(404).send('Track not found');
+
+    const UPLOADS_LYRICS_DIR = path.join(__dirname, 'uploads', 'lyrics');
+    const filenameNoExt = path.basename(track.filepath, path.extname(track.filepath));
+    const lrcPath = path.join(UPLOADS_LYRICS_DIR, `${filenameNoExt}.lrc`);
+
+    if (fs.existsSync(lrcPath)) {
+        res.sendFile(lrcPath);
+    } else {
+        // Return 404 so frontend knows to trigger generation or keep waiting
+        res.status(404).send('Lyrics not generated yet');
+    }
+});
+
+// 19b. LOCAL SONGS - Lyrics Lookup (dedicated endpoint)
+app.get('/local/lyrics/:tidol_id', (req, res) => {
+    const { tidol_id } = req.params;
+    const track = dbSpectra.prepare('SELECT * FROM tracks WHERE original_tidol_id = ?').get(tidol_id);
+
+    if (!track) return res.status(404).send('Track not found in Spectra');
+
+    const UPLOADS_LYRICS_DIR = path.join(__dirname, 'uploads', 'lyrics');
+    const filenameNoExt = path.basename(track.filepath, path.extname(track.filepath));
+    const lrcPath = path.join(UPLOADS_LYRICS_DIR, `${filenameNoExt}.lrc`);
+
+    if (fs.existsSync(lrcPath)) {
+        res.sendFile(lrcPath);
+    } else {
+        res.status(404).send('Lyrics not generated yet');
+    }
+});
+
+// 20. Generate Lyrics Lookup (Queued with VOXW)
+app.post('/generate-lyrics', async (req, res) => {
+    const track = getTrackByLookup(req.query) || getTrackByLookup(req.body);
+    if (!track) return res.status(404).json({ error: 'Track not found' });
+
+    const UPLOADS_LYRICS_DIR = path.join(__dirname, 'uploads', 'lyrics');
+    if (!fs.existsSync(UPLOADS_LYRICS_DIR)) fs.mkdirSync(UPLOADS_LYRICS_DIR, { recursive: true });
+
+    const filenameNoExt = path.basename(track.filepath, path.extname(track.filepath));
+    const lrcPath = path.join(UPLOADS_LYRICS_DIR, `${filenameNoExt}.lrc`);
+
+    // If lyrics already exist, return success immediately
+    if (fs.existsSync(lrcPath)) {
+        return res.json({ success: true, message: 'Lyrics already available', trackId: track.id });
+    }
+
+    // Determine input audio path
+    let inputPath;
+    if (track.filepath.startsWith('uploads/')) {
+        inputPath = path.join(__dirname, track.filepath);
+    } else {
+        inputPath = path.join(MEDIA_DIR, track.filepath);
+    }
+
+    // Add to Lyrics Queue
+    try {
+        // We don't await the queue here to avoid blocking the HTTP response
+        // The frontend will poll /lyrics or we can implement websockets later
+        // For now, we return "started" and the frontend will retry fetching lyrics
+
+        lyricsQueue.add(() => new Promise((resolve, reject) => {
+            console.log(`📜 [Queue] Iniciando VOXW (Whisper) para Track #${track.id}...`);
+
+            const pythonProcess = spawn('python', ['voxw.py', inputPath, lrcPath]);
+            let dataBuffer = '';
+            let errorBuffer = '';
+            let processTimeout;
+
+            // Set 5-minute timeout to prevent hung processes
+            processTimeout = setTimeout(() => {
+                console.error(`⏱️ VOXW timeout for Track #${track.id}`);
+                pythonProcess.kill('SIGTERM');
+                reject(new Error('VOXW process timeout (5 minutes)'));
+            }, 5 * 60 * 1000);
+
+            pythonProcess.stdout.on('data', (data) => {
+                const str = data.toString();
+                dataBuffer += str;
+                console.log(`VOXW Progress: ${str.trim()}`);
+            });
+
+            pythonProcess.stderr.on('data', (data) => {
+                const str = data.toString();
+                errorBuffer += str;
+                // Only log non-warning errors
+                if (!str.includes('UserWarning') && !str.includes('pkg_resources')) {
+                    console.error(`VOXW Error: ${str.trim()}`);
+                }
+            });
+
+            pythonProcess.on('close', (code) => {
+                clearTimeout(processTimeout);
+
+                if (code !== 0) {
+                    console.error(`❌ VOXW failed with code ${code}`);
+                    if (errorBuffer) {
+                        console.error(`Error details: ${errorBuffer.substring(0, 500)}`);
+                    }
+
+                    // Provide more helpful error messages
+                    let errorMsg = `VOXW failed with code ${code}`;
+                    if (code === 3221226505 || code === -1073741819) {
+                        errorMsg = 'Memory error: Audio file may be too long or system is low on RAM';
+                    } else if (errorBuffer.includes('MemoryError')) {
+                        errorMsg = 'Out of memory: Try a shorter audio file';
+                    } else if (errorBuffer.includes('No lyrics detected')) {
+                        errorMsg = 'No vocals detected in audio';
+                    }
+
+                    reject(new Error(errorMsg));
+                    return;
+                }
+                try {
+                    // Parse the last line which should be the JSON result
+                    const lines = dataBuffer.trim().split('\n');
+                    const lastLine = lines[lines.length - 1];
+                    const result = JSON.parse(lastLine);
+
+                    if (result.status === 'success') {
+                        console.log(`✅ Lyrics generadas: ${track.title} (${result.segments || 0} segments)`);
+                        resolve(result);
+                    } else {
+                        reject(new Error(result.message));
+                    }
+                } catch (e) {
+                    // If JSON parse fails, check if file exists anyway
+                    if (fs.existsSync(lrcPath)) {
+                        console.log(`✅ Lyrics file created: ${track.title}`);
+                        resolve({ status: 'success' });
+                    } else {
+                        reject(new Error('Invalid JSON from VOXW script'));
+                    }
+                }
+            });
+        })).catch(err => console.error("Lyrics Job Failed:", err));
+
+        res.json({ success: true, message: 'Lyrics generation started (VOXW)', trackId: track.id });
+
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 20b. LOCAL SONGS - Generate Lyrics (dedicated endpoint)
+app.post('/local/generate-lyrics/:tidol_id', async (req, res) => {
+    const { tidol_id } = req.params;
+    const track = dbSpectra.prepare('SELECT * FROM tracks WHERE original_tidol_id = ?').get(tidol_id);
+
+    if (!track) return res.status(404).json({ error: 'Track not found in Spectra. Please sync the song first.' });
+
+    const UPLOADS_LYRICS_DIR = path.join(__dirname, 'uploads', 'lyrics');
+    if (!fs.existsSync(UPLOADS_LYRICS_DIR)) fs.mkdirSync(UPLOADS_LYRICS_DIR, { recursive: true });
+
+    const filenameNoExt = path.basename(track.filepath, path.extname(track.filepath));
+    const lrcPath = path.join(UPLOADS_LYRICS_DIR, `${filenameNoExt}.lrc`);
+
+    // If lyrics already exist, return success immediately
+    if (fs.existsSync(lrcPath)) {
+        return res.json({ success: true, message: 'Lyrics already available', trackId: track.id });
+    }
+
+    // Determine input audio path (local songs are in backend/uploads/)
+    const inputPath = path.join(__dirname, '..', 'backend', track.filepath);
+
+    // Add to Lyrics Queue
+    try {
+        lyricsQueue.add(() => new Promise((resolve, reject) => {
+            console.log(`📜 [Queue] Iniciando VOXW para canción local #${tidol_id} (Spectra Track #${track.id})...`);
+
+            const pythonProcess = spawn('python', ['voxw.py', inputPath, lrcPath]);
+            let dataBuffer = '';
+            let errorBuffer = '';
+            let processTimeout;
+
+            processTimeout = setTimeout(() => {
+                console.error(`⏱️ VOXW timeout for local song ${tidol_id}`);
+                pythonProcess.kill('SIGTERM');
+                reject(new Error('VOXW process timeout (5 minutes)'));
+            }, 5 * 60 * 1000);
+
+            pythonProcess.stdout.on('data', (data) => {
+                const str = data.toString();
+                dataBuffer += str;
+                console.log(`VOXW Progress: ${str.trim()}`);
+            });
+
+            pythonProcess.stderr.on('data', (data) => {
+                const str = data.toString();
+                errorBuffer += str;
+                if (!str.includes('UserWarning') && !str.includes('pkg_resources')) {
+                    console.error(`VOXW Error: ${str.trim()}`);
+                }
+            });
+
+            pythonProcess.on('close', (code) => {
+                clearTimeout(processTimeout);
+
+                if (code !== 0) {
+                    console.error(`❌ VOXW failed with code ${code}`);
+                    if (errorBuffer) {
+                        console.error(`Error details: ${errorBuffer.substring(0, 500)}`);
+                    }
+
+                    let errorMsg = `VOXW failed with code ${code}`;
+                    if (code === 3221226505 || code === -1073741819) {
+                        errorMsg = 'Memory error: Audio file may be too long or system is low on RAM';
+                    } else if (errorBuffer.includes('MemoryError')) {
+                        errorMsg = 'Out of memory: Try a shorter audio file';
+                    } else if (errorBuffer.includes('No lyrics detected')) {
+                        errorMsg = 'No vocals detected in audio';
+                    }
+
+                    reject(new Error(errorMsg));
+                    return;
+                }
+                try {
+                    const lines = dataBuffer.trim().split('\n');
+                    const lastLine = lines[lines.length - 1];
+                    const result = JSON.parse(lastLine);
+
+                    if (result.status === 'success') {
+                        console.log(`✅ Lyrics generadas para canción local: ${track.title} (${result.segments || 0} segments)`);
+                        resolve(result);
+                    } else {
+                        reject(new Error(result.message));
+                    }
+                } catch (e) {
+                    if (fs.existsSync(lrcPath)) {
+                        console.log(`✅ Lyrics file created: ${track.title}`);
+                        resolve({ status: 'success' });
+                    } else {
+                        reject(new Error('Invalid JSON from VOXW script'));
+                    }
+                }
+            });
+        })).catch(err => console.error("Lyrics Job Failed (Local):", err));
+
+        res.json({ success: true, message: 'Lyrics generation started (VOXW)', trackId: track.id, tidol_id });
+
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // --- INICIAR SERVIDOR ---
 app.listen(PORT, () => {

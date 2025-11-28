@@ -55,7 +55,12 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': { target: TARGET, changeOrigin: true },
-      '/uploads': { target: TARGET, changeOrigin: true }
+      '/uploads': { target: TARGET, changeOrigin: true },
+      '/spectra': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/spectra/, '')
+      }
     },
     allowedHosts: ['.trycloudflare.com']
   }

@@ -3,6 +3,7 @@ import { usePlayer } from '../context/PlayerContext';
 import { useHome } from '../hooks/useHome';
 import useLazyCaching from '../hooks/useLazyCaching';
 import api from '../api/axiosConfig';
+import axios from 'axios';
 import ChipsCarousel from '../components/home/ChipsCarousel';
 import HomeAllView from '../components/home/views/HomeAllView';
 import '../styles/glass.css';
@@ -53,9 +54,9 @@ export default function HomePage() {
   // Sincronizar canción local a Spectra
   const syncLocalToSpectra = async (song) => {
     try {
-      // Use api instance instead of fetch to handle base URL and headers automatically
-      // Endpoint is now /music/sync-local-song (mounted at /api/music)
-      const response = await api.post('/music/sync-local-song', {
+      // Use axios directly to hit the /spectra proxy (port 3001)
+      // Endpoint is now /spectra/sync-local-song (proxied to port 3001)
+      const response = await axios.post('/spectra/sync-local-song', {
         songId: song.id,
         title: song.titulo || song.title,
         artist: song.artista || song.artist || 'Unknown',

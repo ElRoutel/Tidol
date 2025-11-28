@@ -84,17 +84,155 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
     if (showLyrics) {
       fetchLyrics();
     }
-  }, [showLyrics, currentSong]);
+  }, [showLyrics, currentSong?.id]); // Solo depende del ID, no del objeto completo
+
+  // Ref to track polling interval and prevent multiple fetches
+  const pollingIntervalRef = useRef(null);
+  const isFetchingRef = useRef(false);
 
   const fetchLyrics = async () => {
+    // Prevent multiple simultaneous fetches
+    if (isFetchingRef.current) {
+      console.log('[Lyrics] Already fetching, skipping...');
+      return;
+    }
+
+    // Clear any existing polling
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+
+    const MAX_RETRIES = 20; // 20 retries x 6 seconds = 2 minutes max
+    const RETRY_DELAY = 6000; // 6 seconds between retries
+    let retryCount = 0;
+
+    const pollLyrics = async () => {
+      try {
+        const lyricsData = await fetchSpectraLyrics();
+
+        if (lyricsData && lyricsData.length > 0) {
+          setLyrics(lyricsData);
+          console.log(`[Lyrics] ✅ Loaded successfully after ${retryCount} retries`);
+          return true; // Success
+        } else {
+          // Empty response, lyrics might still be generating
+          return false;
+        }
+      } catch (error) {
+        // 404 means lyrics not ready yet, keep trying
+        if (error.message.includes('404')) {
+          return false;
+        }
+        // Other errors, stop retrying
+        console.error('Error fetching lyrics:', error);
+        throw error;
+      }
+    };
+
     try {
-      const lyricsData = await fetchSpectraLyrics();
-      setLyrics(lyricsData);
+      isFetchingRef.current = true;
+      setLyrics([]); // Reset to show loading state
+
+      // First attempt
+      const success = await pollLyrics();
+      if (success) {
+        isFetchingRef.current = false;
+        return;
+      }
+
+      // Start polling
+      console.log('[Lyrics] Not ready yet, starting polling...');
+
+      pollingIntervalRef.current = setInterval(async () => {
+        retryCount++;
+
+        if (retryCount >= MAX_RETRIES) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+          isFetchingRef.current = false;
+          console.log('[Lyrics] ⏱️ Timeout: Lyrics generation took too long');
+          setLyrics([]); // Give up
+          return;
+        }
+
+        console.log(`[Lyrics] Polling attempt ${retryCount}/${MAX_RETRIES}...`);
+
+        try {
+          const success = await pollLyrics();
+          if (success) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+            isFetchingRef.current = false;
+          }
+        } catch (error) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+          isFetchingRef.current = false;
+          setLyrics([]);
+        }
+      }, RETRY_DELAY);
+
     } catch (error) {
       console.error('Error fetching lyrics:', error);
+      isFetchingRef.current = false;
       setLyrics([]);
     }
   };
+
+  // Cleanup polling when component unmounts or song changes
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        console.log('[Lyrics] Cleaning up polling interval');
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      isFetchingRef.current = false;
+    };
+  }, [currentSong?.id]); // Cleanup when song changes
+
+  // Synchronized lyrics: Update current line based on playback time
+  useEffect(() => {
+    if (!showLyrics || lyrics.length === 0) return;
+
+    console.log('[Karaoke] currentTime:', currentTime, 'lyrics count:', lyrics.length);
+
+    // Find the current line based on currentTime
+    let activeIndex = -1;
+    for (let i = lyrics.length - 1; i >= 0; i--) {
+      if (currentTime >= lyrics[i].time) {
+        activeIndex = i;
+        break;
+      }
+    }
+
+    console.log('[Karaoke] Active index:', activeIndex, 'Line:', lyrics[activeIndex]?.text);
+
+    if (activeIndex !== currentLineIndex) {
+      setCurrentLineIndex(activeIndex);
+
+      // Auto-scroll to active line
+      if (activeIndex >= 0 && lyricsContainerRef.current) {
+        const container = lyricsContainerRef.current;
+        const activeLine = container.children[activeIndex];
+
+        if (activeLine) {
+          const containerHeight = container.clientHeight;
+          const lineTop = activeLine.offsetTop;
+          const lineHeight = activeLine.clientHeight;
+
+          // Center the active line in the viewport
+          const scrollTo = lineTop - (containerHeight / 2) + (lineHeight / 2);
+
+          container.scrollTo({
+            top: scrollTo,
+            behavior: 'smooth'
+          });
+        }
+      }
+    }
+  }, [currentTime, lyrics, showLyrics, currentLineIndex]);
 
 
 
@@ -189,7 +327,7 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
     ? `fsp-container w-full h-full absolute inset-0 bg-black bg-opacity-90 backdrop-blur-xl flex flex-col text-white p-4 pb-20 md:pb-4 transition-all duration-300 ${mounted ? 'opacity-100' : 'opacity-0 pointer-events-none'}`
     : `fsp-container fixed inset-0 z-[99999] bg-black bg-opacity-90 backdrop-blur-xl flex flex-col text-white p-4 pb-20 md:pb-4 transition-all duration-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full'}`;
 
-  const playerContent = (
+  return (
     <div
       {...handlers}
       className={containerClass}
@@ -204,44 +342,132 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
         </button>
       </div>
 
-      <div className="flex-grow flex flex-col items-center justify-center text-center pt-10">
-        <div className={`relative w-full max-w-md aspect-square shadow-2xl shadow-black/50 rounded-lg overflow-hidden transition-all duration-700 delay-200 ${mounted ? 'opacity-100 scale-100 rotate-0' : 'opacity-0 scale-90 rotate-3'}`}>
-          <img
-            src={displayCover}
-            alt="cover"
-            className="w-full h-full object-cover transition-all duration-[20s] ease-linear"
-          />
+      <div className="flex-grow flex flex-col items-center justify-center text-center pt-10 w-full overflow-hidden relative">
+        {/* Main Content (Cover + Info) - Hide when Lyrics/Queue are open */}
+        <div className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-500 ${!showLyrics && !showQueue ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-90 pointer-events-none'}`}>
+          <div className={`relative w-full max-w-md aspect-square shadow-2xl shadow-black/50 rounded-lg overflow-hidden transition-all duration-700 delay-200 ${mounted ? 'opacity-100 scale-100 rotate-0' : 'opacity-0 scale-90 rotate-3'}`}>
+            <img
+              src={displayCover}
+              alt="cover"
+              className="w-full h-full object-cover transition-all duration-[20s] ease-linear"
+            />
+          </div>
+
+          <div className={`mt-8 transition-all duration-700 delay-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+            <h2 className="text-2xl font-bold tracking-tight transition-all duration-300 hover:scale-105">
+              {currentSong.titulo || 'Canción Desconocida'}
+            </h2>
+            {currentSong.artista && (
+              <p className="text-lg text-white/70 mt-1 transition-colors duration-300 hover:text-white/90">
+                {currentSong.artista}
+              </p>
+            )}
+            {currentSong.album && (
+              <p className="text-sm text-white/50 mt-1 transition-colors duration-300 hover:text-white/70">
+                {currentSong.album}
+              </p>
+            )}
+
+            {/* Spectra Metadata */}
+            <div className="flex justify-center gap-4 text-sm text-white/60 mt-3 font-mono">
+              {spectraData?.bpm && (
+                <span className="flex items-center gap-1 bg-white/10 px-2 py-1 rounded-full">
+                  🎵 {Math.round(spectraData.bpm)} BPM
+                </span>
+              )}
+              {spectraData?.key && (
+                <span className="flex items-center gap-1 bg-white/10 px-2 py-1 rounded-full">
+                  🎹 {spectraData.key}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
 
-        <div className={`mt-8 transition-all duration-700 delay-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-          <h2 className="text-2xl font-bold tracking-tight transition-all duration-300 hover:scale-105">
-            {currentSong.titulo || 'Canción Desconocida'}
-          </h2>
-          {currentSong.artista && (
-            <p className="text-lg text-white/70 mt-1 transition-colors duration-300 hover:text-white/90">
-              {currentSong.artista}
-            </p>
-          )}
-          {currentSong.album && (
-            <p className="text-sm text-white/50 mt-1 transition-colors duration-300 hover:text-white/70">
-              {currentSong.album}
-            </p>
-          )}
-
-          {/* Spectra Metadata */}
-          <div className="flex justify-center gap-4 text-sm text-white/60 mt-3 font-mono">
-            {spectraData?.bpm && (
-              <span className="flex items-center gap-1 bg-white/10 px-2 py-1 rounded-full">
-                🎵 {Math.round(spectraData.bpm)} BPM
-              </span>
-            )}
-            {spectraData?.key && (
-              <span className="flex items-center gap-1 bg-white/10 px-2 py-1 rounded-full">
-                🎹 {spectraData.key}
-              </span>
+        {/* Lyrics View - Inline */}
+        <div className={`absolute inset-0 flex flex-col items-center justify-center p-4 transition-all duration-500 ${showLyrics ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-8 pointer-events-none'}`}>
+          <div
+            ref={lyricsContainerRef}
+            className="w-full h-full overflow-y-auto text-center space-y-6 py-10 no-scrollbar"
+            style={{ maskImage: 'linear-gradient(to bottom, transparent, black 10%, black 90%, transparent)' }}
+          >
+            {lyrics.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-white/50">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white/50 mb-4"></div>
+                <p className="animate-pulse mb-2 text-lg">Generando letras con IA...</p>
+                <p className="text-xs">Spectra VOXW (Whisper)</p>
+                <p className="text-xs mt-2 text-white/30">Esto puede tomar 1-2 minutos</p>
+                <p className="text-xs mt-1 text-white/20">Se actualizará automáticamente</p>
+              </div>
+            ) : (
+              lyrics.map((line, i) => (
+                <p
+                  key={i}
+                  className={`text-2xl font-bold transition-all duration-500 cursor-pointer hover:text-white ${i === currentLineIndex ? 'text-white scale-110 blur-none' : 'text-white/30 blur-[1px]'}`}
+                  style={{ transitionDelay: `${i * 20}ms` }}
+                  onClick={() => seek(line.time)}
+                >
+                  {line.text}
+                </p>
+              ))
             )}
           </div>
         </div>
+
+        {/* Queue View - Inline */}
+        <div className={`absolute inset-0 flex flex-col items-center justify-start p-4 transition-all duration-500 ${showQueue ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-8 pointer-events-none'}`}>
+          <h2 className="text-2xl font-bold mb-6 text-center sticky top-0 bg-black/0 backdrop-blur-md py-2 z-10 w-full">Cola de Reproducción</h2>
+          <div className="w-full h-full overflow-y-auto space-y-2 px-2 pb-20 no-scrollbar">
+            {originalQueue.length === 0 ? (
+              <p className="text-center text-white/50 mt-10">La cola está vacía</p>
+            ) : (
+              <Reorder.Group axis="y" values={originalQueue} onReorder={reorderQueue} className="space-y-2">
+                {originalQueue.map((song) => (
+                  <Reorder.Item key={song.id} value={song}>
+                    <div
+                      className={`flex items-center gap-3 p-3 rounded-lg cursor-grab active:cursor-grabbing transition-colors ${song.id === currentSong?.id
+                        ? 'bg-white/20 border border-white/10'
+                        : 'bg-white/5 hover:bg-white/10'
+                        }`}
+                    >
+                      <div className="text-white/50 cursor-grab active:cursor-grabbing">
+                        <IoReorderTwo size={20} />
+                      </div>
+                      <div
+                        className="flex-1 flex items-center gap-3 min-w-0 cursor-pointer"
+                        onClick={() => {
+                          const index = originalQueue.findIndex(s => s.id === song.id);
+                          if (index !== -1) {
+                            playSongList(originalQueue, index);
+                            handleToggleQueue();
+                          }
+                        }}
+                      >
+                        <img
+                          src={song.portada || '/default_cover.png'}
+                          alt={song.titulo}
+                          className="w-12 h-12 rounded object-cover pointer-events-none"
+                        />
+                        <div className="flex-1 min-w-0 text-left">
+                          <p className={`font-medium truncate ${song.id === currentSong?.id ? 'text-white' : 'text-white/90'}`}>
+                            {song.titulo}
+                          </p>
+                          <p className="text-sm text-white/60 truncate">
+                            {song.artista}
+                          </p>
+                        </div>
+                        {song.id === currentSong?.id && (
+                          <div className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_10px_rgba(74,222,128,0.5)]"></div>
+                        )}
+                      </div>
+                    </div>
+                  </Reorder.Item>
+                ))}
+              </Reorder.Group>
+            )}
+          </div>
+        </div>
+
       </div>
 
       <div className={`w-full max-w-md mx-auto pb-6 transition-all duration-700 delay-400 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
@@ -294,132 +520,20 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
 
           <button
             onClick={handleToggleLyrics}
-            className="text-white/80 hover:text-white transition-all duration-200 hover:scale-110 active:scale-95"
+            className={`transition-all duration-200 hover:scale-110 active:scale-95 ${showLyrics ? 'text-primary scale-110' : 'text-white/80 hover:text-white'}`}
           >
             <IoText size={28} />
           </button>
 
           <button
             onClick={handleToggleQueue}
-            className="text-white/80 hover:text-white transition-all duration-200 hover:scale-110 active:scale-95"
+            className={`transition-all duration-200 hover:scale-110 active:scale-95 ${showQueue ? 'text-primary scale-110' : 'text-white/80 hover:text-white'}`}
           >
             <IoList size={28} />
           </button>
         </div>
       </div>
     </div>
-  );
-
-  const lyricsContent = (
-    <div
-      {...handlers}
-      className={`fsp-lyrics-container ${isEmbedded ? 'absolute w-full h-full' : 'fixed'} inset-0 z-[9999] bg-black bg-opacity-90 backdrop-blur-xl flex flex-col text-white p-4 pb-20 md:pb-4 transition-all duration-400 ${showLyrics && !isAnimating ? 'opacity-100' : 'opacity-0'}`}
-    >
-      <div className={`absolute top-4 left-4 transition-all duration-500 ${showLyrics && !isAnimating ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'}`}>
-        <button
-          onClick={handleToggleLyrics}
-          className="text-white/70 hover:text-white transition-all duration-200 hover:scale-110 active:scale-95"
-        >
-          <IoChevronDown size={32} />
-        </button>
-      </div>
-
-      <div
-        ref={lyricsContainerRef}
-        className={`fsp-lyrics-content transition-all duration-500 delay-100 ${showLyrics && !isAnimating ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
-      >
-        {lyrics.length === 0 ? (
-          <p className="text-center text-white/50 mt-10 animate-pulse">
-            No hay letras disponibles
-          </p>
-        ) : (
-          lyrics.map((line, i) => (
-            <p
-              key={i}
-              className={`fsp-lyric-line transition-all duration-300 ${i === currentLineIndex ? 'fsp-active' : ''}`}
-              style={{ transitionDelay: `${i * 20}ms` }}
-            >
-              {line.text}
-            </p>
-          ))
-        )}
-      </div>
-    </div>
-  );
-
-  const queueContent = (
-    <div
-      {...handlers}
-      className={`fsp-lyrics-container ${isEmbedded ? 'absolute w-full h-full' : 'fixed'} inset-0 z-[9999] bg-black bg-opacity-90 backdrop-blur-xl flex flex-col text-white p-4 pb-20 md:pb-4 transition-all duration-400 ${showQueue && !isAnimating ? 'opacity-100' : 'opacity-0'}`}
-    >
-      <div className={`absolute top-4 left-4 transition-all duration-500 ${showQueue && !isAnimating ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'}`}>
-        <button
-          onClick={handleToggleQueue}
-          className="text-white/70 hover:text-white transition-all duration-200 hover:scale-110 active:scale-95"
-        >
-          <IoChevronDown size={32} />
-        </button>
-      </div>
-
-      <div className={`fsp-lyrics-content transition-all duration-500 delay-100 ${showQueue && !isAnimating ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-        <h2 className="text-2xl font-bold mb-6 text-center">Cola de Reproducción</h2>
-        <div className="space-y-2 overflow-y-auto max-h-[70vh] px-2">
-          {originalQueue.length === 0 ? (
-            <p className="text-center text-white/50">La cola está vacía</p>
-          ) : (
-            <Reorder.Group axis="y" values={originalQueue} onReorder={reorderQueue} className="space-y-2">
-              {originalQueue.map((song) => (
-                <Reorder.Item key={song.id} value={song}>
-                  <div
-                    className={`flex items-center gap-3 p-3 rounded-lg cursor-grab active:cursor-grabbing transition-colors ${song.id === currentSong?.id
-                      ? 'bg-white/20 border border-white/10'
-                      : 'bg-white/5 hover:bg-white/10'
-                      }`}
-                  >
-                    <div className="text-white/50 cursor-grab active:cursor-grabbing">
-                      <IoReorderTwo size={20} />
-                    </div>
-                    <div
-                      className="flex-1 flex items-center gap-3 min-w-0 cursor-pointer"
-                      onClick={() => {
-                        const index = originalQueue.findIndex(s => s.id === song.id);
-                        if (index !== -1) {
-                          playSongList(originalQueue, index);
-                          handleToggleQueue();
-                        }
-                      }}
-                    >
-                      <img
-                        src={song.portada || '/default_cover.png'}
-                        alt={song.titulo}
-                        className="w-12 h-12 rounded object-cover pointer-events-none"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className={`font-medium truncate ${song.id === currentSong?.id ? 'text-white' : 'text-white/90'}`}>
-                          {song.titulo}
-                        </p>
-                        <p className="text-sm text-white/60 truncate">
-                          {song.artista}
-                        </p>
-                      </div>
-                      {song.id === currentSong?.id && (
-                        <div className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_10px_rgba(74,222,128,0.5)]"></div>
-                      )}
-                    </div>
-                  </div>
-                </Reorder.Item>
-              ))}
-            </Reorder.Group>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-
-  return (
-    <>
-      {!showLyrics && !showQueue ? playerContent : (showLyrics ? lyricsContent : queueContent)}
-    </>
   );
 };
 

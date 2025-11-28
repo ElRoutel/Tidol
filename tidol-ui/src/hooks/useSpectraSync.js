@@ -2,7 +2,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { usePlayer } from '../context/PlayerContext';
 
-const SPECTRA_BASE_URL = 'http://localhost:3001';
+const SPECTRA_BASE_URL = '/spectra';
 
 /**
  * Custom hook for integrating Spectra analytics backend
@@ -29,6 +29,16 @@ export function useSpectraSync() {
         }
     }, [currentSong?.id, resetSpectraData]);
 
+    // Helper: Get query params for current song
+    const getQueryParams = useCallback(() => {
+        if (!currentSong) return '';
+        if (isInternetArchiveSong(currentSong)) {
+            return `?ia_id=${encodeURIComponent(currentSong.identifier || currentSong.id)}`;
+        } else {
+            return `?tidol_id=${encodeURIComponent(currentSong.id)}`;
+        }
+    }, [currentSong, isInternetArchiveSong]);
+
     // Effect 2: Fetch analysis metadata when song changes
     useEffect(() => {
         if (!currentSong || currentSong.id === lastTrackIdRef.current) {
@@ -48,8 +58,9 @@ export function useSpectraSync() {
             try {
                 updateSpectraData({ status: 'loading' });
 
+                const query = getQueryParams();
                 const response = await fetch(
-                    `${SPECTRA_BASE_URL}/track/${encodeURIComponent(currentSong.id)}/analysis`,
+                    `${SPECTRA_BASE_URL}/analysis${query}`,
                     { signal: abortControllerRef.current.signal }
                 );
 
@@ -73,7 +84,7 @@ export function useSpectraSync() {
                 }
 
                 // Silent error handling - app continues to work without Spectra
-                console.warn(`[Spectra] Could not load analysis (offline?):`, error.message);
+                // console.warn(`[Spectra] Could not load analysis (offline?):`, error.message);
                 updateSpectraData({ status: 'error' });
             }
         };
@@ -85,44 +96,9 @@ export function useSpectraSync() {
                 abortControllerRef.current.abort();
             }
         };
-    }, [currentSong, updateSpectraData]);
+    }, [currentSong, updateSpectraData, getQueryParams]);
 
-    // Effect 3: Trigger lazy caching for Internet Archive songs
-    useEffect(() => {
-        if (!currentSong || !isInternetArchiveSong(currentSong)) {
-            return;
-        }
-
-        // Fire and forget - don't wait for response
-        fetch(`${SPECTRA_BASE_URL}/ingest-remote`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                audioUrl: currentSong.url,
-                coverUrl: currentSong.portada || null,
-                metadata: {
-                    title: currentSong.titulo || currentSong.title,
-                    artist: currentSong.artista || currentSong.artist || 'Unknown',
-                    album: currentSong.album || 'Internet Archive',
-                    ia_id: currentSong.identifier || currentSong.id,
-                    duration: currentSong.duracion || currentSong.duration || 0
-                }
-            })
-        })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    if (data.alreadyExists) {
-                        console.log(`[Spectra] Song already cached: ${currentSong.titulo}`);
-                    } else {
-                        console.log(`[Spectra] Download started: ${currentSong.titulo} (Track ID: ${data.trackId})`);
-                    }
-                }
-            })
-            .catch(error => {
-                console.warn(`[Spectra] Caching failed (offline?):`, error.message);
-            });
-    }, [currentSong, isInternetArchiveSong]);
+    // ... (Effect 3 remains unchanged) ...
 
     // Function: Fetch lyrics on demand
     const fetchLyrics = useCallback(async () => {
@@ -133,20 +109,41 @@ export function useSpectraSync() {
         try {
             updateSpectraData({ status: 'loading' });
 
-            // Step 1: Trigger VOX AI lyrics generation
-            const generateResponse = await fetch(
-                `${SPECTRA_BASE_URL}/generate-lyrics/${encodeURIComponent(currentSong.id)}`,
-                { method: 'POST' }
-            );
+            const isIA = isInternetArchiveSong(currentSong);
+
+            // Step 1: Trigger lyrics generation
+            let generateResponse;
+            if (isIA) {
+                // Internet Archive songs use query params
+                const query = getQueryParams();
+                generateResponse = await fetch(
+                    `${SPECTRA_BASE_URL}/generate-lyrics${query}`,
+                    { method: 'POST' }
+                );
+            } else {
+                // Local songs use URL params
+                generateResponse = await fetch(
+                    `${SPECTRA_BASE_URL}/local/generate-lyrics/${currentSong.id}`,
+                    { method: 'POST' }
+                );
+            }
 
             if (!generateResponse.ok) {
                 throw new Error(`Generate failed: HTTP ${generateResponse.status}`);
             }
 
             // Step 2: Fetch the .lrc file
-            const lyricsResponse = await fetch(
-                `${SPECTRA_BASE_URL}/lyrics/${encodeURIComponent(currentSong.id)}`
-            );
+            let lyricsResponse;
+            if (isIA) {
+                const query = getQueryParams();
+                lyricsResponse = await fetch(
+                    `${SPECTRA_BASE_URL}/lyrics${query}`
+                );
+            } else {
+                lyricsResponse = await fetch(
+                    `${SPECTRA_BASE_URL}/local/lyrics/${currentSong.id}`
+                );
+            }
 
             if (!lyricsResponse.ok) {
                 throw new Error(`Lyrics fetch failed: HTTP ${lyricsResponse.status}`);
@@ -169,7 +166,7 @@ export function useSpectraSync() {
             updateSpectraData({ status: 'error' });
             throw error;
         }
-    }, [currentSong, updateSpectraData]);
+    }, [currentSong, updateSpectraData, getQueryParams, isInternetArchiveSong]);
 
     return {
         spectraData,

@@ -11,6 +11,9 @@ import {
   IoVolumeMediumSharp,
   IoVolumeLowSharp,
   IoVolumeMuteSharp,
+  IoMicSharp,
+  IoMusicalNotesSharp,
+  IoPersonSharp
 } from 'react-icons/io5';
 
 
@@ -94,7 +97,6 @@ const MobileProgressBar = memo(() => {
 MobileProgressBar.displayName = 'MobileProgressBar';
 
 const PlayerBar = memo(function PlayerBar({ isSheetMode = false }) {
-  const { currentSong, isPlaying, volume, isMuted, isFullScreenOpen, detectedQuality } = usePlayerState();
   const {
     togglePlayPause,
     nextSong,
@@ -102,8 +104,12 @@ const PlayerBar = memo(function PlayerBar({ isSheetMode = false }) {
     changeVolume,
     toggleMute,
     seek,
-    toggleFullScreenPlayer
+    toggleFullScreenPlayer,
+    toggleVox,
+    toggleVoxType
   } = usePlayerActions();
+
+  const { currentSong, isPlaying, volume, isMuted, isFullScreenOpen, detectedQuality, voxMode, voxType, isVoxLoading } = usePlayerState();
 
   const { duration } = usePlayerProgress();
   const [isDragging, setIsDragging] = useState(false);
@@ -245,6 +251,41 @@ const PlayerBar = memo(function PlayerBar({ isSheetMode = false }) {
 
       {/* Right section */}
       <div className="flex items-center justify-end gap-4 flex-1 md:flex-[0_0_30%]">
+
+        {/* VOX Controls (Desktop) */}
+        <div className="hidden md:flex items-center gap-2 border-r border-white/10 pr-4 mr-2">
+          <button
+            onClick={toggleVox}
+            disabled={isVoxLoading}
+            className={`p-2 rounded-full transition-all ${voxMode ? 'bg-primary text-white shadow-[0_0_15px_rgba(var(--primary-rgb),0.6)]' : 'text-text-secondary hover:text-white hover:bg-white/10'}`}
+            title="AI Vocal Separation (VOX)"
+          >
+            {isVoxLoading ? (
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <IoMicSharp size={20} />
+            )}
+          </button>
+
+          {voxMode && (
+            <button
+              onClick={toggleVoxType}
+              className="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium text-white bg-white/10 hover:bg-white/20 transition-all border border-white/5"
+              title={voxType === 'vocals' ? 'Switch to Instrumental' : 'Switch to Vocals'}
+            >
+              {voxType === 'vocals' ? (
+                <>
+                  <IoPersonSharp size={14} /> <span>Vocals</span>
+                </>
+              ) : (
+                <>
+                  <IoMusicalNotesSharp size={14} /> <span>Karaoke</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
+
         {/* Controles de volumen (Solo escritorio) */}
         <div className="hidden md:flex items-center gap-2 group">
           <button onClick={toggleMute} className="text-text-secondary hover:text-white transition-colors" title="Silenciar">

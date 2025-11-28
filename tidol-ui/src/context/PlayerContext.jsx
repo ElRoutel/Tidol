@@ -8,6 +8,7 @@
   useMemo
 } from 'react';
 import api from '../api/axiosConfig';
+import axios from 'axios';
 
 // --- Context Definitions ---
 const PlayerStateContext = createContext();
@@ -57,8 +58,15 @@ export function PlayerProvider({ children }) {
     lyrics: [],
     bpm: null,
     key: null,
+    key: null,
     status: 'idle'
   });
+
+  // VOX State
+  const [voxMode, setVoxMode] = useState(false); // true = playing separated stem
+  const [voxType, setVoxType] = useState('vocals'); // 'vocals' | 'accompaniment'
+  const [voxTracks, setVoxTracks] = useState(null); // { vocals: url, accompaniment: url, songId: id }
+  const [isVoxLoading, setIsVoxLoading] = useState(false);
 
   // --- Actions ---
   const openFullScreenPlayer = useCallback(() => setIsFullScreenOpen(true), []);
@@ -86,6 +94,90 @@ export function PlayerProvider({ children }) {
 
   const updateSpectraField = useCallback((field, value) => {
     setSpectraData(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+  // VOX Actions
+  const ensureSpectraTrack = useCallback(async (song) => {
+    // 1. Check if it's a local song (has 'archivo') or remote (has 'url' http)
+    const isLocal = song.archivo || (song.url && !song.url.startsWith('http'));
+
+    if (isLocal) {
+      // Sync local song
+      // Use axios directly to hit the /spectra proxy (port 3001) instead of /api (port 3000)
+      const res = await axios.post('/spectra/sync-local-song', {
+        songId: song.id,
+        title: song.titulo || song.title,
+        artist: song.artista || song.artist,
+        album: song.album,
+        filepath: song.archivo || song.url, // Local path
+        duration: song.duracion,
+        bitrate: song.bit_rate
+      });
+      return res.data.trackId;
+    } else {
+      // Ingest remote song (IA)
+      const res = await axios.post('/spectra/ingest-remote', {
+        audioUrl: song.url,
+        metadata: {
+          title: song.titulo || song.title,
+          artist: song.artista || song.artist,
+          ia_id: song.id
+        }
+      });
+      return res.data.trackId;
+    }
+  }, []);
+
+  const toggleVox = useCallback(async () => {
+    if (!currentSong) return;
+
+    // If active, turn off
+    if (voxMode) {
+      setVoxMode(false);
+      // Restore original time is handled by audioRef logic, but we might want to sync time?
+      // The audio element is the same, just src changes.
+      return;
+    }
+
+    // If we already have tracks for this song, just turn on
+    if (voxTracks && voxTracks.songId === currentSong.id) {
+      setVoxMode(true);
+      return;
+    }
+
+    setIsVoxLoading(true);
+    try {
+      // 2. Request Separation (using lookup params)
+      let payload = {};
+      if (currentSong.url?.includes('archive.org')) {
+        payload = { ia_id: currentSong.identifier || currentSong.id };
+      } else {
+        payload = { tidol_id: currentSong.id };
+      }
+
+      const res = await axios.post('/spectra/vox/separate', payload);
+
+      if (res.data.status === 'success') {
+        setVoxTracks({
+          songId: currentSong.id,
+          vocals: `/spectra${res.data.vocals}`,
+          accompaniment: `/spectra${res.data.accompaniment}`
+        });
+        setVoxMode(true);
+      } else {
+        alert("VOX Error: " + res.data.message);
+      }
+
+    } catch (err) {
+      console.error("VOX Failed:", err);
+      // alert("No se pudo activar VOX. Revisa la consola.");
+    } finally {
+      setIsVoxLoading(false);
+    }
+  }, [currentSong, voxMode, voxTracks, ensureSpectraTrack]);
+
+  const toggleVoxType = useCallback(() => {
+    setVoxType(prev => prev === 'vocals' ? 'accompaniment' : 'vocals');
   }, []);
 
   // Fetch liked songs
@@ -378,15 +470,40 @@ export function PlayerProvider({ children }) {
     const audio = audioRef.current;
 
     const previousSrc = audio.src;
-    const newSrc = currentSong.url || previousSrc;
+    // VOX Logic: Override src if voxMode is active
+    let newSrc = currentSong.url || previousSrc;
+
+    if (voxMode && voxTracks && voxTracks.songId === currentSong.id) {
+      newSrc = voxTracks[voxType]; // 'vocals' or 'accompaniment' URL
+    }
+
     if (previousSrc !== newSrc) {
+      // Only restore time if we are switching modes (VOX <-> Normal) for the SAME song
+      // If it's a different song, we must reset to 0
+      const isSameSongId = currentSongIdRef.current === currentSong.id;
+
+      let startTime = 0;
+      if (isSameSongId && voxMode) {
+        // We are toggling VOX on/off for the same song, keep time
+        startTime = audio.currentTime;
+      }
+
+      const wasPlaying = !audio.paused;
+
       audio.src = newSrc;
+      audio.currentTime = startTime;
+
+      if (wasPlaying) {
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(err => console.warn("Playback interrupted:", err));
+        }
+      }
     }
 
     // Detect if this is an Internet Archive song
     const isInternetArchive = currentSong.url?.includes('archive.org');
 
-    // Parse quality info from format string (only for IA songs without metadata)
     if (isInternetArchive && !currentSong.bit_depth && !currentSong.sample_rate) {
       let bitDepth = null;
       let sampleRate = null;
@@ -439,7 +556,7 @@ export function PlayerProvider({ children }) {
       url: currentSong.url,
       portada: currentSong.portada,
     }).catch(err => console.error("DB Historial error:", err));
-  }, [currentSong]);
+  }, [currentSong, voxMode, voxType, voxTracks]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -558,7 +675,11 @@ export function PlayerProvider({ children }) {
     hasNext: originalQueue.length > 0,
     hasPrevious: currentIndex > 0 || currentTime > 3,
     spectraData,
-    detectedQuality, // Added detected quality for IA songs
+    detectedQuality,
+    voxMode,
+    voxType,
+    isVoxLoading,
+    voxTracks
   }), [currentSong, isPlaying, isLoading, volume, isMuted, isFullScreenOpen, likedSongs, originalQueue, currentIndex, currentTime, spectraData, detectedQuality]);
 
   // 2. Progress Context (High frequency - 60fps)
@@ -587,7 +708,9 @@ export function PlayerProvider({ children }) {
     reorderQueue,
     updateSpectraData,
     resetSpectraData,
-    updateSpectraField
+    updateSpectraField,
+    toggleVox,
+    toggleVoxType
   }), [playSongList, togglePlayPause, nextSong, previousSong, addToQueue, playNext, changeVolume, toggleMute, seek, openFullScreenPlayer, toggleFullScreenPlayer, closeFullScreenPlayer, toggleLike, isSongLiked, reorderQueue, updateSpectraData, resetSpectraData, updateSpectraField]);
 
   // Legacy Context (Combined)
