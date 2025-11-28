@@ -43,11 +43,17 @@ def generate_lrc(audio_path, output_path):
         else:
             compute_type = "int8"
         
-        print(json.dumps({"status": "progress", "message": f"Loading Whisper (medium) on {device}..."}), flush=True)
+        # Force int8 for large models to fit in 8GB VRAM
+        if device == "cuda":
+            compute_type = "int8"  # int8 uses ~50% less VRAM than float16
+        else:
+            compute_type = "int8"
+        
+        print(json.dumps({"status": "progress", "message": f"Loading Whisper (large-v2) on {device}..."}), flush=True)
 
-        # Use 'medium' model for better accuracy (requires ~5GB VRAM)
-        # tiny = ~1GB RAM, small = ~2GB RAM, medium = ~5GB RAM
-        model = WhisperModel("medium", device=device, compute_type=compute_type, num_workers=1)
+        # Use 'large-v2' model with int8 for best accuracy in 8GB VRAM
+        # tiny = ~1GB, small = ~2GB, medium = ~5GB, large-v2 (int8) = ~6-7GB
+        model = WhisperModel("large-v2", device=device, compute_type=compute_type, num_workers=1)
 
         print(json.dumps({"status": "progress", "message": "Transcribing audio..."}), flush=True)
         
