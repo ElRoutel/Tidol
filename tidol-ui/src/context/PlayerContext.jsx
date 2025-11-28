@@ -134,8 +134,6 @@ export function PlayerProvider({ children }) {
     // If active, turn off
     if (voxMode) {
       setVoxMode(false);
-      // Restore original time is handled by audioRef logic, but we might want to sync time?
-      // The audio element is the same, just src changes.
       return;
     }
 
@@ -145,36 +143,23 @@ export function PlayerProvider({ children }) {
       return;
     }
 
-    setIsVoxLoading(true);
-    try {
-      // 2. Request Separation (using lookup params)
-      let payload = {};
-      if (currentSong.url?.includes('archive.org')) {
-        payload = { ia_id: currentSong.identifier || currentSong.id };
-      } else {
-        payload = { tidol_id: currentSong.id };
-      }
-
-      const res = await axios.post('/spectra/vox/separate', payload);
-
-      if (res.data.status === 'success') {
-        setVoxTracks({
-          songId: currentSong.id,
-          vocals: `/spectra${res.data.vocals}`,
-          accompaniment: `/spectra${res.data.accompaniment}`
-        });
-        setVoxMode(true);
-      } else {
-        alert("VOX Error: " + res.data.message);
-      }
-
-    } catch (err) {
-      console.error("VOX Failed:", err);
-      // alert("No se pudo activar VOX. Revisa la consola.");
-    } finally {
-      setIsVoxLoading(false);
+    // Check spectraData for stems (populated by useSpectraSync)
+    if (spectraData?.stems) {
+      setVoxTracks({
+        songId: currentSong.id,
+        // Ensure we point to the Spectra server (port 3001) via proxy
+        vocals: `/spectra${spectraData.stems.vocals}`,
+        accompaniment: `/spectra${spectraData.stems.accompaniment}`
+      });
+      setVoxMode(true);
+      setVoxType('accompaniment'); // Default to Karaoke mode (instrumental)
+      return;
     }
-  }, [currentSong, voxMode, voxTracks, ensureSpectraTrack]);
+
+    // Fallback: If no stems found, warn user
+    alert("Para usar el modo Karaoke, primero abre las letras para generar la separación de audio.");
+
+  }, [currentSong, voxMode, voxTracks, spectraData]);
 
   const toggleVoxType = useCallback(() => {
     setVoxType(prev => prev === 'vocals' ? 'accompaniment' : 'vocals');

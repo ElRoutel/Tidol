@@ -74,6 +74,7 @@ export function useSpectraSync() {
                     bpm: data.bpm || null,
                     key: data.key || null,
                     waveform: Array.isArray(data.waveform_data) ? data.waveform_data : [],
+                    stems: data.stems || null,
                     status: 'success'
                 });
 
@@ -101,7 +102,7 @@ export function useSpectraSync() {
     // ... (Effect 3 remains unchanged) ...
 
     // Function: Fetch lyrics on demand
-    const fetchLyrics = useCallback(async () => {
+    const fetchLyrics = useCallback(async (skipGeneration = false) => {
         if (!currentSong) {
             throw new Error('No current song');
         }
@@ -111,25 +112,33 @@ export function useSpectraSync() {
 
             const isIA = isInternetArchiveSong(currentSong);
 
-            // Step 1: Trigger lyrics generation
-            let generateResponse;
-            if (isIA) {
-                // Internet Archive songs use query params
-                const query = getQueryParams();
-                generateResponse = await fetch(
-                    `${SPECTRA_BASE_URL}/generate-lyrics${query}`,
-                    { method: 'POST' }
-                );
-            } else {
-                // Local songs use URL params
-                generateResponse = await fetch(
-                    `${SPECTRA_BASE_URL}/local/generate-lyrics/${currentSong.id}`,
-                    { method: 'POST' }
-                );
-            }
+            // Step 1: Trigger lyrics generation (only if not skipped)
+            if (!skipGeneration) {
+                let generateResponse;
+                if (isIA) {
+                    // Internet Archive songs use query params
+                    const query = getQueryParams();
+                    generateResponse = await fetch(
+                        `${SPECTRA_BASE_URL}/generate-lyrics${query}`,
+                        { method: 'POST' }
+                    );
+                } else {
+                    // Local songs use URL params
+                    generateResponse = await fetch(
+                        `${SPECTRA_BASE_URL}/local/generate-lyrics/${currentSong.id}`,
+                        { method: 'POST' }
+                    );
+                }
 
-            if (!generateResponse.ok) {
-                throw new Error(`Generate failed: HTTP ${generateResponse.status}`);
+                if (!generateResponse.ok) {
+                    throw new Error(`Generate failed: HTTP ${generateResponse.status}`);
+                }
+
+                const generateData = await generateResponse.json();
+                if (generateData.stems) {
+                    updateSpectraData({ stems: generateData.stems });
+                    console.log('[Spectra] Stems received from generation endpoint');
+                }
             }
 
             // Step 2: Fetch the .lrc file
@@ -158,6 +167,19 @@ export function useSpectraSync() {
                 lyrics: parsedLyrics,
                 status: 'success'
             });
+
+            // Step 4: Refresh analysis to check for generated stems
+            // We do this silently to update the stems availability
+            const query = getQueryParams();
+            fetch(`${SPECTRA_BASE_URL}/analysis${query}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.stems) {
+                        updateSpectraData({ stems: data.stems });
+                        console.log('[Spectra] Stems detected and updated');
+                    }
+                })
+                .catch(err => console.warn('[Spectra] Failed to refresh stems:', err));
 
             console.log(`[Spectra] Lyrics loaded for: ${currentSong.titulo}`);
             return parsedLyrics;

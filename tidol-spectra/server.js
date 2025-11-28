@@ -13,6 +13,7 @@ const PORT = 3001;
 // --- CONFIGURACIÓN ---
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // Expose uploads (stems, lyrics, covers)
 
 const MEDIA_DIR = path.join(__dirname, 'media');
 const UPLOADS_MUSIC_DIR = path.join(__dirname, 'uploads', 'musica');
@@ -27,6 +28,9 @@ if (!fs.existsSync(UPLOADS_COVERS_DIR)) fs.mkdirSync(UPLOADS_COVERS_DIR, { recur
 // --- DB SPECTRA (Local) ---
 const dbSpectra = new Database(DB_PATH_SPECTRA);
 dbSpectra.pragma('journal_mode = WAL'); // Enable WAL for concurrency
+
+// Track active lyrics jobs to prevent duplicates
+const processingLyrics = new Set();
 
 // --- JOB QUEUE SYSTEM ---
 class JobQueue {
@@ -1061,12 +1065,28 @@ app.get('/analysis', (req, res) => {
         try { track.waveform_data = JSON.parse(track.waveform_data); }
         catch (e) { track.waveform_data = []; }
     }
+
+    // Check for stems
+    const filenameNoExt = path.basename(track.filepath, path.extname(track.filepath));
+    const stemsDir = path.join(__dirname, 'uploads', 'stems', filenameNoExt);
+    const vocalsPath = path.join(stemsDir, 'vocals.wav');
+    const accompanimentPath = path.join(stemsDir, 'accompaniment.wav');
+
+    let stems = null;
+    if (fs.existsSync(vocalsPath) && fs.existsSync(accompanimentPath)) {
+        stems = {
+            vocals: `/uploads/stems/${filenameNoExt}/vocals.wav`,
+            accompaniment: `/uploads/stems/${filenameNoExt}/accompaniment.wav`
+        };
+    }
+
     res.json({
         id: track.id,
         bpm: track.bpm,
         key: track.key_signature,
         waveform_data: track.waveform_data,
-        status: track.analysis_status
+        status: track.analysis_status,
+        stems: stems
     });
 });
 
@@ -1105,6 +1125,120 @@ app.get('/local/lyrics/:tidol_id', (req, res) => {
     }
 });
 
+// --- HELPER: Run Demucs + Whisper ---
+function runDemucsAndWhisper(track, inputPath, lrcPath) {
+    return new Promise(async (resolve, reject) => {
+        const STEMS_DIR = path.join(__dirname, 'uploads', 'stems');
+        const filenameNoExt = path.basename(inputPath, path.extname(inputPath));
+        const trackStemsDir = path.join(STEMS_DIR, filenameNoExt);
+        const vocalsPath = path.join(trackStemsDir, 'vocals.wav');
+
+        let processTimeout;
+
+        // Cleanup helper
+        const cleanup = () => {
+            if (processTimeout) clearTimeout(processTimeout);
+            processingLyrics.delete(track.id);
+        };
+
+        try {
+            // Set global timeout (10 minutes for separation + transcription)
+            processTimeout = setTimeout(() => {
+                console.error(`⏱️ Timeout for Track #${track.id}`);
+                cleanup();
+                reject(new Error('Process timeout (10 minutes)'));
+            }, 10 * 60 * 1000);
+
+            // STEP 1: DEMUCS SEPARATION
+            if (!fs.existsSync(vocalsPath)) {
+                console.log(`🎤 [Demucs] Separando voces para: ${track.title || filenameNoExt}...`);
+
+                await new Promise((resDemucs, rejDemucs) => {
+                    const demucsProcess = spawn('python', ['vox_demucs.py', inputPath, STEMS_DIR]);
+                    let dError = '';
+
+                    demucsProcess.stderr.on('data', (data) => {
+                        const str = data.toString();
+                        if (!str.includes('%')) console.log(`[Demucs] ${str.trim()}`); // Log non-progress output
+                        dError += str;
+                    });
+
+                    demucsProcess.on('close', (code) => {
+                        if (code === 0) resDemucs();
+                        else rejDemucs(new Error(`Demucs failed: ${dError.substring(0, 200)}`));
+                    });
+                });
+            } else {
+                console.log(`🎤 [Demucs] Voces ya existen, usando caché.`);
+            }
+
+            // STEP 2: WHISPER TRANSCRIPTION
+            console.log(`🗣️ [Whisper] Generando letras para: ${track.title || filenameNoExt}...`);
+
+            const pythonProcess = spawn('python', ['voxw.py', vocalsPath, lrcPath]);
+            let dataBuffer = '';
+            let errorBuffer = '';
+
+            pythonProcess.stdout.on('data', (data) => {
+                const str = data.toString();
+                dataBuffer += str;
+                console.log(`VOXW: ${str.trim()}`);
+            });
+
+            pythonProcess.stderr.on('data', (data) => {
+                const str = data.toString();
+                errorBuffer += str;
+                if (!str.includes('UserWarning') && !str.includes('pkg_resources')) {
+                    console.error(`VOXW Error: ${str.trim()}`);
+                }
+            });
+
+            pythonProcess.on('close', (code) => {
+                cleanup();
+
+                // 1. Check for success JSON first (Ignore exit code if success reported)
+                try {
+                    const lines = dataBuffer.trim().split('\n');
+                    const lastLine = lines[lines.length - 1];
+                    const result = JSON.parse(lastLine);
+
+                    if (result.status === 'success') {
+                        resolve(result);
+                        return;
+                    }
+                } catch (e) {
+                    // JSON parsing failed or incomplete, proceed to check exit code
+                }
+
+                // 2. If no success JSON, check exit code
+                if (code !== 0) {
+                    let errorMsg = `VOXW failed with code ${code}`;
+                    if (errorBuffer.includes('MemoryError')) errorMsg = 'Out of memory';
+
+                    // Special case: 3221226505 (0xC0000409) often happens on CUDA cleanup
+                    // If we have the file, we can consider it a success
+                    if (code === 3221226505 && fs.existsSync(lrcPath)) {
+                        console.log('⚠️ VOXW crashed on exit but LRC file exists. Treating as success.');
+                        resolve({ status: 'success' });
+                        return;
+                    }
+
+                    reject(new Error(errorMsg));
+                    return;
+                }
+
+                // 3. Fallback for code 0 but invalid JSON
+                if (fs.existsSync(lrcPath)) resolve({ status: 'success' });
+                else reject(new Error('Invalid output from VOXW'));
+            });
+
+        } catch (error) {
+            cleanup();
+            reject(error);
+        }
+    });
+}
+
 // 20. Generate Lyrics Lookup (Queued with VOXW)
 app.post('/generate-lyrics', async (req, res) => {
     const track = getTrackByLookup(req.query) || getTrackByLookup(req.body);
@@ -1116,9 +1250,23 @@ app.post('/generate-lyrics', async (req, res) => {
     const filenameNoExt = path.basename(track.filepath, path.extname(track.filepath));
     const lrcPath = path.join(UPLOADS_LYRICS_DIR, `${filenameNoExt}.lrc`);
 
-    // If lyrics already exist, return success immediately
-    if (fs.existsSync(lrcPath)) {
-        return res.json({ success: true, message: 'Lyrics already available', trackId: track.id });
+    // Check for stems
+    const stemsDir = path.join(__dirname, 'uploads', 'stems', filenameNoExt);
+    const vocalsPath = path.join(stemsDir, 'vocals.wav');
+    const accompanimentPath = path.join(stemsDir, 'accompaniment.wav');
+    const hasStems = fs.existsSync(vocalsPath) && fs.existsSync(accompanimentPath);
+
+    // If lyrics AND stems already exist, return success immediately
+    if (fs.existsSync(lrcPath) && hasStems) {
+        return res.json({
+            success: true,
+            message: 'Lyrics and stems already available',
+            trackId: track.id,
+            stems: {
+                vocals: `/uploads/stems/${filenameNoExt}/vocals.wav`,
+                accompaniment: `/uploads/stems/${filenameNoExt}/accompaniment.wav`
+            }
+        });
     }
 
     // Determine input audio path
@@ -1129,91 +1277,26 @@ app.post('/generate-lyrics', async (req, res) => {
         inputPath = path.join(MEDIA_DIR, track.filepath);
     }
 
+    // Check if already processing
+    if (processingLyrics.has(track.id)) {
+        return res.json({ success: true, message: 'Lyrics generation already in progress', trackId: track.id });
+    }
+
     // Add to Lyrics Queue
     try {
         // We don't await the queue here to avoid blocking the HTTP response
         // The frontend will poll /lyrics or we can implement websockets later
         // For now, we return "started" and the frontend will retry fetching lyrics
 
-        lyricsQueue.add(() => new Promise((resolve, reject) => {
-            console.log(`📜 [Queue] Iniciando VOXW (Whisper) para Track #${track.id}...`);
+        processingLyrics.add(track.id); // Mark as processing
 
-            const pythonProcess = spawn('python', ['voxw.py', inputPath, lrcPath]);
-            let dataBuffer = '';
-            let errorBuffer = '';
-            let processTimeout;
+        lyricsQueue.add(() => runDemucsAndWhisper(track, inputPath, lrcPath))
+            .catch(err => console.error("Lyrics Job Failed:", err));
 
-            // Set 5-minute timeout to prevent hung processes
-            processTimeout = setTimeout(() => {
-                console.error(`⏱️ VOXW timeout for Track #${track.id}`);
-                pythonProcess.kill('SIGTERM');
-                reject(new Error('VOXW process timeout (5 minutes)'));
-            }, 5 * 60 * 1000);
-
-            pythonProcess.stdout.on('data', (data) => {
-                const str = data.toString();
-                dataBuffer += str;
-                console.log(`VOXW Progress: ${str.trim()}`);
-            });
-
-            pythonProcess.stderr.on('data', (data) => {
-                const str = data.toString();
-                errorBuffer += str;
-                // Only log non-warning errors
-                if (!str.includes('UserWarning') && !str.includes('pkg_resources')) {
-                    console.error(`VOXW Error: ${str.trim()}`);
-                }
-            });
-
-            pythonProcess.on('close', (code) => {
-                clearTimeout(processTimeout);
-
-                if (code !== 0) {
-                    console.error(`❌ VOXW failed with code ${code}`);
-                    if (errorBuffer) {
-                        console.error(`Error details: ${errorBuffer.substring(0, 500)}`);
-                    }
-
-                    // Provide more helpful error messages
-                    let errorMsg = `VOXW failed with code ${code}`;
-                    if (code === 3221226505 || code === -1073741819) {
-                        errorMsg = 'Memory error: Audio file may be too long or system is low on RAM';
-                    } else if (errorBuffer.includes('MemoryError')) {
-                        errorMsg = 'Out of memory: Try a shorter audio file';
-                    } else if (errorBuffer.includes('No lyrics detected')) {
-                        errorMsg = 'No vocals detected in audio';
-                    }
-
-                    reject(new Error(errorMsg));
-                    return;
-                }
-                try {
-                    // Parse the last line which should be the JSON result
-                    const lines = dataBuffer.trim().split('\n');
-                    const lastLine = lines[lines.length - 1];
-                    const result = JSON.parse(lastLine);
-
-                    if (result.status === 'success') {
-                        console.log(`✅ Lyrics generadas: ${track.title} (${result.segments || 0} segments)`);
-                        resolve(result);
-                    } else {
-                        reject(new Error(result.message));
-                    }
-                } catch (e) {
-                    // If JSON parse fails, check if file exists anyway
-                    if (fs.existsSync(lrcPath)) {
-                        console.log(`✅ Lyrics file created: ${track.title}`);
-                        resolve({ status: 'success' });
-                    } else {
-                        reject(new Error('Invalid JSON from VOXW script'));
-                    }
-                }
-            });
-        })).catch(err => console.error("Lyrics Job Failed:", err));
-
-        res.json({ success: true, message: 'Lyrics generation started (VOXW)', trackId: track.id });
+        res.json({ success: true, message: 'Lyrics generation started (Demucs + VOXW)', trackId: track.id });
 
     } catch (error) {
+        processingLyrics.delete(track.id); // Cleanup on immediate error
         res.status(500).json({ error: error.message });
     }
 });
@@ -1231,86 +1314,39 @@ app.post('/local/generate-lyrics/:tidol_id', async (req, res) => {
     const filenameNoExt = path.basename(track.filepath, path.extname(track.filepath));
     const lrcPath = path.join(UPLOADS_LYRICS_DIR, `${filenameNoExt}.lrc`);
 
-    // If lyrics already exist, return success immediately
-    if (fs.existsSync(lrcPath)) {
-        return res.json({ success: true, message: 'Lyrics already available', trackId: track.id });
+    // Check for stems
+    const stemsDir = path.join(__dirname, 'uploads', 'stems', filenameNoExt);
+    const vocalsPath = path.join(stemsDir, 'vocals.wav');
+    const accompanimentPath = path.join(stemsDir, 'accompaniment.wav');
+    const hasStems = fs.existsSync(vocalsPath) && fs.existsSync(accompanimentPath);
+
+    // If lyrics AND stems already exist, return success immediately
+    if (fs.existsSync(lrcPath) && hasStems) {
+        return res.json({
+            success: true,
+            message: 'Lyrics and stems already available',
+            trackId: track.id,
+            stems: {
+                vocals: `/uploads/stems/${filenameNoExt}/vocals.wav`,
+                accompaniment: `/uploads/stems/${filenameNoExt}/accompaniment.wav`
+            }
+        });
     }
 
     // Determine input audio path (local songs are in backend/uploads/)
     const inputPath = path.join(__dirname, '..', 'backend', track.filepath);
 
+    // Check if already processing
+    if (processingLyrics.has(track.id)) {
+        return res.json({ success: true, message: 'Lyrics generation already in progress', trackId: track.id });
+    }
+
     // Add to Lyrics Queue
     try {
-        lyricsQueue.add(() => new Promise((resolve, reject) => {
-            console.log(`📜 [Queue] Iniciando VOXW para canción local #${tidol_id} (Spectra Track #${track.id})...`);
+        processingLyrics.add(track.id); // Mark as processing
 
-            const pythonProcess = spawn('python', ['voxw.py', inputPath, lrcPath]);
-            let dataBuffer = '';
-            let errorBuffer = '';
-            let processTimeout;
-
-            processTimeout = setTimeout(() => {
-                console.error(`⏱️ VOXW timeout for local song ${tidol_id}`);
-                pythonProcess.kill('SIGTERM');
-                reject(new Error('VOXW process timeout (5 minutes)'));
-            }, 5 * 60 * 1000);
-
-            pythonProcess.stdout.on('data', (data) => {
-                const str = data.toString();
-                dataBuffer += str;
-                console.log(`VOXW Progress: ${str.trim()}`);
-            });
-
-            pythonProcess.stderr.on('data', (data) => {
-                const str = data.toString();
-                errorBuffer += str;
-                if (!str.includes('UserWarning') && !str.includes('pkg_resources')) {
-                    console.error(`VOXW Error: ${str.trim()}`);
-                }
-            });
-
-            pythonProcess.on('close', (code) => {
-                clearTimeout(processTimeout);
-
-                if (code !== 0) {
-                    console.error(`❌ VOXW failed with code ${code}`);
-                    if (errorBuffer) {
-                        console.error(`Error details: ${errorBuffer.substring(0, 500)}`);
-                    }
-
-                    let errorMsg = `VOXW failed with code ${code}`;
-                    if (code === 3221226505 || code === -1073741819) {
-                        errorMsg = 'Memory error: Audio file may be too long or system is low on RAM';
-                    } else if (errorBuffer.includes('MemoryError')) {
-                        errorMsg = 'Out of memory: Try a shorter audio file';
-                    } else if (errorBuffer.includes('No lyrics detected')) {
-                        errorMsg = 'No vocals detected in audio';
-                    }
-
-                    reject(new Error(errorMsg));
-                    return;
-                }
-                try {
-                    const lines = dataBuffer.trim().split('\n');
-                    const lastLine = lines[lines.length - 1];
-                    const result = JSON.parse(lastLine);
-
-                    if (result.status === 'success') {
-                        console.log(`✅ Lyrics generadas para canción local: ${track.title} (${result.segments || 0} segments)`);
-                        resolve(result);
-                    } else {
-                        reject(new Error(result.message));
-                    }
-                } catch (e) {
-                    if (fs.existsSync(lrcPath)) {
-                        console.log(`✅ Lyrics file created: ${track.title}`);
-                        resolve({ status: 'success' });
-                    } else {
-                        reject(new Error('Invalid JSON from VOXW script'));
-                    }
-                }
-            });
-        })).catch(err => console.error("Lyrics Job Failed (Local):", err));
+        lyricsQueue.add(() => runDemucsAndWhisper(track, inputPath, lrcPath))
+            .catch(err => console.error("Lyrics Job Failed (Local):", err));
 
         res.json({ success: true, message: 'Lyrics generation started (VOXW)', trackId: track.id, tidol_id });
 
