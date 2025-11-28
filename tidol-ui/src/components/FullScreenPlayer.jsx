@@ -203,10 +203,9 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
   }, [currentSong?.id]); // Cleanup when song changes
 
   // Synchronized lyrics: Update current line based on playback time
+  // Synchronized lyrics: Update current line based on playback time
   useEffect(() => {
     if (!showLyrics || lyrics.length === 0) return;
-
-    console.log('[Karaoke] currentTime:', currentTime, 'lyrics count:', lyrics.length);
 
     // Find the current line based on currentTime
     let activeIndex = -1;
@@ -217,26 +216,34 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
       }
     }
 
-    console.log('[Karaoke] Active index:', activeIndex, 'Line:', lyrics[activeIndex]?.text);
-
     if (activeIndex !== currentLineIndex) {
       setCurrentLineIndex(activeIndex);
 
       // Auto-scroll to active line
       if (activeIndex >= 0 && lyricsContainerRef.current) {
         const container = lyricsContainerRef.current;
-        const activeLine = container.children[activeIndex];
+        // Select all lyric lines (motion.p renders as p)
+        // We look for p elements inside the container
+        const lines = container.querySelectorAll('p');
+        const activeLine = lines[activeIndex];
 
         if (activeLine) {
           const containerHeight = container.clientHeight;
-          const lineTop = activeLine.offsetTop;
-          const lineHeight = activeLine.clientHeight;
+          const containerRect = container.getBoundingClientRect();
+          const activeLineRect = activeLine.getBoundingClientRect();
 
-          // Center the active line in the viewport
-          const scrollTo = lineTop - (containerHeight / 2) + (lineHeight / 2);
+          // Calculate current relative position
+          const currentRelativeTop = activeLineRect.top - containerRect.top;
+          const lineHeight = activeLineRect.height;
+
+          // Calculate target position (center of viewport)
+          const targetRelativeTop = (containerHeight / 2) - (lineHeight / 2);
+
+          // Calculate adjustment needed
+          const scrollAdjustment = currentRelativeTop - targetRelativeTop;
 
           container.scrollTo({
-            top: scrollTo,
+            top: container.scrollTop + scrollAdjustment,
             behavior: 'smooth'
           });
         }
@@ -431,38 +438,119 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
           </div>
         </div>
 
-        {/* Lyrics View - Cinematic Style */}
-        <div className={`absolute inset-0 flex flex-col items-center justify-center p-4 transition-all duration-700 ${showLyrics ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
-          <div
-            ref={lyricsContainerRef}
-            className="w-full h-full overflow-y-auto text-center space-y-8 py-[50vh] no-scrollbar"
-            style={{ maskImage: 'linear-gradient(to bottom, transparent, black 20%, black 80%, transparent)' }}
-          >
-            {lyrics.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-white/60">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white mb-6"></div>
-                <p className="animate-pulse mb-2 text-2xl font-light tracking-wide">Generando letras...</p>
-                <p className="text-sm font-mono opacity-50">Spectra VOXW Engine</p>
-              </div>
-            ) : (
-              lyrics.map((line, i) => (
-                <motion.p
-                  key={i}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{
-                    opacity: i === currentLineIndex ? 1 : 0.3,
-                    y: 0,
-                    scale: i === currentLineIndex ? 1.1 : 1,
-                    filter: i === currentLineIndex ? 'blur(0px)' : 'blur(2px)'
+        {/* Lyrics View - Apple Music Style */}
+        <div className={`absolute inset-0 transition-all duration-700 ${showLyrics ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+          {/* Atmospheric Gradient Background */}
+          <div className="absolute inset-0 overflow-hidden">
+            {/* Animated mesh gradient derived from album colors */}
+            <div
+              className="absolute inset-0 opacity-30"
+              style={{
+                background: `
+                  radial-gradient(circle at 20% 30%, rgba(99, 102, 241, 0.4), transparent 60%),
+                  radial-gradient(circle at 80% 70%, rgba(236, 72, 153, 0.4), transparent 60%),
+                  radial-gradient(circle at 50% 50%, rgba(34, 211, 238, 0.3), transparent 70%)
+                `,
+                filter: 'blur(80px)',
+                animation: 'meshMove 20s ease-in-out infinite alternate'
+              }}
+            />
+            {/* Dark overlay for better text legibility */}
+            <div className="absolute inset-0 bg-black/40" />
+          </div>
+
+          {/* Two-Column Layout (Desktop) / Single Column (Mobile) */}
+          <div className="relative h-full flex flex-col md:flex-row">
+
+            {/* Left Column - Sticky Album Info (40% on desktop, HIDDEN on mobile) */}
+            <div className="hidden md:flex md:w-[40%] md:sticky md:top-0 md:h-screen flex-col justify-center p-8 md:p-12 lg:p-16">
+              {/* Album Cover */}
+              <div className="w-full max-w-sm mx-auto md:mx-0 mb-8">
+                <div
+                  className="aspect-square rounded-2xl overflow-hidden"
+                  style={{
+                    boxShadow: '0 20px 50px rgba(0,0,0,0.5), 0 10px 25px rgba(0,0,0,0.3)'
                   }}
-                  transition={{ duration: 0.5, ease: "easeOut" }}
-                  className={`text-2xl md:text-5xl font-bold cursor-pointer transition-colors duration-300 hover:text-white hover:opacity-80 px-4 leading-snug`}
-                  onClick={() => seek(line.time)}
                 >
-                  {line.text}
-                </motion.p>
-              ))
-            )}
+                  <img
+                    src={currentSong.portada}
+                    alt={currentSong.titulo}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              </div>
+
+              {/* Song Metadata */}
+              <div className="text-left space-y-2 max-w-sm mx-auto md:mx-0">
+                <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white leading-tight break-words">
+                  {currentSong.titulo}
+                </h1>
+                <p className="text-xl md:text-2xl text-white/70 font-medium break-words">
+                  {currentSong.artista}
+                </p>
+              </div>
+            </div>
+
+            {/* Right Column - Scrollable Lyrics (60% on desktop, 100% on mobile) */}
+            <div className="w-full md:w-[60%] h-full md:flex-1 md:relative overflow-hidden">
+              <div
+                ref={lyricsContainerRef}
+                className="h-full w-full overflow-y-auto overflow-x-hidden no-scrollbar"
+                style={{
+                  scrollBehavior: 'smooth',
+                  maskImage: 'linear-gradient(to bottom, transparent, black 10%, black 90%, transparent)',
+                  WebkitOverflowScrolling: 'touch' // Smooth scroll on iOS
+                }}
+              >
+                {/* Padding to allow first/last line to center */}
+                <div className="py-[40vh] px-4 md:px-12 lg:px-16">
+                  {lyrics.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center min-h-[20vh] text-white/60">
+                      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white mb-4"></div>
+                      <p className="animate-pulse text-xl font-light">Generando letras...</p>
+                      <p className="text-xs opacity-50 mt-2">Spectra VOXW Engine</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6 md:space-y-8">
+                      {lyrics.map((line, i) => (
+                        <motion.p
+                          key={i}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{
+                            opacity: i === currentLineIndex ? 1.0 : 0.5,
+                            scale: i === currentLineIndex ? 1.05 : 1.0,
+                            filter: i === currentLineIndex ? 'blur(0px)' : 'blur(1.5px)'
+                          }}
+                          transition={{
+                            duration: 0.4,
+                            ease: [0.4, 0, 0.2, 1] // cubic-bezier ease-out
+                          }}
+                          className={`
+                            text-2xl md:text-4xl lg:text-5xl
+                            font-extrabold
+                            text-white
+                            cursor-pointer
+                            leading-tight
+                            transition-colors duration-300
+                            hover:text-white/90
+                            break-words
+                            ${i === currentLineIndex ? 'text-white' : 'text-white/50'}
+                          `}
+                          style={{
+                            fontFamily: 'Inter, -apple-system, "Helvetica Neue", sans-serif',
+                            fontWeight: i === currentLineIndex ? '800' : '700'
+                          }}
+                          onClick={() => seek(line.time)}
+                        >
+                          {line.text}
+                        </motion.p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
 
