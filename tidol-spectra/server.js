@@ -1239,6 +1239,90 @@ function runDemucsAndWhisper(track, inputPath, lrcPath) {
     });
 }
 
+// Helper function to run ONLY Demucs separation (for Karaoke mode)
+// This is separate from runDemucsAndWhisper to allow independent Karaoke generation
+function runDemucsOnly(track, inputPath) {
+    return new Promise(async (resolve, reject) => {
+        const STEMS_DIR = path.join(__dirname, 'uploads', 'stems');
+        const filenameNoExt = path.basename(inputPath, path.extname(inputPath));
+        const trackStemsDir = path.join(STEMS_DIR, filenameNoExt);
+        const vocalsPath = path.join(trackStemsDir, 'vocals.wav');
+        const accompanimentPath = path.join(trackStemsDir, 'accompaniment.wav');
+
+        let processTimeout;
+
+        const cleanup = () => {
+            if (processTimeout) clearTimeout(processTimeout);
+        };
+
+        try {
+            // Set timeout (5 minutes for Demucs only)
+            processTimeout = setTimeout(() => {
+                console.error(`⏱️ Demucs timeout for Track #${track.id}`);
+                cleanup();
+                reject(new Error('Demucs timeout (5 minutes)'));
+            }, 5 * 60 * 1000);
+
+            // Check if stems already exist
+            if (fs.existsSync(vocalsPath) && fs.existsSync(accompanimentPath)) {
+                console.log(`🎤 [Demucs] Voces ya existen, usando caché.`);
+                cleanup();
+                resolve({
+                    vocals: vocalsPath,
+                    accompaniment: accompanimentPath
+                });
+                return;
+            }
+
+            console.log(`🎤 [Demucs] Separando voces para: ${track.title || filenameNoExt}...`);
+
+            const demucsProcess = spawn('python', ['vox_demucs.py', inputPath, STEMS_DIR]);
+
+            let dOutput = '';
+            let dError = '';
+
+            demucsProcess.stdout.on('data', (data) => {
+                const line = data.toString();
+                dOutput += line;
+                console.log(`Demucs: ${line.trim()}`);
+            });
+
+            demucsProcess.stderr.on('data', (data) => {
+                dError += data.toString();
+            });
+
+            demucsProcess.on('close', (code) => {
+                cleanup();
+
+                if (code === 0) {
+                    try {
+                        const result = JSON.parse(dOutput);
+                        if (result.status === 'success') {
+                            console.log(`✅ [Demucs] Separación exitosa`);
+                            resolve({
+                                vocals: result.vocals,
+                                accompaniment: result.accompaniment
+                            });
+                        } else {
+                            reject(new Error(result.message || 'Demucs failed'));
+                        }
+                    } catch (e) {
+                        reject(new Error('Invalid Demucs output'));
+                    }
+                } else {
+                    reject(new Error(`Demucs failed with code ${code}: ${dError.substring(0, 200)}`));
+                }
+            });
+
+        } catch (error) {
+            cleanup();
+            reject(error);
+        }
+    });
+}
+
+
+
 // 20. Generate Lyrics Lookup (Queued with VOXW)
 app.post('/generate-lyrics', async (req, res) => {
     const track = getTrackByLookup(req.query) || getTrackByLookup(req.body);
@@ -1354,6 +1438,98 @@ app.post('/local/generate-lyrics/:tidol_id', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
+// 21. VOX Separation (Karaoke Mode) - Internet Archive songs
+app.post('/vox/separate', async (req, res) => {
+    const track = getTrackByLookup(req.query) || getTrackByLookup(req.body);
+    if (!track) return res.status(404).json({ error: 'Track not found' });
+
+    const filenameNoExt = path.basename(track.filepath, path.extname(track.filepath));
+    const stemsDir = path.join(__dirname, 'uploads', 'stems', filenameNoExt);
+    const vocalsPath = path.join(stemsDir, 'vocals.wav');
+    const accompanimentPath = path.join(stemsDir, 'accompaniment.wav');
+
+    // Check if stems already exist
+    if (fs.existsSync(vocalsPath) && fs.existsSync(accompanimentPath)) {
+        return res.json({
+            status: 'success',
+            message: 'Stems already available',
+            vocals: `/uploads/stems/${filenameNoExt}/vocals.wav`,
+            accompaniment: `/uploads/stems/${filenameNoExt}/accompaniment.wav`
+        });
+    }
+
+    // Determine input path
+    let inputPath;
+    if (track.filepath.startsWith('uploads/')) {
+        inputPath = path.join(__dirname, track.filepath);
+    } else {
+        inputPath = path.join(MEDIA_DIR, track.filepath);
+    }
+
+    // Run Demucs in background
+    try {
+        runDemucsOnly(track, inputPath)
+            .then(result => {
+                console.log(`✅ VOX Separation completed for ${track.title}`);
+            })
+            .catch(err => console.error('VOX Separation failed:', err));
+
+        res.json({
+            status: 'processing',
+            message: 'Vocal separation started. Check /analysis for stems availability.',
+            trackId: track.id
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 21b. VOX Separation (Karaoke Mode) - Local songs
+app.post('/local/vox/separate/:tidol_id', async (req, res) => {
+    const { tidol_id } = req.params;
+    const track = dbSpectra.prepare('SELECT * FROM tracks WHERE original_tidol_id = ?').get(tidol_id);
+
+    if (!track) return res.status(404).json({ error: 'Track not found in Spectra. Please sync the song first.' });
+
+    const filenameNoExt = path.basename(track.filepath, path.extname(track.filepath));
+    const stemsDir = path.join(__dirname, 'uploads', 'stems', filenameNoExt);
+    const vocalsPath = path.join(stemsDir, 'vocals.wav');
+    const accompanimentPath = path.join(stemsDir, 'accompaniment.wav');
+
+    // Check if stems already exist
+    if (fs.existsSync(vocalsPath) && fs.existsSync(accompanimentPath)) {
+        return res.json({
+            status: 'success',
+            message: 'Stems already available',
+            vocals: `/uploads/stems/${filenameNoExt}/vocals.wav`,
+            accompaniment: `/uploads/stems/${filenameNoExt}/accompaniment.wav`
+        });
+    }
+
+    // Determine input path (local songs are in backend/uploads/)
+    const inputPath = path.join(__dirname, '..', 'backend', track.filepath);
+
+    // Run Demucs in background
+    try {
+        runDemucsOnly(track, inputPath)
+            .then(result => {
+                console.log(`✅ VOX Separation completed for ${track.title}`);
+            })
+            .catch(err => console.error('VOX Separation failed:', err));
+
+        res.json({
+            status: 'processing',
+            message: 'Vocal separation started. Check /analysis for stems availability.',
+            trackId: track.id,
+            tidol_id
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
 
 // --- INICIAR SERVIDOR ---
 app.listen(PORT, () => {
