@@ -129,6 +129,7 @@ export function PlayerProvider({ children }) {
   }, []);
 
   const toggleVox = useCallback(async () => {
+    console.log('[PlayerContext] toggleVox called. spectraData:', spectraData);
     if (!currentSong) return;
 
     // If active, turn off

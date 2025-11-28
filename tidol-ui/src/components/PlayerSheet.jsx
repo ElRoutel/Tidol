@@ -14,12 +14,12 @@ const PlayerSheet = () => {
     // Función para calcular posiciones según el viewport actual
     const getPositions = useCallback((mobile = isMobile) => {
         if (mobile) {
-            // Mobile: BottomNav (56px/h-14) + Player (64px) = 120px total approx
+            // Mobile: Player (64px) only - mobile nav was removed
             // Usamos dvh (dynamic viewport height) para evitar problemas con la barra de URL
             return {
                 collapsed: {
-                    // Position just above the MobileNav (56px + safe area)
-                    y: 'calc(100dvh - 64px - 56px - env(safe-area-inset-bottom))',
+                    // Position at bottom (only player height, no mobile nav)
+                    y: 'calc(100dvh - 64px - env(safe-area-inset-bottom))',
                     height: '64px',
                     width: '100%',
                     left: '0%',

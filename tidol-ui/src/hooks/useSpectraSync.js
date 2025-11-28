@@ -112,6 +112,46 @@ export function useSpectraSync() {
 
             const isIA = isInternetArchiveSong(currentSong);
 
+            // Step 0: Ensure song is in Spectra database (only if not skipped)
+            if (!skipGeneration) {
+                try {
+                    if (isIA) {
+                        // Ingest Internet Archive song
+                        await fetch(`${SPECTRA_BASE_URL}/ingest-remote`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                audioUrl: currentSong.url,
+                                metadata: {
+                                    title: currentSong.titulo || currentSong.title,
+                                    artist: currentSong.artista || currentSong.artist,
+                                    ia_id: currentSong.identifier || currentSong.id
+                                }
+                            })
+                        });
+                    } else {
+                        // Sync local song
+                        await fetch(`${SPECTRA_BASE_URL}/sync-local-song`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                songId: currentSong.id,
+                                title: currentSong.titulo || currentSong.title,
+                                artist: currentSong.artista || currentSong.artist,
+                                album: currentSong.album,
+                                filepath: currentSong.archivo || currentSong.url,
+                                duration: currentSong.duracion,
+                                bitrate: currentSong.bit_rate
+                            })
+                        });
+                    }
+                    console.log('[Spectra] Song ensured in database');
+                } catch (ingestError) {
+                    console.warn('[Spectra] Ingest warning (may already exist):', ingestError);
+                    // Continue anyway - song might already exist
+                }
+            }
+
             // Step 1: Trigger lyrics generation (only if not skipped)
             if (!skipGeneration) {
                 let generateResponse;

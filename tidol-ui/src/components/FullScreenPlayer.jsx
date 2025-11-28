@@ -113,8 +113,8 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
       pollingIntervalRef.current = null;
     }
 
-    const MAX_RETRIES = 20; // 20 retries x 6 seconds = 2 minutes max
-    const RETRY_DELAY = 6000; // 6 seconds between retries
+    const MAX_RETRIES = 100; // 100 retries x 3 seconds = 5 minutes
+    const RETRY_DELAY = 3000; // 3 seconds between retries
     let retryCount = 0;
 
     const pollLyrics = async (skipGeneration = false) => {
@@ -334,8 +334,8 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
   // Quitamos 'fixed' y usamos 'w-full h-full' o 'absolute inset-0'.
 
   const containerClass = isEmbedded
-    ? `fsp-container w-full h-full absolute inset-0 bg-black bg-opacity-90 backdrop-blur-xl flex flex-col text-white p-4 pb-20 md:pb-4 transition-all duration-300 ${mounted ? 'opacity-100' : 'opacity-0 pointer-events-none'}`
-    : `fsp-container fixed inset-0 z-[99999] bg-black bg-opacity-90 backdrop-blur-xl flex flex-col text-white p-4 pb-20 md:pb-4 transition-all duration-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full'}`;
+    ? `fsp-container w-full h-full absolute inset-0 bg-black bg-opacity-90 backdrop-blur-xl flex flex-col text-white p-4 pb-6 transition-all duration-300 ${mounted ? 'opacity-100' : 'opacity-0 pointer-events-none'}`
+    : `fsp-container fixed inset-0 z-[99999] bg-black bg-opacity-90 backdrop-blur-xl flex flex-col text-white p-4 pb-6 transition-all duration-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full'}`;
 
   // --- CINEMATIC BACKGROUND COMPONENT ---
   const CinematicBackground = ({ cover }) => (
@@ -456,7 +456,7 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
                     filter: i === currentLineIndex ? 'blur(0px)' : 'blur(2px)'
                   }}
                   transition={{ duration: 0.5, ease: "easeOut" }}
-                  className={`text-3xl md:text-5xl font-bold cursor-pointer transition-colors duration-300 hover:text-white hover:opacity-80 px-4 leading-tight`}
+                  className={`text-2xl md:text-5xl font-bold cursor-pointer transition-colors duration-300 hover:text-white hover:opacity-80 px-4 leading-snug`}
                   onClick={() => seek(line.time)}
                 >
                   {line.text}
@@ -541,36 +541,36 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
           </div>
         </div>
 
-        <div className="flex items-center justify-center space-x-8 mt-8">
+        <div className="flex items-center justify-center space-x-4 md:space-x-8 mt-6 md:mt-8">
           <button
             onClick={handleToggleLike}
             className="text-white/70 hover:text-red-500 transition-all duration-300 hover:scale-110 active:scale-95 hover:drop-shadow-[0_0_10px_rgba(239,68,68,0.5)]"
           >
-            {liked ? <IoHeart size={32} color="#ef4444" /> : <IoHeartOutline size={32} />}
+            {liked ? <IoHeart size={28} className="md:w-8 md:h-8" color="#ef4444" /> : <IoHeartOutline size={28} className="md:w-8 md:h-8" />}
           </button>
 
           <button
             onClick={previousSong}
             className="text-white/80 hover:text-white transition-all duration-300 hover:scale-110 active:scale-95"
           >
-            <IoPlaySkipBackSharp size={36} />
+            <IoPlaySkipBackSharp size={32} className="md:w-9 md:h-9" />
           </button>
 
           <button
             onClick={togglePlayPause}
-            className="bg-white text-black rounded-full p-5 shadow-[0_0_30px_rgba(255,255,255,0.3)] hover:shadow-[0_0_50px_rgba(255,255,255,0.5)] hover:scale-110 active:scale-95 transition-all duration-300"
+            className="bg-white text-black rounded-full p-4 md:p-5 shadow-[0_0_30px_rgba(255,255,255,0.3)] hover:shadow-[0_0_50px_rgba(255,255,255,0.5)] hover:scale-110 active:scale-95 transition-all duration-300"
           >
-            {isPlaying ? <IoPauseSharp size={44} /> : <IoPlaySharp size={44} className="ml-1" />}
+            {isPlaying ? <IoPauseSharp size={40} className="md:w-11 md:h-11" /> : <IoPlaySharp size={40} className="ml-1 md:w-11 md:h-11" />}
           </button>
 
           <button
             onClick={nextSong}
             className="text-white/80 hover:text-white transition-all duration-300 hover:scale-110 active:scale-95"
           >
-            <IoPlaySkipForwardSharp size={36} />
+            <IoPlaySkipForwardSharp size={32} className="md:w-9 md:h-9" />
           </button>
 
-          <div className="flex gap-4">
+          <div className="flex gap-3 md:gap-4">
             {/* Karaoke Button - Only show if stems are available */}
             {spectraData?.stems && (
               <button
@@ -578,7 +578,7 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
                 className={`transition-all duration-300 hover:scale-110 active:scale-95 p-2 rounded-full ${voxMode ? 'text-white bg-green-500/20 shadow-[0_0_15px_rgba(34,197,94,0.4)]' : 'text-white/60 hover:text-white'}`}
                 title="Modo Karaoke"
               >
-                <IoMic size={28} color={voxMode ? '#4ade80' : 'currentColor'} />
+                <IoMic size={24} className="md:w-7 md:h-7" color={voxMode ? '#4ade80' : 'currentColor'} />
               </button>
             )}
 
@@ -586,14 +586,14 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
               onClick={handleToggleLyrics}
               className={`transition-all duration-300 hover:scale-110 active:scale-95 p-2 rounded-full ${showLyrics ? 'text-white bg-white/20 shadow-[0_0_15px_rgba(255,255,255,0.2)]' : 'text-white/60 hover:text-white'}`}
             >
-              <IoText size={28} />
+              <IoText size={24} className="md:w-7 md:h-7" />
             </button>
 
             <button
               onClick={handleToggleQueue}
               className={`transition-all duration-300 hover:scale-110 active:scale-95 p-2 rounded-full ${showQueue ? 'text-white bg-white/20 shadow-[0_0_15px_rgba(255,255,255,0.2)]' : 'text-white/60 hover:text-white'}`}
             >
-              <IoList size={28} />
+              <IoList size={24} className="md:w-7 md:h-7" />
             </button>
           </div>
         </div>
