@@ -19,6 +19,7 @@ import historyRoutes from "./routes/history.routes.js";
 import playlistsRoutes from "./routes/playlists.js";
 import albumesRoutes from "./routes/albumes.js";
 import spectraRoutes from "./routes/spectra.routes.js";
+import imageRoutes from "./routes/image.routes.js";
 import helmet from "helmet";
 import compression from "compression";
 
@@ -71,7 +72,50 @@ function logStatus(name, success, info = "") {
 
 // --- Middleware de Optimización ---
 // Helmet para seguridad
-app.use(helmet());
+// Helmet para seguridad (Configuración relajada para SPA + Imágenes externas)
+import { createProxyMiddleware } from 'http-proxy-middleware';
+
+// ... (imports)
+
+// Helmet para seguridad (Configuración relajada para SPA + Imágenes externas + Google Fonts)
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      imgSrc: ["'self'", "data:", "blob:", "https://archive.org", "https://*.archive.org"],
+      connectSrc: ["'self'", "https://archive.org", "https://*.archive.org", "http://localhost:3001"], // Allow direct connect to Spectra just in case, but proxy is preferred
+      mediaSrc: ["'self'", "https://archive.org", "https://*.archive.org"],
+      fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
+    },
+  },
+}));
+
+// ... (compression)
+
+// --- Proxy para Spectra (Microservicio Python en puerto 3001) ---
+// Redirige /spectra/* a http://localhost:3001/*
+app.use('/spectra', createProxyMiddleware({
+  target: 'http://localhost:3001',
+  changeOrigin: true,
+  pathRewrite: {
+    '^/spectra': '', // remove /spectra prefix when forwarding
+  },
+  onProxyReq: (proxyReq, req, res) => {
+    // Opcional: Log proxy requests
+    // console.log(`[Proxy] ${req.method} ${req.url} -> http://localhost:3001${req.url}`);
+  },
+  onError: (err, req, res) => {
+    console.error('[Proxy Error] Spectra not available:', err);
+    res.status(503).send('Spectra Service Unavailable');
+  }
+}));
+
+// ... (rest of middleware)
+
+app.use("/api/internal/spectra", spectraRoutes); // Keep internal routes if they exist, but proxy takes precedence for /spectra prefix
+
 
 // Compression para reducir tamaño de respuestas (Gzip/Brotli)
 app.use(compression({
@@ -102,6 +146,7 @@ app.use("/api/history", historyRoutes);
 app.use("/api/playlists", playlistsRoutes);
 app.use("/api/albumes", albumesRoutes);
 app.use("/api/internal/spectra", spectraRoutes);
+app.use("/api/images", imageRoutes);
 // -------------------------
 
 // Helpers de migración
@@ -348,6 +393,9 @@ async function ensureColumn(table, column, typeDef) {
     app.get('*', (req, res) => {
       // Evita que las rutas de la API caigan aquí por error.
       if (!req.originalUrl.startsWith('/api')) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
         res.sendFile(path.join(frontendDistPath, 'index.html'));
       }
     });

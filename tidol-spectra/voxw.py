@@ -17,7 +17,6 @@ def format_timestamp(seconds):
     return f"[{minutes:02d}:{remaining_seconds:05.2f}]"
 
 def clean_filename(path):
-    """Extracts a clean title from filename for the header."""
     base = os.path.basename(path)
     name, _ = os.path.splitext(base)
     return name.replace("_", " ").replace("-", " - ")
@@ -25,35 +24,49 @@ def clean_filename(path):
 def generate_lrc(audio_path, output_path):
     model = None
     try:
-        # Check for GPU
         import torch
+        # Tu RTX 2080 ama CUDA
         device = "cuda" if torch.cuda.is_available() else "cpu"
         
-        # Usamos 'int8' para máxima compatibilidad
-        compute_type = "int8"
+        # CAMBIO 1: Float16 es nativo para RTX 2080 y más rápido que int8
+        compute_type = "float16" if device == "cuda" else "int8"
         
         print(json.dumps({"status": "progress", "message": f"Loading Whisper (large-v2) on {device} ({compute_type})..."}), flush=True)
 
-        # Cargar modelo Large-v2
+        # Cargar modelo
         model = WhisperModel("large-v2", device=device, compute_type=compute_type, num_workers=1)
 
-        print(json.dumps({"status": "progress", "message": "Transcribing with Karaoke sync..."}), flush=True)
+        print(json.dumps({"status": "progress", "message": "Transcribing with optimized settings..."}), flush=True)
         
-        # --- CONFIGURACIÓN KARAOKE ---
+        # --- CONFIGURACIÓN OPTIMIZADA ---
         segments, info = model.transcribe(
             audio_path, 
-            beam_size=5,
-            vad_filter=False,
-            language=None, # Auto-detectar
-            # PROMPT PARA ESTRUCTURA
-            initial_prompt="Lyrics, song structure, verse by verse, short lines. Letra de canción, versos cortos.",
-            # LA CLAVE: Activar timestamps por palabra para poder cortar líneas largas
+            
+            # CAMBIO 2: Velocidad extrema. Para karaoke no necesitamos beam search complejo.
+            beam_size=1,
+            best_of=1,
+            
+            # CAMBIO 3: Filtro de voz activado para saltar partes instrumentales largas
+            vad_filter=True,
+            vad_parameters=dict(min_silence_duration_ms=1000),
+            
+            language=None, 
+            
+            # CAMBIO 4: Prompt de "cebado" en lugar de instrucciones, para evitar que lea el prompt
+            initial_prompt="amor corazón vida siento quiero dolor noche luz (música) (verso 1):",
+            
+            # CAMBIO 5: CRÍTICO. Evita los bucles infinitos de 300s+
+            condition_on_previous_text=False,
+            
+            # Temperatura baja para evitar alucinaciones, pero no 0 absoluto
+            temperature=0.2,
+            
             word_timestamps=True
         )
 
         lrc_lines = []
         
-        # --- HEADER ESTILO PROFESIONAL ---
+        # --- HEADER ---
         title = clean_filename(audio_path)
         lrc_lines.append(f"[ti:{title}]")
         lrc_lines.append(f"[ar:Spectra AI]")
@@ -62,17 +75,15 @@ def generate_lrc(audio_path, output_path):
 
         segment_count = 0
         
-        # --- LÓGICA DE CORTE DE LÍNEAS (KARAOKE SPLITTER) ---
-        # Whisper devuelve segmentos largos. Nosotros vamos a reconstruir
-        # líneas cortas usando las palabras individuales.
-        
-        max_chars_per_line = 42 # Estándar ideal para lectura rápida
+        # --- LOGICA DE PROCESAMIENTO ---
+        max_chars_per_line = 42 
         current_line_words = []
         current_line_len = 0
         line_start_time = 0
 
         for segment in segments:
-            if not segment.words: # Si no hay info de palabras, usar el segmento entero (fallback)
+            # Fallback si no hay palabras (raro en whisper moderno)
+            if not segment.words: 
                 start = format_timestamp(segment.start)
                 text = segment.text.strip()
                 if text:
@@ -82,25 +93,23 @@ def generate_lrc(audio_path, output_path):
 
             for word in segment.words:
                 if not current_line_words:
-                    line_start_time = word.start # El tiempo de la línea es el de la primera palabra
+                    line_start_time = word.start 
                 
                 word_text = word.word.strip()
                 current_line_words.append(word_text)
-                current_line_len += len(word_text) + 1 # +1 por el espacio
+                current_line_len += len(word_text) + 1 
 
-                # Si la línea es muy larga o la palabra tiene una pausa larga después... cortamos.
-                # (Aquí usamos solo longitud para asegurar estética visual)
+                # Corte de línea por longitud
                 if current_line_len > max_chars_per_line:
                     text_line = " ".join(current_line_words)
                     timestamp = format_timestamp(line_start_time)
                     lrc_lines.append(f"{timestamp}{text_line}")
                     segment_count += 1
                     
-                    # Resetear para siguiente línea
                     current_line_words = []
                     current_line_len = 0
             
-            # Al final del segmento, si quedaron palabras pendientes, imprimirlas
+            # Vaciar buffer al final del segmento
             if current_line_words:
                 text_line = " ".join(current_line_words)
                 timestamp = format_timestamp(line_start_time)
@@ -109,7 +118,7 @@ def generate_lrc(audio_path, output_path):
                 current_line_words = []
                 current_line_len = 0
 
-        # Validación final
+        # Output vacío o instrumental
         if segment_count == 0:
             lrc_lines.append("[00:00.00]🎵 (Instrumental - No vocals detected)")
             print(json.dumps({
@@ -118,7 +127,7 @@ def generate_lrc(audio_path, output_path):
                 "segments": 0
             }), flush=True)
 
-        # Write LRC file
+        # Guardar archivo
         with open(output_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lrc_lines))
 
@@ -134,6 +143,7 @@ def generate_lrc(audio_path, output_path):
         print(json.dumps({"status": "error", "message": error_msg}), file=sys.stderr, flush=True)
         sys.exit(1)
     finally:
+        # Limpieza de VRAM agresiva
         if model is not None:
             del model
         gc.collect()
@@ -146,7 +156,6 @@ def generate_lrc(audio_path, output_path):
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        # Dummy execution for testing if run directly without args
         print("Usage: python voxw.py <input> <output>")
         sys.exit(1)
     

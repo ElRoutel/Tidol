@@ -23,18 +23,22 @@ def separate_audio(input_path, output_dir):
         # Construct the final expected directory by server.js
         final_track_dir = os.path.join(output_dir, filename)
         
+        # Auto-detect device
+        import torch
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        
         # Run Demucs
         # -n htdemucs: Use Hybrid Transformer model (fast & good)
         # --two-stems=vocals: Only separate vocals and "other" (no_vocals)
         # --int24: Use 24-bit WAV format (avoids torchcodec dependency)
-        # --device cuda: Force GPU usage (falls back to CPU if unavailable)
+        # --device: Auto-detected
         # -o: Output directory
         cmd = [
             "demucs",
             "-n", "htdemucs",
             "--two-stems=vocals",
             "--int24",
-            "--device", "cuda",
+            "--device", device,
             "-o", output_dir,
             input_path
         ]

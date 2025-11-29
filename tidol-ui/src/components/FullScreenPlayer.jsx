@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 // import ReactDOM from 'react-dom'; // Ya no se usa Portal aquí
 import './FullScreenPlayer.css';
 import './FullScreenPlayerLyrics.css';
-import { motion, Reorder } from 'framer-motion';
+import { motion, Reorder, useDragControls, useAnimation } from 'framer-motion';
 import { usePlayer } from '../context/PlayerContext';
 import useSpectraSync from '../hooks/useSpectraSync';
 import api from '../api/axiosConfig';
@@ -254,6 +254,8 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
 
   const [isDesktop, setIsDesktop] = useState(window.innerWidth > 768);
   const [dragY, setDragY] = useState(0);
+  const dragControls = useDragControls();
+  const controls = useAnimation();
 
   useEffect(() => {
     const handleResize = () => setIsDesktop(window.innerWidth > 768);
@@ -261,7 +263,18 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Drag to dismiss (only when NOT embedded, PlayerSheet handles embedded drag)
+  // Sync animation with mounted state
+  useEffect(() => {
+    if (!isEmbedded) {
+      if (mounted) {
+        controls.start({ y: 0, opacity: 1, transition: { type: "spring", damping: 25, stiffness: 300 } });
+      } else {
+        controls.start({ y: '100%', opacity: 0, transition: { duration: 0.3 } });
+      }
+    }
+  }, [mounted, isEmbedded, controls]);
+
+  // Drag to dismiss (only when NOT embedded)
   const handleDrag = (event, info) => {
     if (!isEmbedded) {
       setDragY(info.offset.y);
@@ -274,6 +287,8 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
       if (info.offset.y > threshold) {
         handleClose();
       } else {
+        // Snap back if not closed
+        controls.start({ y: 0, transition: { type: "spring", damping: 25, stiffness: 300 } });
         setDragY(0);
       }
     }
@@ -348,43 +363,27 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
   // Quitamos 'fixed' y usamos 'w-full h-full' o 'absolute inset-0'.
 
   const containerClass = isEmbedded
-    ? `fsp-container w-full h-full absolute inset-0 bg-black bg-opacity-90 backdrop-blur-xl flex flex-col text-white p-4 pb-6 transition-all duration-300 ${mounted ? 'opacity-100' : 'opacity-0 pointer-events-none'}`
-    : `fsp-container fixed inset-0 z-[99999] bg-black bg-opacity-90 backdrop-blur-xl flex flex-col text-white p-4 pb-6 transition-all duration-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full'}`;
+    ? `fsp-container w-full h-full absolute inset-0 flex flex-col text-white p-4 pb-6 transition-all duration-300 ${mounted ? 'opacity-100' : 'opacity-0 pointer-events-none'}`
+    : `fsp-container fixed inset-0 z-[99999] flex flex-col text-white p-4 pb-6`; // Removed bg-black to reveal CinematicBackground
 
   // --- CINEMATIC BACKGROUND COMPONENT ---
   const CinematicBackground = ({ cover }) => (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
-      {/* Layer 1: Deep Background (Dark Base) */}
-      <div className="absolute inset-0 bg-[#0a0a0a]" />
-
-      {/* Layer 2: Blurred & Scaled Cover Art (The "Neon" Light Source) */}
+    <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10 bg-[#050505]">
+      {/* Single High-Quality Blur Layer - Unified */}
       <motion.div
-        className="absolute inset-0 opacity-60"
-        animate={{
-          scale: [1.2, 1.3, 1.2],
-          rotate: [0, 5, -5, 0]
-        }}
-        transition={{
-          duration: 30,
-          repeat: Infinity,
-          ease: "linear"
-        }}
+        className="absolute inset-0 opacity-70"
+        animate={{ scale: [1, 1.05, 1] }}
+        transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
       >
         <img
           src={cover}
           alt=""
-          className="w-full h-full object-cover blur-[100px] saturate-150"
+          className="w-full h-full object-cover blur-[60px] saturate-150"
         />
       </motion.div>
 
-      {/* Layer 3: Film Grain Overlay */}
-      <div className="absolute inset-0 opacity-[0.15] mix-blend-overlay"
-        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}
-      />
-
-      {/* Layer 4: Vignette & Shadows (Focus on Center) */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/80" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.6)_100%)]" />
+      {/* Subtle Gradient Overlay for depth */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/90" />
     </div>
   );
 
@@ -394,8 +393,12 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
     drag: "y",
     dragConstraints: { top: 0, bottom: 0 },
     dragElastic: { top: 0, bottom: 0.5 },
+    dragListener: false, // CRITICAL: We control drag manually
+    dragControls: dragControls,
     onDrag: handleDrag,
     onDragEnd: handleDragEnd,
+    animate: controls, // CRITICAL: Controls animation state (snap back)
+    initial: { y: '100%', opacity: 0 }
   };
 
   return (
@@ -407,20 +410,38 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
       {/* Render Cinematic Background */}
       <CinematicBackground cover={displayCover} />
 
-      <div className={`absolute top-4 left-4 transition-all duration-500 delay-100 z-50 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
-        <button
-          onClick={handleClose}
-          onPointerDown={(e) => e.stopPropagation()}
-          className="text-white/70 hover:text-white transition-all duration-200 hover:scale-110 active:scale-95 bg-black/20 backdrop-blur-md p-2 rounded-full"
-        >
-          <IoChevronDown size={32} />
-        </button>
-      </div>
+      {/* DRAG HANDLE LAYER - Covers background */}
+      {!isEmbedded && (
+        <div
+          className="absolute inset-0 z-0"
+          onPointerDown={(e) => dragControls.start(e)}
+          style={{ touchAction: 'none' }}
+        />
+      )}
 
-      <div className="flex-grow flex flex-col items-center justify-center text-center pt-10 w-full overflow-hidden relative z-10">
+      {/* Header Drag Zone - Invisible area at top to allow dragging */}
+      {!isEmbedded && (
+        <div
+          className="absolute top-0 left-0 right-0 h-24 z-40"
+          onPointerDown={(e) => dragControls.start(e)}
+          style={{ touchAction: 'none' }}
+        />
+      )}
+
+
+
+      <div
+        className="flex-grow flex flex-col items-center justify-center text-center pt-10 w-full overflow-hidden relative z-10"
+      >
         {/* Main Content (Cover + Info) - Hide when Lyrics/Queue are open */}
-        <div className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-500 ${!showLyrics && !showQueue ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-90 pointer-events-none'}`}>
-          <div className={`relative w-full max-w-md aspect-square shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-xl overflow-hidden transition-all duration-700 delay-200 ${mounted ? 'opacity-100 scale-100 rotate-0' : 'opacity-0 scale-90 rotate-3'}`}>
+        <div
+          className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-500 ${!showLyrics && !showQueue ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-90 pointer-events-none'}`}
+          onPointerDown={(e) => !isEmbedded && dragControls.start(e)} // Re-enable drag on main content background
+          style={{ touchAction: 'none' }}
+        >
+          <div
+            className={`relative w-full max-w-md aspect-square shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-xl overflow-hidden transition-all duration-700 delay-200 ${mounted ? 'opacity-100 scale-100 rotate-0' : 'opacity-0 scale-90 rotate-3'}`}
+          >
             <img
               src={displayCover}
               alt="cover"
@@ -443,40 +464,38 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
         </div>
 
         {/* Lyrics View - Apple Music Style */}
-        <div
-          className={`absolute inset-0 transition-all duration-700 ${showLyrics ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          {/* Atmospheric Gradient Background */}
-          <div className="absolute inset-0 overflow-hidden">
+        <div className={`absolute inset-0 transition-all duration-700 ${showLyrics ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+          {/* Atmospheric Gradient Background - Transparent and unified */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
             {/* Animated mesh gradient derived from album colors */}
             <div
-              className="absolute inset-0 opacity-30"
+              className="absolute inset-0 opacity-10"
               style={{
                 background: `
-                  radial-gradient(circle at 20% 30%, rgba(99, 102, 241, 0.4), transparent 60%),
-                  radial-gradient(circle at 80% 70%, rgba(236, 72, 153, 0.4), transparent 60%),
-                  radial-gradient(circle at 50% 50%, rgba(34, 211, 238, 0.3), transparent 70%)
+                  radial-gradient(circle at 20% 30%, rgba(99, 102, 241, 0.3), transparent 60%),
+                  radial-gradient(circle at 80% 70%, rgba(236, 72, 153, 0.3), transparent 60%),
+                  radial-gradient(circle at 50% 50%, rgba(34, 211, 238, 0.2), transparent 70%)
                 `,
                 filter: 'blur(80px)',
                 animation: 'meshMove 20s ease-in-out infinite alternate'
               }}
             />
-            {/* Dark overlay for better text legibility */}
-            <div className="absolute inset-0 bg-black/40" />
           </div>
 
           {/* Two-Column Layout (Desktop) / Single Column (Mobile) */}
           <div className="relative h-full flex flex-col md:flex-row">
 
             {/* Left Column - Sticky Album Info (40% on desktop, HIDDEN on mobile) */}
-            <div className="hidden md:flex md:w-[40%] md:sticky md:top-0 md:h-screen flex-col justify-center p-8 md:p-12 lg:p-16">
+            <div className="hidden md:flex md:w-[40%] md:sticky md:top-0 md:h-screen flex-col justify-center p-8 md:p-12 lg:p-16 overflow-y-auto no-scrollbar -translate-y-16">
               {/* Album Cover */}
               <div className="w-full max-w-sm mx-auto md:mx-0 mb-8">
                 <div
-                  className="aspect-square rounded-2xl overflow-hidden"
+                  className="aspect-square rounded-2xl overflow-hidden shadow-2xl"
                   style={{
-                    boxShadow: '0 20px 50px rgba(0,0,0,0.5), 0 10px 25px rgba(0,0,0,0.3)'
+                    boxShadow: '0 20px 50px rgba(0,0,0,0.5), 0 10px 25px rgba(0,0,0,0.3)',
+                    maxHeight: '45vh',
+                    width: 'auto',
+                    maxWidth: '100%'
                   }}
                 >
                   <img
@@ -556,43 +575,41 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
                   )}
                 </div>
               </div>
+            </div>
 
-              {/* Floating Karaoke Button (Apple Music Sing Style) */}
-              {spectraData?.stems && (
-                <div className="absolute bottom-24 right-6 z-50 md:bottom-12 md:right-12">
-                  <button
-                    onClick={toggleVox}
-                    className={`
+            {/* Floating Karaoke Button (Apple Music Sing Style) */}
+            {spectraData?.stems && (
+              <div className="absolute bottom-24 right-6 z-50 md:bottom-12 md:right-12">
+                <button
+                  onClick={toggleVox}
+                  className={`
                       flex items-center justify-center
                       w-12 h-12 rounded-full
                       backdrop-blur-xl border border-white/10
                       shadow-lg transition-all duration-300
                       ${voxMode
-                        ? 'bg-white text-black scale-110 shadow-[0_0_20px_rgba(255,255,255,0.4)]'
-                        : 'bg-black/30 text-white/70 hover:bg-black/50 hover:text-white'
-                      }
+                      ? 'bg-white text-black scale-110 shadow-[0_0_20px_rgba(255,255,255,0.4)]'
+                      : 'bg-black/30 text-white/70 hover:bg-black/50 hover:text-white'
+                    }
                     `}
-                    title="Modo Karaoke"
-                  >
-                    <IoMic size={22} className={voxMode ? 'animate-pulse' : ''} />
-                    {voxMode && (
-                      <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                      </span>
-                    )}
-                  </button>
-                </div>
-              )}
-            </div>
+                  title="Modo Karaoke"
+                >
+                  <IoMic size={22} className={voxMode ? 'animate-pulse' : ''} />
+                  {voxMode && (
+                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                    </span>
+                  )}
+                </button>
+              </div>
+            )}
+
           </div>
         </div>
 
         {/* Queue View - Glass Style */}
-        <div
-          className={`absolute inset-0 flex flex-col items-center justify-start p-6 transition-all duration-500 ${showQueue ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-8 pointer-events-none'}`}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
+        <div className={`absolute inset-0 flex flex-col items-center justify-start p-6 transition-all duration-500 ${showQueue ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-8 pointer-events-none'}`}>
           <h2 className="text-3xl font-bold mb-8 text-center sticky top-0 drop-shadow-lg z-10 w-full">Cola de Reproducción</h2>
           <div className="w-full max-w-2xl h-full overflow-y-auto space-y-3 px-2 pb-24 no-scrollbar">
             {originalQueue.length === 0 ? (
@@ -647,10 +664,7 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
 
       </div>
 
-      <div
-        className={`w-full max-w-3xl mx-auto pb-10 px-6 transition-all duration-700 delay-400 z-50 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
-        onPointerDown={(e) => e.stopPropagation()}
-      >
+      <div className={`w-full max-w-3xl mx-auto pb-10 px-6 transition-all duration-700 delay-400 z-50 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         <div className="w-full group relative">
           <input
             type="range"
@@ -699,6 +713,8 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
           </button>
 
           <div className="flex gap-3 md:gap-4">
+
+
             <button
               onClick={handleToggleLyrics}
               className={`transition-all duration-300 hover:scale-110 active:scale-95 p-2 rounded-full ${showLyrics ? 'text-white bg-white/20 shadow-[0_0_15px_rgba(255,255,255,0.2)]' : 'text-white/60 hover:text-white'}`}
@@ -715,7 +731,7 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
           </div>
         </div>
       </div>
-    </ContainerTag>
+    </ContainerTag >
   );
 };
 

@@ -28,7 +28,8 @@ import {
   toggleIaLike,
   checkIfIaLiked,
   getUserIaLikes,
-  syncLocalSong
+  syncLocalSong,
+  getIaDiscoveries
 } from "../controllers/music.controller.js";
 import { authMiddleware } from "../middleware/auth.middleware.js";
 import { getBestCover } from "../services/coverService.js";
@@ -77,6 +78,7 @@ router.get("/songs/likes", authMiddleware, getUserLikes);
 router.post("/ia/likes/toggle", authMiddleware, toggleIaLike);
 router.get("/ia/likes/check", authMiddleware, checkIfIaLiked);
 router.get("/ia/likes", authMiddleware, getUserIaLikes);
+router.get("/ia/discoveries", authMiddleware, getIaDiscoveries);
 
 // --- IA: Clicks y Comparator ---
 router.post("/ia/click", registerIaClick);

@@ -23,7 +23,7 @@ export default function HomeAllView({ data, onPlay }) {
                 <Shelf title="Volver a escuchar" subtitle={user?.username || 'ROUTEL'}>
                     {recentListenings.map((item, index) => (
                         <ListenAgainCard
-                            key={item.id || index}
+                            key={`${item.id}-${index}`}
                             item={item}
                             isActive={isCurrentSong(item)}
                             isPlaying={isSongPlaying(item)}
@@ -46,7 +46,7 @@ export default function HomeAllView({ data, onPlay }) {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                         {quickSelection.map((item, index) => (
                             <QuickSelectionCard
-                                key={item.id || index}
+                                key={`${item.id}-${index}`}
                                 item={item}
                                 isActive={isCurrentSong(item)}
                                 isPlaying={isSongPlaying(item)}
@@ -62,7 +62,7 @@ export default function HomeAllView({ data, onPlay }) {
                 <Shelf title="Recomendado para ti" subtitle="BASADO EN TUS GUSTOS">
                     {recommendations.map((item, index) => (
                         <ListenAgainCard
-                            key={item.id || index}
+                            key={`${item.id}-${index}`}
                             item={item}
                             isActive={isCurrentSong(item)}
                             isPlaying={isSongPlaying(item)}
@@ -78,7 +78,7 @@ export default function HomeAllView({ data, onPlay }) {
                 <Shelf title="Álbumes populares" subtitle="TENDENCIAS">
                     {albums.map((item, index) => (
                         <ListenAgainCard
-                            key={item.id || index}
+                            key={`${item.id}-${index}`}
                             item={item}
                             isActive={isCurrentSong(item)}
                             isPlaying={isSongPlaying(item)}
@@ -93,7 +93,7 @@ export default function HomeAllView({ data, onPlay }) {
                 <Shelf title="Covers y Remixes" subtitle="DESCUBRIMIENTOS">
                     {coversRemixes.map((item, index) => (
                         <ListenAgainCard
-                            key={item.id || index}
+                            key={`${item.id}-${index}`}
                             item={item}
                             isActive={isCurrentSong(item)}
                             isPlaying={isSongPlaying(item)}
@@ -108,7 +108,7 @@ export default function HomeAllView({ data, onPlay }) {
                 <Shelf title="Descubrimientos IA" subtitle="INTERNET ARCHIVE">
                     {iaDiscoveries.map((item, index) => (
                         <ListenAgainCard
-                            key={item.id || index}
+                            key={`${item.id}-${index}`}
                             item={item}
                             isActive={isCurrentSong(item)}
                             isPlaying={isSongPlaying(item)}

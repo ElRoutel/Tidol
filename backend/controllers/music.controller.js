@@ -753,6 +753,111 @@ export const syncLocalSong = async (req, res) => {
   }
 };
 
+export const getIaDiscoveries = async (req, res) => {
+  try {
+    // 1. Get Top Search Queries (Explicit Interest)
+    const topQueries = await db.all(
+      `SELECT query FROM ia_clicks ORDER BY clicks DESC LIMIT 3`
+    );
+    const explicitSeeds = topQueries.map(r => r.query);
+
+    // 2. Get Recent History Artists (Implicit Interest)
+    // Assuming user_id is available in req.user.id (from authMiddleware)
+    const userId = req.user?.id;
+    let implicitSeeds = [];
+    if (userId) {
+      const historyArtists = await db.all(
+        `SELECT DISTINCT artista FROM ia_history WHERE user_id = ? ORDER BY played_at DESC LIMIT 5`,
+        [userId]
+      );
+      implicitSeeds = historyArtists.map(r => r.artista).filter(a => a && a !== 'Unknown');
+    }
+
+    // 3. Curated Genres (Exploration)
+    const curatedGenres = [
+      "Vaporwave", "City Pop", "Ambient", "Jazz Fusion", "Synthwave",
+      "Lo-Fi", "Future Funk", "J-Pop 80s", "Indie Game Soundtrack",
+      "Demoscene", "Tracker Music", "Chiptune", "Shoegaze", "Dreampop"
+    ];
+
+    // 4. Select Seeds
+    let seeds = [];
+
+    // Pick 1 from Explicit (if available)
+    if (explicitSeeds.length > 0) {
+      seeds.push(explicitSeeds[Math.floor(Math.random() * explicitSeeds.length)]);
+    }
+
+    // Pick 1 from Implicit (if available)
+    if (implicitSeeds.length > 0) {
+      seeds.push(implicitSeeds[Math.floor(Math.random() * implicitSeeds.length)]);
+    }
+
+    // Fill the rest with Curated (ensure at least 3 seeds total)
+    while (seeds.length < 3) {
+      const randomGenre = curatedGenres[Math.floor(Math.random() * curatedGenres.length)];
+      if (!seeds.includes(randomGenre)) {
+        seeds.push(randomGenre);
+      }
+    }
+
+    // Limit to 3 seeds to avoid excessive requests
+    seeds = seeds.slice(0, 3);
+    console.log(`🔍 [Spectra Discovery] Seeds: ${seeds.join(', ')}`);
+
+    // 5. Parallel Search
+    const searchPromises = seeds.map(seed =>
+      fetchWithRetry(`https://archive.org/advancedsearch.php?q=${encodeURIComponent(seed)} AND mediatype:audio&fl[]=identifier,title,creator,date,downloads&sort[]=downloads desc&rows=5&page=1&output=json`)
+    );
+
+    const results = await Promise.all(searchPromises);
+
+    // 6. Process & Deduplicate
+    let allSongs = [];
+    const seenIds = new Set();
+
+    results.forEach((res, index) => {
+      if (res && res.response && res.response.docs) {
+        res.response.docs.forEach(doc => {
+          if (!seenIds.has(doc.identifier)) {
+            seenIds.add(doc.identifier);
+            allSongs.push({
+              id: doc.identifier,
+              title: doc.title,
+              artist: doc.creator || 'Unknown',
+              url: `https://archive.org/download/${doc.identifier}/${doc.identifier}.mp3`, // Simplified URL
+              portada: `https://archive.org/services/img/${doc.identifier}`,
+              source: 'internet_archive',
+              seed: seeds[index] // Track which seed generated this
+            });
+          }
+        });
+      }
+    });
+
+    // Shuffle results
+    allSongs = allSongs.sort(() => Math.random() - 0.5);
+
+    res.json(allSongs);
+
+  } catch (error) {
+    console.error("Error in getIaDiscoveries:", error);
+    // Fallback to a simple search if everything fails
+    try {
+      const fallback = await fetchWithRetry(`https://archive.org/advancedsearch.php?q=music AND mediatype:audio&fl[]=identifier,title,creator&sort[]=downloads desc&rows=10&output=json`);
+      const fallbackSongs = fallback?.response?.docs?.map(doc => ({
+        id: doc.identifier,
+        title: doc.title,
+        artist: doc.creator,
+        source: 'internet_archive'
+      })) || [];
+      res.json(fallbackSongs);
+    } catch (e) {
+      res.status(500).json({ error: "Failed to generate discoveries" });
+    }
+  }
+};
+
 export default {
-  searchAll, search, searchArchive, getRecommendations, getSongs, getAlbums, getAlbumDetails, getAlbumSongs, getArtists, getArtistDetails, getArtistSongs, getHomeRecommendations, getLyricsBySong, toggleLike, checkIfLiked, getUserLikes, registerIaClick, registerComparatorRelation, registerIaComparator, toggleIaLike, checkIfIaLiked, getUserIaLikes, getCover, syncLocalSong
+  searchAll, search, searchArchive, getRecommendations, getSongs, getAlbums, getAlbumDetails, getAlbumSongs, getArtists, getArtistDetails, getArtistSongs, getHomeRecommendations, getLyricsBySong, toggleLike, checkIfLiked, getUserLikes, registerIaClick, registerComparatorRelation, registerIaComparator, toggleIaLike, checkIfIaLiked, getUserIaLikes, getCover, syncLocalSong, getIaDiscoveries
 };
