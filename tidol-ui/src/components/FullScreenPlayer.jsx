@@ -5,7 +5,6 @@ import './FullScreenPlayerLyrics.css';
 import { motion, Reorder } from 'framer-motion';
 import { usePlayer } from '../context/PlayerContext';
 import useSpectraSync from '../hooks/useSpectraSync';
-import { useSwipeable } from 'react-swipeable';
 import api from '../api/axiosConfig';
 import {
   IoPlaySharp,
@@ -254,6 +253,7 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
 
 
   const [isDesktop, setIsDesktop] = useState(window.innerWidth > 768);
+  const [dragY, setDragY] = useState(0);
 
   useEffect(() => {
     const handleResize = () => setIsDesktop(window.innerWidth > 768);
@@ -261,16 +261,23 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const swipeHandlers = useSwipeable({
-    onSwipedDown: () => {
-      if (!isEmbedded) closeFullScreenPlayer(); // Solo cerrar con swipe si no es embedded (o manejar lógica embedded)
-      if (isEmbedded) closeFullScreenPlayer();
-    },
-    preventDefaultTouchmoveEvent: true,
-    trackMouse: true
-  });
+  // Drag to dismiss (only when NOT embedded, PlayerSheet handles embedded drag)
+  const handleDrag = (event, info) => {
+    if (!isEmbedded) {
+      setDragY(info.offset.y);
+    }
+  };
 
-  const handlers = isDesktop ? {} : swipeHandlers;
+  const handleDragEnd = (event, info) => {
+    if (!isEmbedded) {
+      const threshold = 150;
+      if (info.offset.y > threshold) {
+        handleClose();
+      } else {
+        setDragY(0);
+      }
+    }
+  };
 
   const handleClose = () => {
     console.log('Closing FullScreenPlayer via button');
@@ -381,11 +388,21 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
     </div>
   );
 
+  // Use motion.div with drag ONLY when not embedded
+  const ContainerTag = isEmbedded ? 'div' : motion.div;
+  const dragProps = isEmbedded ? {} : {
+    drag: "y",
+    dragConstraints: { top: 0, bottom: 0 },
+    dragElastic: { top: 0, bottom: 0.5 },
+    onDrag: handleDrag,
+    onDragEnd: handleDragEnd,
+  };
+
   return (
-    <div
-      {...handlers}
+    <ContainerTag
+      {...dragProps}
       className={containerClass}
-      style={{ pointerEvents: (isEmbedded && !mounted) ? 'none' : 'auto', background: 'transparent' }} // Override bg to transparent
+      style={{ pointerEvents: (isEmbedded && !mounted) ? 'none' : 'auto', background: 'transparent' }}
     >
       {/* Render Cinematic Background */}
       <CinematicBackground cover={displayCover} />
@@ -393,6 +410,7 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
       <div className={`absolute top-4 left-4 transition-all duration-500 delay-100 z-50 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <button
           onClick={handleClose}
+          onPointerDown={(e) => e.stopPropagation()}
           className="text-white/70 hover:text-white transition-all duration-200 hover:scale-110 active:scale-95 bg-black/20 backdrop-blur-md p-2 rounded-full"
         >
           <IoChevronDown size={32} />
@@ -421,25 +439,14 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
                 {currentSong.artista}
               </p>
             )}
-
-            {/* Spectra Metadata Chips */}
-            <div className="flex justify-center gap-3 text-sm text-white/70 mt-4 font-medium">
-              {spectraData?.bpm && (
-                <span className="flex items-center gap-1 bg-white/10 backdrop-blur-md px-3 py-1 rounded-full border border-white/5 shadow-sm">
-                  🎵 {Math.round(spectraData.bpm)} BPM
-                </span>
-              )}
-              {spectraData?.key && (
-                <span className="flex items-center gap-1 bg-white/10 backdrop-blur-md px-3 py-1 rounded-full border border-white/5 shadow-sm">
-                  🎹 {spectraData.key}
-                </span>
-              )}
-            </div>
           </div>
         </div>
 
         {/* Lyrics View - Apple Music Style */}
-        <div className={`absolute inset-0 transition-all duration-700 ${showLyrics ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+        <div
+          className={`absolute inset-0 transition-all duration-700 ${showLyrics ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
           {/* Atmospheric Gradient Background */}
           <div className="absolute inset-0 overflow-hidden">
             {/* Animated mesh gradient derived from album colors */}
@@ -549,13 +556,43 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
                   )}
                 </div>
               </div>
-            </div>
 
+              {/* Floating Karaoke Button (Apple Music Sing Style) */}
+              {spectraData?.stems && (
+                <div className="absolute bottom-24 right-6 z-50 md:bottom-12 md:right-12">
+                  <button
+                    onClick={toggleVox}
+                    className={`
+                      flex items-center justify-center
+                      w-12 h-12 rounded-full
+                      backdrop-blur-xl border border-white/10
+                      shadow-lg transition-all duration-300
+                      ${voxMode
+                        ? 'bg-white text-black scale-110 shadow-[0_0_20px_rgba(255,255,255,0.4)]'
+                        : 'bg-black/30 text-white/70 hover:bg-black/50 hover:text-white'
+                      }
+                    `}
+                    title="Modo Karaoke"
+                  >
+                    <IoMic size={22} className={voxMode ? 'animate-pulse' : ''} />
+                    {voxMode && (
+                      <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Queue View - Glass Style */}
-        <div className={`absolute inset-0 flex flex-col items-center justify-start p-6 transition-all duration-500 ${showQueue ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-8 pointer-events-none'}`}>
+        <div
+          className={`absolute inset-0 flex flex-col items-center justify-start p-6 transition-all duration-500 ${showQueue ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-8 pointer-events-none'}`}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
           <h2 className="text-3xl font-bold mb-8 text-center sticky top-0 drop-shadow-lg z-10 w-full">Cola de Reproducción</h2>
           <div className="w-full max-w-2xl h-full overflow-y-auto space-y-3 px-2 pb-24 no-scrollbar">
             {originalQueue.length === 0 ? (
@@ -610,7 +647,10 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
 
       </div>
 
-      <div className={`w-full max-w-3xl mx-auto pb-10 px-6 transition-all duration-700 delay-400 z-50 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+      <div
+        className={`w-full max-w-3xl mx-auto pb-10 px-6 transition-all duration-700 delay-400 z-50 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
         <div className="w-full group relative">
           <input
             type="range"
@@ -659,17 +699,6 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
           </button>
 
           <div className="flex gap-3 md:gap-4">
-            {/* Karaoke Button - Only show if stems are available */}
-            {spectraData?.stems && (
-              <button
-                onClick={toggleVox}
-                className={`transition-all duration-300 hover:scale-110 active:scale-95 p-2 rounded-full ${voxMode ? 'text-white bg-green-500/20 shadow-[0_0_15px_rgba(34,197,94,0.4)]' : 'text-white/60 hover:text-white'}`}
-                title="Modo Karaoke"
-              >
-                <IoMic size={24} className="md:w-7 md:h-7" color={voxMode ? '#4ade80' : 'currentColor'} />
-              </button>
-            )}
-
             <button
               onClick={handleToggleLyrics}
               className={`transition-all duration-300 hover:scale-110 active:scale-95 p-2 rounded-full ${showLyrics ? 'text-white bg-white/20 shadow-[0_0_15px_rgba(255,255,255,0.2)]' : 'text-white/60 hover:text-white'}`}
@@ -686,7 +715,7 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
           </div>
         </div>
       </div>
-    </div>
+    </ContainerTag>
   );
 };
 
