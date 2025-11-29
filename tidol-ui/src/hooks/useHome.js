@@ -31,24 +31,27 @@ export const useHome = () => {
             const querySuffix = chipId === 'all' ? '' : ` ${chipId}`;
 
             // 1. Recent Listenings (Historial)
-            const historyPromise = api.get('/history');
+            const historyPromise = api.get('/history', { timeout: 5000 }).catch(() => ({ data: [] }));
 
             // 2. Quick Selection (Recomendaciones + Historial reciente)
-            const recsPromise = api.get('/music/home-recommendations');
+            const recsPromise = api.get('/music/home-recommendations', { timeout: 5000 }).catch(() => ({ data: [] }));
 
             // 3. Albums (Populares o filtrados)
-            const albumsPromise = api.get('/music/albums');
+            const albumsPromise = api.get('/music/albums', { timeout: 5000 }).catch(() => ({ data: [] }));
 
             // 4. Covers & Remixes (Búsqueda general)
-            // NOTA: Podcasts removidos para evitar bloqueo de IP por exceso de requests
             const coversQuery = `cover remix${querySuffix}`;
-            const coversPromise = api.get(`/music/search?q=${encodeURIComponent(coversQuery)}`);
+            const coversPromise = api.get(`/music/search?q=${encodeURIComponent(coversQuery)}`, { timeout: 5000 }).catch(() => ({ data: { canciones: [] } }));
 
-            const [historyRes, recsRes, albumsRes, coversRes] = await Promise.all([
+            // 5. Descubrimientos IA (Personalized Engine)
+            const iaPromise = api.get('/music/ia/discoveries', { timeout: 8000 }).catch(() => ({ data: [] }));
+
+            const [historyRes, recsRes, albumsRes, coversRes, iaRes] = await Promise.all([
                 historyPromise,
                 recsPromise,
                 albumsPromise,
-                coversPromise
+                coversPromise,
+                iaPromise
             ]);
 
             // Procesar datos
@@ -56,6 +59,7 @@ export const useHome = () => {
             const recsData = recsRes.data || [];
             const albumsData = albumsRes.data || [];
             const coversData = coversRes.data?.canciones || [];
+            const iaData = iaRes.data || [];
 
             // Combinar para Quick Selection
             const combinedQuick = [...historyData.slice(0, 6), ...recsData.slice(0, 6)];
@@ -65,7 +69,8 @@ export const useHome = () => {
                 quickSelection: shuffleArray(combinedQuick).slice(0, 6),
                 recommendations: recsData.slice(0, 15), // Exponer recomendaciones puras
                 albums: albumsData.slice(0, 15),
-                coversRemixes: coversData.slice(0, 10)
+                coversRemixes: coversData.slice(0, 10),
+                iaDiscoveries: iaData.slice(0, 15) // Nueva sección
             });
 
         } catch (error) {

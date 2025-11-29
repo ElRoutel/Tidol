@@ -7,7 +7,7 @@ import QuickSelectionCard from '../../cards/QuickSelectionCard';
 import ListenAgainCard from '../../cards/ListenAgainCard';
 
 export default function HomeAllView({ data, onPlay }) {
-    const { recentListenings, quickSelection, recommendations, albums, coversRemixes } = data || {};
+    const { recentListenings, quickSelection, recommendations, albums, coversRemixes, iaDiscoveries } = data || {};
     const { currentSong, isPlaying } = usePlayer();
     const { user } = useAuth();
     const navigate = useNavigate();
@@ -98,6 +98,21 @@ export default function HomeAllView({ data, onPlay }) {
                             isActive={isCurrentSong(item)}
                             isPlaying={isSongPlaying(item)}
                             onClick={() => onPlay(item, index, coversRemixes)}
+                        />
+                    ))}
+                </Shelf>
+            )}
+
+            {/* Descubrimientos IA - Shelf */}
+            {iaDiscoveries && iaDiscoveries.length > 0 && (
+                <Shelf title="Descubrimientos IA" subtitle="INTERNET ARCHIVE">
+                    {iaDiscoveries.map((item, index) => (
+                        <ListenAgainCard
+                            key={item.id || index}
+                            item={item}
+                            isActive={isCurrentSong(item)}
+                            isPlaying={isSongPlaying(item)}
+                            onClick={() => onPlay(item, index, iaDiscoveries)}
                         />
                     ))}
                 </Shelf>

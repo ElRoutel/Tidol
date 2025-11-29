@@ -3,6 +3,7 @@ import { usePlaylist } from "../context/PlaylistContext";
 import { usePlayer } from "../context/PlayerContext";
 import { useNavigate } from "react-router-dom";
 import Portal from "./Portal";
+import { getOptimizedImageUrl } from '../utils/imageUtils';
 
 const formatDuration = (s) => {
     if (!s || isNaN(s)) return '--:--';
@@ -71,7 +72,7 @@ function SongListItem({ song, onPlay, isActive }) {
                 onClick={onPlay}
                 onContextMenu={handleContextMenu}
             >
-                <img className="song-cover" src={cover} loading="lazy" alt={title} />
+                <img className="song-cover" src={getOptimizedImageUrl(cover, 100)} loading="lazy" alt={title} />
                 <div className="song-meta">
                     <div className="song-title">{title}</div>
                     <div className="song-artist">{artist}</div>

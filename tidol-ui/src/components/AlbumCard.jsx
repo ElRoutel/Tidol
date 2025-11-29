@@ -2,6 +2,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { IoPlay } from "react-icons/io5";
+import { getOptimizedImageUrl } from '../utils/imageUtils';
 
 const AlbumCard = React.memo(({ album }) => {
   return (
@@ -12,7 +13,7 @@ const AlbumCard = React.memo(({ album }) => {
         <div className="album-image-container">
           <div className="image-wrapper">
             <img
-              src={album.portada}
+              src={getOptimizedImageUrl(album.portada, 300)}
               alt={album.titulo}
               className="album-cover"
               loading="lazy"

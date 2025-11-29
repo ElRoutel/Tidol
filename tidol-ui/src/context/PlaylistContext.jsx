@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import api from '../api/axiosConfig';
+import { useAuth } from './AuthContext';
 
 const PlaylistContext = createContext();
 
@@ -48,9 +49,15 @@ export function PlaylistProvider({ children }) {
     }, []);
 
     // Load playlists on mount
+    const { isAuthenticated } = useAuth();
+
     useEffect(() => {
-        fetchPlaylists();
-    }, [fetchPlaylists]);
+        if (isAuthenticated) {
+            fetchPlaylists();
+        } else {
+            setPlaylists([]);
+        }
+    }, [fetchPlaylists, isAuthenticated]);
 
     // Create new playlist
     const createPlaylist = useCallback(async (nombre) => {

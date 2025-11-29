@@ -520,6 +520,12 @@ export function PlayerProvider({ children }) {
     // VOX Logic: Override src if voxMode is active
     let newSrc = currentSong.url || audio.src;
 
+    // Auto-disable VOX if song changed and no stems for new song
+    if (!isSameSong && voxMode && voxTracks && voxTracks.songId !== currentSong.id) {
+      console.log('🎵 [VOX] Auto-disabling VOX mode - new song has no stems yet');
+      setVoxMode(false);
+    }
+
     if (voxMode && voxTracks && voxTracks.songId === currentSong.id) {
       newSrc = voxTracks[voxType]; // 'vocals' or 'accompaniment' URL
     }

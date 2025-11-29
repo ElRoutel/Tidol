@@ -15,6 +15,7 @@ import {
   IoMusicalNotesSharp,
   IoPersonSharp
 } from 'react-icons/io5';
+import { getOptimizedImageUrl } from '../utils/imageUtils';
 
 
 // Componente memoizado para la portada
@@ -203,7 +204,7 @@ const PlayerBar = memo(function PlayerBar({ isSheetMode = false }) {
       {/* Left section */}
       <div className={`flex items-center gap-3 min-w-0 ${isSheetMode ? 'flex-1' : 'flex-1 md:flex-[0_0_30%]'}`}>
         <AlbumCover
-          src={currentSong.portada}
+          src={getOptimizedImageUrl(currentSong.portada, 100)}
           alt={currentSong.titulo}
           onClick={toggleFullScreenPlayer}
           isSheetMode={isSheetMode}

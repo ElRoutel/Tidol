@@ -35,7 +35,7 @@ function ProfilePage() {
         <div className="relative z-10 text-center md:text-left flex-1">
           <h1 className="text-4xl font-bold text-white mb-2">{user.username}</h1>
           <div className="inline-flex items-center px-3 py-1 rounded-full bg-white/10 border border-white/10 text-sm text-gray-300">
-            {user.role === 'admin' ? 'Administrador' : 'Miembro Premium'}
+            {user.role === 'admin' ? 'Administrador' : 'Miembro'}
           </div>
         </div>
 
