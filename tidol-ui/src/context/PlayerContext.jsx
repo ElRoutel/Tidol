@@ -9,6 +9,7 @@
 } from 'react';
 import api from '../api/axiosConfig';
 import axios from 'axios';
+import { useAuth } from './AuthContext';
 
 // --- Context Definitions ---
 const PlayerStateContext = createContext();
@@ -57,7 +58,6 @@ export function PlayerProvider({ children }) {
     waveform: [],
     lyrics: [],
     bpm: null,
-    key: null,
     key: null,
     status: 'idle'
   });
@@ -213,7 +213,14 @@ export function PlayerProvider({ children }) {
   }, []);
 
   // Fetch liked songs
+  const { isAuthenticated } = useAuth();
+
   useEffect(() => {
+    if (!isAuthenticated) {
+      setLikedSongs(new Set());
+      return;
+    }
+
     let mounted = true;
     const fetchAllLikedSongs = async () => {
       try {
@@ -243,7 +250,7 @@ export function PlayerProvider({ children }) {
 
     fetchAllLikedSongs();
     return () => { mounted = false; };
-  }, []);
+  }, [isAuthenticated]);
 
   const toggleLike = useCallback(async (songId, songData = null) => {
     if (!songId) return;
@@ -487,13 +494,6 @@ export function PlayerProvider({ children }) {
     const isSameSong = currentSongIdRef.current === currentSong.id;
     const isNewPlayRequest = currentSong.playRequestId !== lastPlayRequestIdRef.current;
 
-    if (isSameSong && !isNewPlayRequest) {
-      return;
-    }
-
-    currentSongIdRef.current = currentSong.id;
-    lastPlayRequestIdRef.current = currentSong.playRequestId;
-
     if (!audioRef.current) {
       audioRef.current = new Audio();
       audioRef.current.preload = 'auto';
@@ -501,36 +501,76 @@ export function PlayerProvider({ children }) {
     }
     const audio = audioRef.current;
 
-    const previousSrc = audio.src;
+    // Helper to normalize URLs for comparison (relative -> absolute)
+    const normalizeUrl = (url) => {
+      if (!url) return '';
+      // If already absolute, return as-is
+      if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) {
+        return url;
+      }
+      // Convert relative to absolute
+      try {
+        return new URL(url, window.location.origin).href;
+      } catch {
+        return url;
+      }
+    };
+
+    const previousSrc = normalizeUrl(audio.src);
     // VOX Logic: Override src if voxMode is active
-    let newSrc = currentSong.url || previousSrc;
+    let newSrc = currentSong.url || audio.src;
 
     if (voxMode && voxTracks && voxTracks.songId === currentSong.id) {
       newSrc = voxTracks[voxType]; // 'vocals' or 'accompaniment' URL
     }
 
-    if (previousSrc !== newSrc) {
+    const normalizedNewSrc = normalizeUrl(newSrc);
+
+    // Early return only if same song, no new play request, AND source hasn't changed
+    if (isSameSong && !isNewPlayRequest && previousSrc === normalizedNewSrc) {
+      return;
+    }
+
+    currentSongIdRef.current = currentSong.id;
+    lastPlayRequestIdRef.current = currentSong.playRequestId;
+
+    if (previousSrc !== normalizedNewSrc) {
       // Only restore time if we are switching modes (VOX <-> Normal) for the SAME song
-      // If it's a different song, we must reset to 0
       const isSameSongId = currentSongIdRef.current === currentSong.id;
 
       let startTime = 0;
-      if (isSameSongId && voxMode) {
+      if (isSameSongId) {
         // We are toggling VOX on/off for the same song, keep time
         startTime = audio.currentTime;
       }
 
       const wasPlaying = !audio.paused;
 
-      audio.src = newSrc;
-      audio.currentTime = startTime;
+      console.log(`🎵 [VOX] Switching audio source:`, {
+        from: previousSrc.substring(Math.max(0, previousSrc.length - 40)),
+        to: normalizedNewSrc.substring(Math.max(0, normalizedNewSrc.length - 40)),
+        voxMode,
+        voxType,
+        startTime
+      });
 
-      if (wasPlaying) {
-        const playPromise = audio.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(err => console.warn("Playback interrupted:", err));
+      audio.src = newSrc; // Use original URL, not normalized
+
+      // Set currentTime after metadata loads (load() resets it to 0)
+      const handleLoadedMetadata = () => {
+        audio.currentTime = startTime;
+        audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+
+        if (wasPlaying || hasUserInteracted.current) {
+          const playPromise = audio.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(err => console.warn("Playback interrupted:", err));
+          }
         }
-      }
+      };
+
+      audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.load();
     }
 
     // Detect if this is an Internet Archive song
@@ -562,23 +602,6 @@ export function PlayerProvider({ children }) {
       setDetectedQuality({ sample_rate: sampleRate, bit_depth: bitDepth });
     } else {
       setDetectedQuality(null);
-    }
-
-    const safePlay = () => {
-      const playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(() => {
-          console.warn("🔇 Autoplay bloqueado. Esperando interacción del usuario.");
-          setIsPlaying(false);
-        });
-      }
-    };
-
-    audio.load();
-    if (hasUserInteracted.current) {
-      safePlay();
-    } else {
-      setIsPlaying(false);
     }
 
     api.post('/history/add', {

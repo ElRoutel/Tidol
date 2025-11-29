@@ -4,16 +4,18 @@ const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
 const mm = require('music-metadata');
-const { spawn } = require('child_process'); // Vital para llamar a Python
+const { spawn, exec } = require('child_process'); // Added exec for killing processes
 const axios = require('axios');
 
 const app = express();
 const PORT = 3001;
+const PYTHON_PORT = 8000;
+const PYTHON_SERVER_URL = `http://127.0.0.1:${PYTHON_PORT}`;
 
 // --- CONFIGURACIÓN ---
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // Expose uploads (stems, lyrics, covers)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 const MEDIA_DIR = path.join(__dirname, 'media');
 const UPLOADS_MUSIC_DIR = path.join(__dirname, 'uploads', 'musica');
@@ -25,9 +27,83 @@ if (!fs.existsSync(MEDIA_DIR)) fs.mkdirSync(MEDIA_DIR);
 if (!fs.existsSync(UPLOADS_MUSIC_DIR)) fs.mkdirSync(UPLOADS_MUSIC_DIR, { recursive: true });
 if (!fs.existsSync(UPLOADS_COVERS_DIR)) fs.mkdirSync(UPLOADS_COVERS_DIR, { recursive: true });
 
+// --- GESTIÓN DEL SERVIDOR PYTHON (Spectra Engine) ---
+let pythonServerProcess = null;
+let isPythonReady = false;
+
+async function startPythonServer() {
+    console.log('🚀 Iniciando Spectra Python Engine...');
+
+    // 1. Matar cualquier proceso en el puerto 8000 (Zombie Killer)
+    try {
+        if (process.platform === 'win32') {
+            exec(`netstat -ano | findstr :${PYTHON_PORT}`, (err, stdout) => {
+                if (stdout) {
+                    const pid = stdout.trim().split(/\s+/).pop();
+                    if (pid) {
+                        console.log(`💀 Matando proceso zombie en puerto ${PYTHON_PORT} (PID: ${pid})`);
+                        exec(`taskkill /F /PID ${pid}`);
+                    }
+                }
+            });
+        }
+    } catch (e) { console.error('Error killing zombies:', e); }
+
+    // 2. Spawn del proceso
+    pythonServerProcess = spawn('python', ['spectra_server.py'], {
+        cwd: __dirname,
+        stdio: 'inherit' // Ver logs de Python en la consola de Node
+    });
+
+    pythonServerProcess.on('close', (code) => {
+        console.error(`⚠️ Spectra Engine se detuvo (Código: ${code}). Reiniciando en 5s...`);
+        isPythonReady = false;
+        setTimeout(startPythonServer, 5000);
+    });
+
+    // 3. Polling de Health Check
+    checkPythonHealth();
+}
+
+async function checkPythonHealth() {
+    let attempts = 0;
+    const maxAttempts = 60; // 1 minuto esperando carga de modelo
+
+    const interval = setInterval(async () => {
+        try {
+            const res = await axios.get(`${PYTHON_SERVER_URL}/health`);
+            if (res.data.status === 'ready') {
+                console.log('✅ Spectra Engine LISTO y conectado.');
+                isPythonReady = true;
+                clearInterval(interval);
+            } else {
+                process.stdout.write('.'); // Loading indicator
+            }
+        } catch (e) {
+            process.stdout.write('.'); // Connection refused, wait
+        }
+
+        attempts++;
+        if (attempts > maxAttempts) {
+            console.error('\n❌ Timeout esperando a Spectra Engine.');
+            clearInterval(interval);
+        }
+    }, 1000);
+}
+
+// Iniciar Python al arrancar Node
+startPythonServer();
+
+// Matar Python al cerrar Node
+process.on('SIGINT', () => {
+    console.log('\n🛑 Deteniendo servicios...');
+    if (pythonServerProcess) pythonServerProcess.kill();
+    process.exit();
+});
+
 // --- DB SPECTRA (Local) ---
 const dbSpectra = new Database(DB_PATH_SPECTRA);
-dbSpectra.pragma('journal_mode = WAL'); // Enable WAL for concurrency
+dbSpectra.pragma('journal_mode = WAL');
 
 // Track active lyrics jobs to prevent duplicates
 const processingLyrics = new Set();
@@ -65,10 +141,10 @@ class JobQueue {
     }
 }
 
-// Separate queues for different task types to prevent starvation
-const analysisQueue = new JobQueue(2); // Lightweight analysis
-const voxQueue = new JobQueue(1);      // Heavy VOX separation (Spleeter is RAM hungry)
-const lyricsQueue = new JobQueue(1);   // Lyrics generation (Future Whisper)
+// Separate queues for different task types
+const analysisQueue = new JobQueue(2);
+const voxQueue = new JobQueue(1);
+const lyricsQueue = new JobQueue(1);
 
 // Tabla actualizada con todos los campos necesarios
 dbSpectra.exec(`
@@ -97,16 +173,13 @@ console.log('💿 SPECTRA Database: Ready');
 let dbTidol;
 const PATH_OPCION_A = path.join(__dirname, '../backend/models/database.sqlite');
 const PATH_OPCION_B = path.join(__dirname, '../Tidol/backend/models/database.sqlite');
-// Elegimos la ruta que exista
 let DB_PATH_TIDOL = fs.existsSync(PATH_OPCION_A) ? PATH_OPCION_A : PATH_OPCION_B;
 
 try {
     if (!fs.existsSync(DB_PATH_TIDOL)) {
-        // Si no existe ninguna, lanzamos error controlado
         throw new Error("No se encuentra el archivo .sqlite en ninguna ruta estándar.");
     }
     // dbTidol = new Database(DB_PATH_TIDOL, { readonly: true });
-    // console.log(`💾 TIDOL LEGACY DB: Conectada.`);
     throw new Error("Bridge deshabilitado temporalmente para evitar corrupción de DB.");
 } catch (err) {
     console.warn(`⚠️  ADVERTENCIA: Bridge desactivado. (${err.message})`);
@@ -873,32 +946,46 @@ const UPLOADS_VOX_DIR = path.join(__dirname, 'uploads', 'vox');
 if (!fs.existsSync(UPLOADS_VOX_DIR)) fs.mkdirSync(UPLOADS_VOX_DIR, { recursive: true });
 
 // 14. Trigger Vocal Separation
+// 14. Trigger Vocal Separation (Unified for Local & Remote)
+// 14. Trigger Vocal Separation (Unified for Local & Remote)
 app.post('/vox/separate', async (req, res) => {
     try {
         // Support both direct ID and lookup params
         const track = getTrackByLookup(req.body) || (req.body.trackId ? dbSpectra.prepare('SELECT * FROM tracks WHERE id = ?').get(req.body.trackId) : null);
 
         if (!track) return res.status(404).json({ error: 'Track not found' });
-        const trackId = track.id; // Ensure we use the internal ID for the rest of the logic
+        const trackId = track.id;
 
         // Determine input path
         let inputPath;
         if (track.filepath.startsWith('uploads/')) {
             inputPath = path.join(__dirname, track.filepath);
+        } else if (track.filepath.startsWith('http')) {
+            inputPath = path.join(MEDIA_DIR, track.filepath);
         } else {
             inputPath = path.join(MEDIA_DIR, track.filepath);
         }
 
-        if (!fs.existsSync(inputPath)) return res.status(404).json({ error: 'Audio file not found' });
+        // Fix for local songs mapped from backend
+        if (!fs.existsSync(inputPath)) {
+            const backendUploads = path.join(__dirname, '..', 'backend', track.filepath);
+            if (fs.existsSync(backendUploads)) {
+                inputPath = backendUploads;
+            }
+        }
 
-        // Determine output path (Spleeter creates a folder with the filename)
+        if (!fs.existsSync(inputPath)) {
+            console.error(`❌ Audio file not found: ${inputPath}`);
+            return res.status(404).json({ error: 'Audio file not found on disk' });
+        }
+
+        // Use centralized runDemucsOnly (Calls Python Server)
         const filenameNoExt = path.basename(track.filepath, path.extname(track.filepath));
-        const outputDir = UPLOADS_VOX_DIR; // Spleeter will create subdir 'filenameNoExt' here
+        const STEMS_DIR = path.join(__dirname, 'uploads', 'stems');
+        const trackStemsDir = path.join(STEMS_DIR, filenameNoExt);
+        const expectedVocals = path.join(trackStemsDir, 'vocals.wav');
+        const expectedInstr = path.join(trackStemsDir, 'accompaniment.wav');
 
-        const expectedVocals = path.join(outputDir, filenameNoExt, 'vocals.wav');
-        const expectedInstr = path.join(outputDir, filenameNoExt, 'accompaniment.wav');
-
-        // Check if already separated
         if (fs.existsSync(expectedVocals) && fs.existsSync(expectedInstr)) {
             return res.json({
                 status: 'success',
@@ -908,46 +995,16 @@ app.post('/vox/separate', async (req, res) => {
             });
         }
 
-        // Wrap in Queue
-        try {
-            await voxQueue.add(() => new Promise((resolve, reject) => {
-                console.log(`🎤 [Queue] Iniciando VOX (Demucs) para Track #${trackId}...`);
+        // Add to Queue
+        voxQueue.add(() => runDemucsOnly(track, inputPath))
+            .catch(err => console.error(`❌ VOX Job Error for Track #${trackId}:`, err));
 
-                // Use vox_demucs.py instead of vox.py
-                const pythonProcess = spawn('python', ['vox_demucs.py', inputPath, outputDir]);
-                let dataBuffer = '';
-
-                pythonProcess.stdout.on('data', (data) => dataBuffer += data.toString());
-                pythonProcess.stderr.on('data', (data) => console.error(`VOX Debug: ${data}`));
-
-                pythonProcess.on('close', (code) => {
-                    if (code !== 0) {
-                        reject(new Error(`VOX failed with code ${code}`));
-                        return;
-                    }
-                    try {
-                        const result = JSON.parse(dataBuffer);
-                        if (result.status === 'success') {
-                            resolve(result);
-                        } else {
-                            reject(new Error(result.message));
-                        }
-                    } catch (e) {
-                        reject(new Error('Invalid JSON from VOX script'));
-                    }
-                });
-            }));
-
-            res.json({
-                status: 'success',
-                vocals: `/vox/stream/${trackId}/vocals`,
-                accompaniment: `/vox/stream/${trackId}/accompaniment`
-            });
-
-        } catch (err) {
-            console.error("VOX Job Failed:", err);
-            res.status(500).json({ error: err.message });
-        }
+        // Return "processing" immediately
+        res.json({
+            status: 'processing',
+            message: 'Vocal separation started in background',
+            trackId: trackId
+        });
 
     } catch (error) {
         console.error("VOX Error:", error);
@@ -955,6 +1012,7 @@ app.post('/vox/separate', async (req, res) => {
     }
 });
 
+// 15. Stream Separated Tracks
 // 15. Stream Separated Tracks
 app.get('/vox/stream/:id/:type', (req, res) => {
     const { id, type } = req.params; // type: 'vocals' | 'accompaniment'
@@ -964,16 +1022,41 @@ app.get('/vox/stream/:id/:type', (req, res) => {
     if (!track) return res.status(404).send('Track not found');
 
     const filenameNoExt = path.basename(track.filepath, path.extname(track.filepath));
-    const filePath = path.join(UPLOADS_VOX_DIR, filenameNoExt, `${type}.wav`);
+    // Stems are in uploads/stems/<filename>/... (Standardized)
+    const STEMS_DIR = path.join(__dirname, 'uploads', 'stems');
+    const filePath = path.join(STEMS_DIR, filenameNoExt, `${type}.wav`);
 
-    if (!fs.existsSync(filePath)) return res.status(404).send('Stem not found (Run separation first)');
+    if (!fs.existsSync(filePath)) {
+        console.error(`❌ Stem not found: ${filePath}`);
+        return res.status(404).send('Stem not found (Run separation first)');
+    }
 
     const stat = fs.statSync(filePath);
-    res.writeHead(200, {
-        'Content-Type': 'audio/wav',
-        'Content-Length': stat.size
-    });
-    fs.createReadStream(filePath).pipe(res);
+    const range = req.headers.range;
+
+    // Support Range requests for seeking
+    if (range) {
+        const parts = range.replace(/bytes=/, "").split("-");
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+        const chunksize = (end - start) + 1;
+        const file = fs.createReadStream(filePath, { start, end });
+        const head = {
+            'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+            'Accept-Ranges': 'bytes',
+            'Content-Length': chunksize,
+            'Content-Type': 'audio/wav',
+        };
+        res.writeHead(206, head);
+        file.pipe(res);
+    } else {
+        res.writeHead(200, {
+            'Content-Length': stat.size,
+            'Content-Type': 'audio/wav',
+            'Accept-Ranges': 'bytes'
+        });
+        fs.createReadStream(filePath).pipe(res);
+    }
 });
 
 // --- LYRICS MODULE ---
@@ -1125,198 +1208,78 @@ app.get('/local/lyrics/:tidol_id', (req, res) => {
     }
 });
 
-// --- HELPER: Run Demucs + Whisper ---
+// --- HELPER: Run Demucs + Whisper (Via Spectra Engine) ---
 function runDemucsAndWhisper(track, inputPath, lrcPath) {
     return new Promise(async (resolve, reject) => {
+        if (!isPythonReady) {
+            return reject(new Error('Spectra Engine is not ready yet. Please wait.'));
+        }
+
         const STEMS_DIR = path.join(__dirname, 'uploads', 'stems');
         const filenameNoExt = path.basename(inputPath, path.extname(inputPath));
-        const trackStemsDir = path.join(STEMS_DIR, filenameNoExt);
-        const vocalsPath = path.join(trackStemsDir, 'vocals.wav');
-
-        let processTimeout;
 
         // Cleanup helper
         const cleanup = () => {
-            if (processTimeout) clearTimeout(processTimeout);
             processingLyrics.delete(track.id);
         };
 
         try {
-            // Set global timeout (10 minutes for separation + transcription)
-            processTimeout = setTimeout(() => {
-                console.error(`⏱️ Timeout for Track #${track.id}`);
-                cleanup();
-                reject(new Error('Process timeout (10 minutes)'));
-            }, 10 * 60 * 1000);
+            console.log(`📡 Enviando trabajo a Spectra Engine: ${track.title}`);
 
-            // STEP 1: DEMUCS SEPARATION
-            if (!fs.existsSync(vocalsPath)) {
-                console.log(`🎤 [Demucs] Separando voces para: ${track.title || filenameNoExt}...`);
-
-                await new Promise((resDemucs, rejDemucs) => {
-                    const demucsProcess = spawn('python', ['vox_demucs.py', inputPath, STEMS_DIR]);
-                    let dError = '';
-
-                    demucsProcess.stderr.on('data', (data) => {
-                        const str = data.toString();
-                        if (!str.includes('%')) console.log(`[Demucs] ${str.trim()}`); // Log non-progress output
-                        dError += str;
-                    });
-
-                    demucsProcess.on('close', (code) => {
-                        if (code === 0) resDemucs();
-                        else rejDemucs(new Error(`Demucs failed: ${dError.substring(0, 200)}`));
-                    });
-                });
-            } else {
-                console.log(`🎤 [Demucs] Voces ya existen, usando caché.`);
-            }
-
-            // STEP 2: WHISPER TRANSCRIPTION
-            console.log(`🗣️ [Whisper] Generando letras para: ${track.title || filenameNoExt}...`);
-
-            const pythonProcess = spawn('python', ['voxw.py', vocalsPath, lrcPath]);
-            let dataBuffer = '';
-            let errorBuffer = '';
-
-            pythonProcess.stdout.on('data', (data) => {
-                const str = data.toString();
-                dataBuffer += str;
-                console.log(`VOXW: ${str.trim()}`);
+            // Call Python Server
+            const response = await axios.post(`${PYTHON_SERVER_URL}/process_track`, {
+                input_path: inputPath,
+                output_dir_stems: STEMS_DIR,
+                output_path_lrc: lrcPath,
+                skip_transcription: false
             });
 
-            pythonProcess.stderr.on('data', (data) => {
-                const str = data.toString();
-                errorBuffer += str;
-                if (!str.includes('UserWarning') && !str.includes('pkg_resources')) {
-                    console.error(`VOXW Error: ${str.trim()}`);
-                }
-            });
-
-            pythonProcess.on('close', (code) => {
-                cleanup();
-
-                // 1. Check for success JSON first (Ignore exit code if success reported)
-                try {
-                    const lines = dataBuffer.trim().split('\n');
-                    const lastLine = lines[lines.length - 1];
-                    const result = JSON.parse(lastLine);
-
-                    if (result.status === 'success') {
-                        resolve(result);
-                        return;
-                    }
-                } catch (e) {
-                    // JSON parsing failed or incomplete, proceed to check exit code
-                }
-
-                // 2. If no success JSON, check exit code
-                if (code !== 0) {
-                    let errorMsg = `VOXW failed with code ${code}`;
-                    if (errorBuffer.includes('MemoryError')) errorMsg = 'Out of memory';
-
-                    // Special case: 3221226505 (0xC0000409) often happens on CUDA cleanup
-                    // If we have the file, we can consider it a success
-                    if (code === 3221226505 && fs.existsSync(lrcPath)) {
-                        console.log('⚠️ VOXW crashed on exit but LRC file exists. Treating as success.');
-                        resolve({ status: 'success' });
-                        return;
-                    }
-
-                    reject(new Error(errorMsg));
-                    return;
-                }
-
-                // 3. Fallback for code 0 but invalid JSON
-                if (fs.existsSync(lrcPath)) resolve({ status: 'success' });
-                else reject(new Error('Invalid output from VOXW'));
-            });
+            console.log(`✅ Spectra Engine completado: ${track.title}`);
+            cleanup();
+            resolve(response.data);
 
         } catch (error) {
             cleanup();
-            reject(error);
+            const msg = error.response?.data?.detail || error.message;
+            console.error(`❌ Spectra Engine Error: ${msg}`);
+            reject(new Error(msg));
         }
     });
 }
 
 // Helper function to run ONLY Demucs separation (for Karaoke mode)
-// This is separate from runDemucsAndWhisper to allow independent Karaoke generation
 function runDemucsOnly(track, inputPath) {
     return new Promise(async (resolve, reject) => {
+        if (!isPythonReady) {
+            return reject(new Error('Spectra Engine is not ready yet. Please wait.'));
+        }
+
         const STEMS_DIR = path.join(__dirname, 'uploads', 'stems');
-        const filenameNoExt = path.basename(inputPath, path.extname(inputPath));
-        const trackStemsDir = path.join(STEMS_DIR, filenameNoExt);
-        const vocalsPath = path.join(trackStemsDir, 'vocals.wav');
-        const accompanimentPath = path.join(trackStemsDir, 'accompaniment.wav');
-
-        let processTimeout;
-
-        const cleanup = () => {
-            if (processTimeout) clearTimeout(processTimeout);
-        };
 
         try {
-            // Set timeout (5 minutes for Demucs only)
-            processTimeout = setTimeout(() => {
-                console.error(`⏱️ Demucs timeout for Track #${track.id}`);
-                cleanup();
-                reject(new Error('Demucs timeout (5 minutes)'));
-            }, 5 * 60 * 1000);
+            console.log(`📡 Enviando trabajo de Karaoke a Spectra Engine: ${track.title}`);
 
-            // Check if stems already exist
-            if (fs.existsSync(vocalsPath) && fs.existsSync(accompanimentPath)) {
-                console.log(`🎤 [Demucs] Voces ya existen, usando caché.`);
-                cleanup();
-                resolve({
-                    vocals: vocalsPath,
-                    accompaniment: accompanimentPath
-                });
-                return;
-            }
-
-            console.log(`🎤 [Demucs] Separando voces para: ${track.title || filenameNoExt}...`);
-
-            const demucsProcess = spawn('python', ['vox_demucs.py', inputPath, STEMS_DIR]);
-
-            let dOutput = '';
-            let dError = '';
-
-            demucsProcess.stdout.on('data', (data) => {
-                const line = data.toString();
-                dOutput += line;
-                console.log(`Demucs: ${line.trim()}`);
+            // Call Python Server with skip_transcription=true
+            const response = await axios.post(`${PYTHON_SERVER_URL}/process_track`, {
+                input_path: inputPath,
+                output_dir_stems: STEMS_DIR,
+                output_path_lrc: "", // Not used
+                skip_transcription: true
             });
 
-            demucsProcess.stderr.on('data', (data) => {
-                dError += data.toString();
-            });
+            console.log(`✅ Spectra Engine (Karaoke) completado: ${track.title}`);
 
-            demucsProcess.on('close', (code) => {
-                cleanup();
-
-                if (code === 0) {
-                    try {
-                        const result = JSON.parse(dOutput);
-                        if (result.status === 'success') {
-                            console.log(`✅ [Demucs] Separación exitosa`);
-                            resolve({
-                                vocals: result.vocals,
-                                accompaniment: result.accompaniment
-                            });
-                        } else {
-                            reject(new Error(result.message || 'Demucs failed'));
-                        }
-                    } catch (e) {
-                        reject(new Error('Invalid Demucs output'));
-                    }
-                } else {
-                    reject(new Error(`Demucs failed with code ${code}: ${dError.substring(0, 200)}`));
-                }
+            // Construct response with stem paths
+            const stemsDir = response.data.stems_dir;
+            resolve({
+                vocals: path.join(stemsDir, 'vocals.wav'),
+                accompaniment: path.join(stemsDir, 'accompaniment.wav')
             });
 
         } catch (error) {
-            cleanup();
-            reject(error);
+            const msg = error.response?.data?.detail || error.message;
+            console.error(`❌ Spectra Engine Error: ${msg}`);
+            reject(new Error(msg));
         }
     });
 }
@@ -1440,51 +1403,9 @@ app.post('/local/generate-lyrics/:tidol_id', async (req, res) => {
 });
 
 // 21. VOX Separation (Karaoke Mode) - Internet Archive songs
-app.post('/vox/separate', async (req, res) => {
-    const track = getTrackByLookup(req.query) || getTrackByLookup(req.body);
-    if (!track) return res.status(404).json({ error: 'Track not found' });
+// Duplicate /vox/separate removed. Logic consolidated in the primary endpoint above.
 
-    const filenameNoExt = path.basename(track.filepath, path.extname(track.filepath));
-    const stemsDir = path.join(__dirname, 'uploads', 'stems', filenameNoExt);
-    const vocalsPath = path.join(stemsDir, 'vocals.wav');
-    const accompanimentPath = path.join(stemsDir, 'accompaniment.wav');
-
-    // Check if stems already exist
-    if (fs.existsSync(vocalsPath) && fs.existsSync(accompanimentPath)) {
-        return res.json({
-            status: 'success',
-            message: 'Stems already available',
-            vocals: `/uploads/stems/${filenameNoExt}/vocals.wav`,
-            accompaniment: `/uploads/stems/${filenameNoExt}/accompaniment.wav`
-        });
-    }
-
-    // Determine input path
-    let inputPath;
-    if (track.filepath.startsWith('uploads/')) {
-        inputPath = path.join(__dirname, track.filepath);
-    } else {
-        inputPath = path.join(MEDIA_DIR, track.filepath);
-    }
-
-    // Run Demucs in background
-    try {
-        runDemucsOnly(track, inputPath)
-            .then(result => {
-                console.log(`✅ VOX Separation completed for ${track.title}`);
-            })
-            .catch(err => console.error('VOX Separation failed:', err));
-
-        res.json({
-            status: 'processing',
-            message: 'Vocal separation started. Check /analysis for stems availability.',
-            trackId: track.id
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
+// 21b. VOX Separation (Karaoke Mode) - Local songs
 // 21b. VOX Separation (Karaoke Mode) - Local songs
 app.post('/local/vox/separate/:tidol_id', async (req, res) => {
     const { tidol_id } = req.params;
@@ -1492,41 +1413,40 @@ app.post('/local/vox/separate/:tidol_id', async (req, res) => {
 
     if (!track) return res.status(404).json({ error: 'Track not found in Spectra. Please sync the song first.' });
 
-    const filenameNoExt = path.basename(track.filepath, path.extname(track.filepath));
-    const stemsDir = path.join(__dirname, 'uploads', 'stems', filenameNoExt);
-    const vocalsPath = path.join(stemsDir, 'vocals.wav');
-    const accompanimentPath = path.join(stemsDir, 'accompaniment.wav');
-
-    // Check if stems already exist
-    if (fs.existsSync(vocalsPath) && fs.existsSync(accompanimentPath)) {
-        return res.json({
-            status: 'success',
-            message: 'Stems already available',
-            vocals: `/uploads/stems/${filenameNoExt}/vocals.wav`,
-            accompaniment: `/uploads/stems/${filenameNoExt}/accompaniment.wav`
-        });
-    }
-
     // Determine input path (local songs are in backend/uploads/)
     const inputPath = path.join(__dirname, '..', 'backend', track.filepath);
 
-    // Run Demucs in background
-    try {
-        runDemucsOnly(track, inputPath)
-            .then(result => {
-                console.log(`✅ VOX Separation completed for ${track.title}`);
-            })
-            .catch(err => console.error('VOX Separation failed:', err));
-
-        res.json({
-            status: 'processing',
-            message: 'Vocal separation started. Check /analysis for stems availability.',
-            trackId: track.id,
-            tidol_id
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+    if (!fs.existsSync(inputPath)) {
+        console.error(`❌ Local Audio file not found: ${inputPath}`);
+        return res.status(404).json({ error: 'Audio file not found on disk' });
     }
+
+    const filenameNoExt = path.basename(track.filepath, path.extname(track.filepath));
+    const STEMS_DIR = path.join(__dirname, 'uploads', 'stems');
+    const trackStemsDir = path.join(STEMS_DIR, filenameNoExt);
+    const expectedVocals = path.join(trackStemsDir, 'vocals.wav');
+    const expectedInstr = path.join(trackStemsDir, 'accompaniment.wav');
+
+    // Check if stems already exist
+    if (fs.existsSync(expectedVocals) && fs.existsSync(expectedInstr)) {
+        return res.json({
+            status: 'success',
+            message: 'Stems already available',
+            vocals: `/vox/stream/${track.id}/vocals`,
+            accompaniment: `/vox/stream/${track.id}/accompaniment`
+        });
+    }
+
+    // Run Demucs in background via Queue (Using centralized runDemucsOnly)
+    voxQueue.add(() => runDemucsOnly(track, inputPath))
+        .catch(err => console.error(`❌ VOX Job Error for Local Track #${track.id}:`, err));
+
+    res.json({
+        status: 'processing',
+        message: 'Vocal separation started. Check /analysis for stems availability.',
+        trackId: track.id,
+        tidol_id
+    });
 });
 
 
