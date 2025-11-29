@@ -536,10 +536,9 @@ export function PlayerProvider({ children }) {
 
     if (previousSrc !== normalizedNewSrc) {
       // Only restore time if we are switching modes (VOX <-> Normal) for the SAME song
-      const isSameSongId = currentSongIdRef.current === currentSong.id;
-
+      // Use isSameSong (calculated BEFORE ref update) to check if it's the same song
       let startTime = 0;
-      if (isSameSongId) {
+      if (isSameSong) {
         // We are toggling VOX on/off for the same song, keep time
         startTime = audio.currentTime;
       }
@@ -551,7 +550,8 @@ export function PlayerProvider({ children }) {
         to: normalizedNewSrc.substring(Math.max(0, normalizedNewSrc.length - 40)),
         voxMode,
         voxType,
-        startTime
+        startTime,
+        isSameSong
       });
 
       audio.src = newSrc; // Use original URL, not normalized
