@@ -48,7 +48,7 @@ export default function LibraryItem({
             onContextMenu={handleContextMenu}
             data-id={item?.id || item?.identifier}
         >
-            <img src={image} className="lib-item-img" alt={title} />
+            <img src={image} className="lib-item-img" alt={title} decoding="async" loading="lazy" />
             <div className="lib-item-info">
                 <h4>{title}</h4>
                 <p>{subtitle}</p>

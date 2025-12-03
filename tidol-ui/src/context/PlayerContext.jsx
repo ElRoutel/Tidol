@@ -43,6 +43,9 @@ export function PlayerProvider({ children }) {
   const [voxTracks, setVoxTracks] = useState(null);
   const [isVoxLoading, setIsVoxLoading] = useState(false);
 
+  // DJ Mode State
+  const [djMode, setDjMode] = useState(false);
+
   // --- STATE (Datos Rápidos) ---
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -60,15 +63,15 @@ export function PlayerProvider({ children }) {
   }, []);
 
   const stateRef = useRef({
-    currentSong, originalQueue, currentIndex, isPlaying, volume, isMuted, likedSongs, voxMode, voxTracks, voxType
+    currentSong, originalQueue, currentIndex, isPlaying, volume, isMuted, likedSongs, voxMode, voxTracks, voxType, djMode
   });
 
   // Mantener refs sincronizados
   useEffect(() => {
     stateRef.current = {
-      currentSong, originalQueue, currentIndex, isPlaying, volume, isMuted, likedSongs, voxMode, voxTracks, voxType
+      currentSong, originalQueue, currentIndex, isPlaying, volume, isMuted, likedSongs, voxMode, voxTracks, voxType, djMode
     };
-  }, [currentSong, originalQueue, currentIndex, isPlaying, volume, isMuted, likedSongs, voxMode, voxTracks, voxType]);
+  }, [currentSong, originalQueue, currentIndex, isPlaying, volume, isMuted, likedSongs, voxMode, voxTracks, voxType, djMode]);
 
   const hasUserInteracted = useRef(false);
   const prevLikeRef = useRef(null);
@@ -235,6 +238,8 @@ export function PlayerProvider({ children }) {
   }, []);
 
   const toggleVoxType = useCallback(() => setVoxType(p => p === 'vocals' ? 'accompaniment' : 'vocals'), []);
+
+  const toggleDjMode = useCallback(() => setDjMode(prev => !prev), []);
 
   // --- RECOMMENDATIONS LOGIC ---
   const fetchRecommendations = useCallback(async (songToUse) => {
@@ -561,13 +566,13 @@ export function PlayerProvider({ children }) {
   const playerStateValue = useMemo(() => ({
     currentSong, isPlaying, isLoading, volume, isMuted, isFullScreenOpen,
     likedSongs, originalQueue, currentIndex,
-    spectraData, detectedQuality, voxMode, voxType, isVoxLoading, voxTracks,
+    spectraData, detectedQuality, voxMode, voxType, isVoxLoading, voxTracks, djMode,
     hasNext: originalQueue.length > 0,
     hasPrevious: currentIndex > 0 || currentTime > 3
   }), [
     currentSong, isPlaying, isLoading, volume, isMuted, isFullScreenOpen,
     likedSongs, originalQueue, currentIndex,
-    spectraData, detectedQuality, voxMode, voxType, isVoxLoading, voxTracks, currentTime
+    spectraData, detectedQuality, voxMode, voxType, isVoxLoading, voxTracks, djMode, currentTime
   ]);
 
   const playerProgressValue = useMemo(() => ({
@@ -584,11 +589,11 @@ export function PlayerProvider({ children }) {
     toggleFullScreenPlayer: () => setIsFullScreenOpen(p => !p),
     toggleLike, isSongLiked,
     updateSpectraData, resetSpectraData, updateSpectraField,
-    toggleVox, toggleVoxType
+    toggleVox, toggleVoxType, toggleDjMode
   }), [
     playSongList, togglePlayPause, nextSong, previousSong, addToQueue,
     playNext, changeVolume, toggleMute, seek, toggleLike, isSongLiked,
-    updateSpectraData, resetSpectraData, updateSpectraField, toggleVox, toggleVoxType
+    updateSpectraData, resetSpectraData, updateSpectraField, toggleVox, toggleVoxType, toggleDjMode
   ]);
 
   const legacyContextValue = useMemo(() => ({

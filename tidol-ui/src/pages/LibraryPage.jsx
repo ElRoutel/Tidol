@@ -4,6 +4,7 @@ import { usePlayer } from "../context/PlayerContext";
 import { useLibrary } from "../hooks/useLibrary";
 import LibraryItem from "../components/LibraryItem";
 import SkeletonSongList from "../components/skeletons/SkeletonSongList";
+import VirtualSongList from "../components/VirtualSongList";
 import api from "../api/axiosConfig";
 import favImage from "./favImage.jpg";
 import "../styles/glass.css";
@@ -93,7 +94,7 @@ export default function LibraryPage() {
       </div>
 
       {/* CONTENIDO */}
-      <div className={`lib-grid ${layout}`}>
+      <div className={`lib-grid ${layout}`} style={{ height: 'calc(100vh - 220px)' }}>
         {isLoading && <SkeletonSongList count={12} />}
 
         {!isLoading && data.length === 0 && (
@@ -102,25 +103,41 @@ export default function LibraryPage() {
           </div>
         )}
 
-        {!isLoading && data.map((item, i) => {
-          const uniqueKey = item.id || item.identifier || `idx-${i}`;
-
-          return (
-            <LibraryItem
-              key={uniqueKey}
-              title={item.titulo || item.title || item.nombre || "Sin título"}
-              subtitle={getSubtitle(item)}
-              image={item.portada || item.cover_url || favImage}
-              viewMode={layout}
-              item={item}
-              type={currentView === "playlists" ? "playlist" : "song"}
-              onClick={() => {
-                if (currentView === "playlists") handlePlayPlaylist(item.id);
-                else playSongList(data, i);
+        {!isLoading && data.length > 0 && (
+          layout === 'list' ? (
+            <VirtualSongList
+              songs={data}
+              onPlay={(songs, idx) => {
+                if (currentView === "playlists") handlePlayPlaylist(songs[idx].id);
+                else playSongList(songs, idx);
               }}
+              height={window.innerHeight - 220} // Ajuste aproximado
+              currentView={currentView}
             />
-          );
-        })}
+          ) : (
+            // Fallback for Grid View (Virtual Grid is harder, keeping map for grid for now or TODO)
+            // For now, let's keep map for grid, but user asked for virtualization.
+            // VirtualSongList is list-only. If layout is grid, we use map.
+            data.map((item, i) => {
+              const uniqueKey = item.id || item.identifier || `idx-${i}`;
+              return (
+                <LibraryItem
+                  key={uniqueKey}
+                  title={item.titulo || item.title || item.nombre || "Sin título"}
+                  subtitle={getSubtitle(item)}
+                  image={item.portada || item.cover_url || favImage}
+                  viewMode={layout}
+                  item={item}
+                  type={currentView === "playlists" ? "playlist" : "song"}
+                  onClick={() => {
+                    if (currentView === "playlists") handlePlayPlaylist(item.id);
+                    else playSongList(data, i);
+                  }}
+                />
+              );
+            })
+          )
+        )}
       </div>
     </div>
   );
