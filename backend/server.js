@@ -400,11 +400,22 @@ async function ensureColumn(table, column, typeDef) {
       }
     });
 
+    // --- Health Check (Optimized) ---
+    // Place this BEFORE the catch-all to prevent SPA serving for health checks
+    app.get("/health", (req, res) => {
+      res.status(200).json({ status: "ok", server: "Routel Music API" });
+    });
+
     app.get("/api/health", (req, res) => {
       res.json({ status: "ok", server: "Routel Music API" });
     });
 
     // --- Iniciar el servidor ---
+
+    // Inicializar Proxies antes de escuchar
+    const { initProxies } = await import("./services/iaProxy.service.js");
+    await initProxies();
+
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`\nServidor corriendo en http://localhost:${PORT} o http://192.168.1.70:${PORT}\n`);
     });
