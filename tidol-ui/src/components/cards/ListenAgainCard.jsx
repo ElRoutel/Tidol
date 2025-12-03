@@ -81,6 +81,11 @@ export default function ListenAgainCard({ item, onClick, onPlay, isActive }) {
                 <h3 className="text-white font-semibold text-sm md:text-base truncate leading-tight">{title}</h3>
                 <p className="text-[#aaa] text-xs md:text-sm truncate mt-1">
                     {subtitle}
+                    {item.play_count > 0 && (
+                        <span className="ml-2 text-[10px] bg-white/10 px-1.5 py-0.5 rounded-full">
+                            {item.play_count} plays
+                        </span>
+                    )}
                 </p>
             </div>
         </div>

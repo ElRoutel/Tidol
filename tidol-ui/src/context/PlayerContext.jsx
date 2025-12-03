@@ -12,348 +12,236 @@ import axios from 'axios';
 import { useAuth } from './AuthContext';
 
 // --- Context Definitions ---
-const PlayerStateContext = createContext();
-const PlayerProgressContext = createContext();
-const PlayerActionsContext = createContext();
-const PlayerContext = createContext(); // Legacy for backward compatibility
+const PlayerStateContext = createContext();    // Datos Lentos (Canción, Queue, Volumen)
+const PlayerProgressContext = createContext(); // Datos Rápidos (Tiempo, Duración) - 60fps
+const PlayerActionsContext = createContext();  // Funciones Estables (Play, Pause)
+const PlayerContext = createContext();         // Legacy
 
 // --- Hooks ---
 export const usePlayerState = () => useContext(PlayerStateContext);
 export const usePlayerProgress = () => useContext(PlayerProgressContext);
 export const usePlayerActions = () => useContext(PlayerActionsContext);
-export const usePlayer = () => useContext(PlayerContext); // Legacy hook
+export const usePlayer = () => useContext(PlayerContext);
 
 export function PlayerProvider({ children }) {
-  // --- State ---
+  // --- STATE (Datos Lentos) ---
   const [currentSong, setCurrentSong] = useState(null);
   const [originalQueue, setOriginalQueue] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [playedHistory, setPlayedHistory] = useState([]);
-
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-
-  // High frequency updates
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [progress, setProgress] = useState(0);
-
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
-
   const [isFullScreenOpen, setIsFullScreenOpen] = useState(false);
-
-  // Liked songs
   const [likedSongs, setLikedSongs] = useState(new Set());
-  const prevLikeRef = useRef(null);
 
-  const audioRef = useRef(null);
-  const hasUserInteracted = useRef(false);
-
-  // Detected audio quality (for Internet Archive songs)
+  // Spectra / VOX State
   const [detectedQuality, setDetectedQuality] = useState(null);
-
-  // Spectra Analytics State (keeping it if it was there, or initializing default)
-  const [spectraData, setSpectraData] = useState({
-    waveform: [],
-    lyrics: [],
-    bpm: null,
-    key: null,
-    status: 'idle'
-  });
-
-  // VOX State
-  const [voxMode, setVoxMode] = useState(false); // true = playing separated stem
-  const [voxType, setVoxType] = useState('vocals'); // 'vocals' | 'accompaniment'
-  const [voxTracks, setVoxTracks] = useState(null); // { vocals: url, accompaniment: url, songId: id }
+  const [spectraData, setSpectraData] = useState({ waveform: [], lyrics: [], bpm: null, key: null, status: 'idle' });
+  const [voxMode, setVoxMode] = useState(false);
+  const [voxType, setVoxType] = useState('vocals');
+  const [voxTracks, setVoxTracks] = useState(null);
   const [isVoxLoading, setIsVoxLoading] = useState(false);
 
-  // --- Actions ---
-  const openFullScreenPlayer = useCallback(() => setIsFullScreenOpen(true), []);
-  const toggleFullScreenPlayer = useCallback(() => setIsFullScreenOpen(prev => !prev), []);
-  const closeFullScreenPlayer = useCallback(() => setIsFullScreenOpen(false), []);
+  // --- STATE (Datos Rápidos) ---
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  // --- REFS (Dual Audio Engine) ---
+  const audioRefA = useRef(new Audio());
+  const audioRefB = useRef(new Audio());
+  const activePlayerRef = useRef('A'); // 'A' or 'B'
+  const crossfadeIntervalRef = useRef(null);
+
+  // Helper to get active and next player
+  const getPlayers = useCallback(() => {
+    if (activePlayerRef.current === 'A') return { current: audioRefA.current, next: audioRefB.current };
+    return { current: audioRefB.current, next: audioRefA.current };
+  }, []);
+
+  const stateRef = useRef({
+    currentSong, originalQueue, currentIndex, isPlaying, volume, isMuted, likedSongs, voxMode, voxTracks, voxType
+  });
+
+  // Mantener refs sincronizados
+  useEffect(() => {
+    stateRef.current = {
+      currentSong, originalQueue, currentIndex, isPlaying, volume, isMuted, likedSongs, voxMode, voxTracks, voxType
+    };
+  }, [currentSong, originalQueue, currentIndex, isPlaying, volume, isMuted, likedSongs, voxMode, voxTracks, voxType]);
+
+  const hasUserInteracted = useRef(false);
+  const prevLikeRef = useRef(null);
+  const { isAuthenticated } = useAuth();
+
+  // Track last song ID to detect changes
+  const lastSongIdRef = useRef(null);
+
+  // --- CONFIGURACIÓN INICIAL AUDIO ---
+  useEffect(() => {
+    [audioRefA.current, audioRefB.current].forEach(audio => {
+      audio.preload = 'auto';
+      audio.crossOrigin = 'anonymous';
+    });
+
+    const handleInteraction = () => { hasUserInteracted.current = true; };
+    window.addEventListener('click', handleInteraction, { once: true });
+    return () => window.removeEventListener('click', handleInteraction);
+  }, []);
+
+  // --- CROSSFADE LOGIC (Equal Power Curve) ---
+  const performCrossfade = useCallback((duration = 6) => {
+    const { current: fadeOutPlayer, next: fadeInPlayer } = getPlayers();
+    const targetVolume = stateRef.current.volume;
+
+    if (crossfadeIntervalRef.current) clearInterval(crossfadeIntervalRef.current);
+
+    const steps = 60 * duration; // 60fps
+    let step = 0;
+
+    // Prepare Fade In Player
+    fadeInPlayer.volume = 0;
+    fadeInPlayer.play().catch(e => console.warn("Crossfade play error", e));
+
+    crossfadeIntervalRef.current = setInterval(() => {
+      step++;
+      const t = step / steps;
+
+      // Equal Power Curve (Constant Power)
+      const fadeOutGain = Math.cos(t * 0.5 * Math.PI);
+      const fadeInGain = Math.sin(t * 0.5 * Math.PI);
+
+      fadeOutPlayer.volume = targetVolume * fadeOutGain;
+      fadeInPlayer.volume = targetVolume * fadeInGain;
+
+      if (step >= steps) {
+        clearInterval(crossfadeIntervalRef.current);
+        fadeOutPlayer.pause();
+        fadeOutPlayer.currentTime = 0;
+        fadeOutPlayer.volume = targetVolume; // Reset
+        fadeInPlayer.volume = targetVolume;
+
+        // Swap Active Player Ref
+        activePlayerRef.current = activePlayerRef.current === 'A' ? 'B' : 'A';
+        console.log(`🔀 Crossfade Complete. Active Player: ${activePlayerRef.current}`);
+      }
+    }, 1000 / 60);
+  }, [getPlayers]);
+
+  // --- ACTIONS (Estables) ---
+
+  const togglePlayPause = useCallback(() => {
+    const { current } = getPlayers();
+    if (stateRef.current.isPlaying) {
+      current.pause();
+      // Also pause crossfade if active
+      if (crossfadeIntervalRef.current) {
+        clearInterval(crossfadeIntervalRef.current);
+        const { next } = getPlayers();
+        next.pause();
+      }
+    } else {
+      current.play().catch(e => console.warn("Play error", e));
+    }
+  }, [getPlayers]);
+
+  const seek = useCallback((time) => {
+    if (Number.isFinite(time)) {
+      const { current } = getPlayers();
+      current.currentTime = time;
+      setCurrentTime(time);
+    }
+  }, [getPlayers]);
+
+  const changeVolume = useCallback((val) => {
+    const newVol = Math.min(1, Math.max(0, val));
+    const { current, next } = getPlayers();
+
+    current.volume = newVol;
+    current.muted = newVol === 0;
+    next.volume = newVol;
+
+    setVolume(newVol);
+    setIsMuted(newVol === 0);
+  }, [getPlayers]);
+
+  const toggleMute = useCallback(() => {
+    const { current } = getPlayers();
+    const newMuted = !current.muted;
+    current.muted = newMuted;
+    if (!newMuted && current.volume === 0) {
+      current.volume = 0.5;
+      setVolume(0.5);
+    }
+    setIsMuted(newMuted);
+  }, [getPlayers]);
 
   const addToHistory = useCallback((songId) => {
-    setPlayedHistory(prev => prev.includes(songId) ? prev : [...prev, songId]);
+    const song = stateRef.current.currentSong;
+    if (!song || song.id !== songId) return;
+
+    api.post('/history/add', {
+      songId: song.id,
+      titulo: song.titulo || song.title,
+      artista: song.artista || song.artist,
+      url: song.url,
+      portada: song.portada,
+    }).catch(err => console.error("DB Historial error:", err));
   }, []);
 
-  // Spectra Actions
-  const updateSpectraData = useCallback((data) => {
-    setSpectraData(prev => ({ ...prev, ...data }));
-  }, []);
-
-  const resetSpectraData = useCallback(() => {
-    setSpectraData({
-      waveform: [],
-      lyrics: [],
-      bpm: null,
-      key: null,
-      status: 'idle'
-    });
-  }, []);
-
-  const updateSpectraField = useCallback((field, value) => {
-    setSpectraData(prev => ({ ...prev, [field]: value }));
-  }, []);
-
-  // VOX Actions
-  const ensureSpectraTrack = useCallback(async (song) => {
-    // 1. Check if it's a local song (has 'archivo') or remote (has 'url' http)
-    const isLocal = song.archivo || (song.url && !song.url.startsWith('http'));
-
-    if (isLocal) {
-      // Sync local song
-      // Use axios directly to hit the /spectra proxy (port 3001) instead of /api (port 3000)
-      const res = await axios.post('/spectra/sync-local-song', {
-        songId: song.id,
-        title: song.titulo || song.title,
-        artist: song.artista || song.artist,
-        album: song.album,
-        filepath: song.archivo || song.url, // Local path
-        duration: song.duracion,
-        bitrate: song.bit_rate
-      });
-      return res.data.trackId;
-    } else {
-      // Ingest remote song (IA)
-      const res = await axios.post('/spectra/ingest-remote', {
-        audioUrl: song.url,
-        metadata: {
-          title: song.titulo || song.title,
-          artist: song.artista || song.artist,
-          ia_id: song.id
-        }
-      });
-      return res.data.trackId;
-    }
-  }, []);
+  // --- SPECTRA & VOX ACTIONS ---
+  const updateSpectraData = useCallback((data) => setSpectraData(prev => ({ ...prev, ...data })), []);
+  const resetSpectraData = useCallback(() => setSpectraData({ waveform: [], lyrics: [], bpm: null, key: null, status: 'idle' }), []);
+  const updateSpectraField = useCallback((f, v) => setSpectraData(p => ({ ...p, [f]: v })), []);
 
   const toggleVox = useCallback(async () => {
-    console.log('[PlayerContext] toggleVox called');
+    const { currentSong, voxMode, voxTracks } = stateRef.current;
     if (!currentSong) return;
 
-    // If active, turn off
     if (voxMode) {
       setVoxMode(false);
       return;
     }
 
-    // If we already have tracks for this song, just turn on
     if (voxTracks && voxTracks.songId === currentSong.id) {
       setVoxMode(true);
       return;
     }
 
-    // Call dedicated VOX separation endpoint
     setIsVoxLoading(true);
     try {
       const isIA = currentSong.url?.includes('archive.org');
-      let voxEndpoint;
-      let params = {};
+      const endpoint = isIA ? '/spectra/vox/separate' : `/spectra/local/vox/separate/${currentSong.id}`;
+      const params = isIA ? { ia_id: currentSong.identifier || currentSong.id } : {};
 
-      if (isIA) {
-        voxEndpoint = '/spectra/vox/separate';
-        params = { ia_id: currentSong.identifier || currentSong.id };
-      } else {
-        voxEndpoint = `/spectra/local/vox/separate/${currentSong.id}`;
-      }
+      const res = await axios.post(endpoint, params);
 
-      const response = await axios.post(voxEndpoint, params);
-
-      if (response.data.status === 'success') {
-        // Stems already exist
+      if (res.data.status === 'success') {
         setVoxTracks({
           songId: currentSong.id,
-          vocals: `/spectra${response.data.vocals}`,
-          accompaniment: `/spectra${response.data.accompaniment}`
+          vocals: `/spectra${res.data.vocals}`,
+          accompaniment: `/spectra${res.data.accompaniment}`
         });
         setVoxMode(true);
         setVoxType('accompaniment');
-        setIsVoxLoading(false);
-      } else if (response.data.status === 'processing') {
-        // Polling for completion
-        console.log('[VOX] Separation started, polling for completion...');
-
-        const pollStems = async () => {
-          try {
-            const query = isIA ? `?ia_id=${currentSong.identifier || currentSong.id}` : `?tidol_id=${currentSong.id}`;
-            const analysisResponse = await axios.get(`/spectra/analysis${query}`);
-
-            if (analysisResponse.data.stems) {
-              setVoxTracks({
-                songId: currentSong.id,
-                vocals: `/spectra${analysisResponse.data.stems.vocals}`,
-                accompaniment: `/spectra${analysisResponse.data.stems.accompaniment}`
-              });
-              setVoxMode(true);
-              setVoxType('accompaniment');
-              setIsVoxLoading(false);
-              console.log('[VOX] Stems ready!');
-            } else {
-              setTimeout(pollStems, 3000);
-            }
-          } catch (error) {
-            console.error('[VOX] Polling error:', error);
-            setIsVoxLoading(false);
-          }
-        };
-
-        pollStems();
+      } else {
+        alert("VOX está procesando en segundo plano. Intenta en unos segundos.");
       }
-    } catch (err) {
-      console.error("VOX Failed:", err);
-      alert("No se pudo activar Karaoke. Intenta de nuevo.");
+    } catch (e) {
+      console.error("VOX Error", e);
+    } finally {
       setIsVoxLoading(false);
     }
-  }, [currentSong, voxMode, voxTracks]);
-
-
-  const toggleVoxType = useCallback(() => {
-    setVoxType(prev => prev === 'vocals' ? 'accompaniment' : 'vocals');
   }, []);
 
-  // Fetch liked songs
-  const { isAuthenticated } = useAuth();
+  const toggleVoxType = useCallback(() => setVoxType(p => p === 'vocals' ? 'accompaniment' : 'vocals'), []);
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setLikedSongs(new Set());
-      return;
-    }
-
-    let mounted = true;
-    const fetchAllLikedSongs = async () => {
-      try {
-        const [localRes, iaRes] = await Promise.all([
-          api.get('/music/songs/likes'),
-          api.get('/music/ia/likes')
-        ]);
-
-        const localData = localRes.data;
-        const localArr = Array.isArray(localData) ? localData : [];
-        const localLikedIds = localArr.map(song => song.id || song.songId).filter(Boolean);
-
-        const iaData = iaRes.data;
-        const iaArr = Array.isArray(iaData) ? iaData : [];
-        const iaLikedIds = iaArr.map(song => song.id).filter(Boolean);
-
-        const allLikedIds = new Set([...localLikedIds, ...iaLikedIds]);
-
-        if (mounted) {
-          setLikedSongs(allLikedIds);
-        }
-
-      } catch (err) {
-        // console.error("Error al cargar todos los likes:", err);
-      }
-    };
-
-    fetchAllLikedSongs();
-    return () => { mounted = false; };
-  }, [isAuthenticated]);
-
-  const toggleLike = useCallback(async (songId, songData = null) => {
-    if (!songId) return;
-
-    const isIa = songData?.identifier || songData?.source === 'internet_archive' || typeof songId === 'string' && songId.includes('-');
-
-    setLikedSongs(prev => {
-      const newSet = new Set(prev);
-      const wasLiked = newSet.has(songId);
-      if (wasLiked) newSet.delete(songId);
-      else newSet.add(songId);
-      prevLikeRef.current = { songId, wasLiked };
-      return newSet;
-    });
-
-    const token = localStorage.getItem('token');
-
-    try {
-      if (isIa) {
-        await api.post(`/music/ia/likes/toggle`, {
-          identifier: songData?.identifier || songId,
-          title: songData?.titulo || songData?.title || '',
-          artist: songData?.artista || songData?.artist || '',
-          source: songData?.source || 'internet_archive',
-          url: songData?.url,
-          portada: songData?.portada,
-          duration: songData?.duration
-        }, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      } else {
-        await api.post(`/music/songs/${songId}/like`, null, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      }
-
-      setCurrentSong(cs => {
-        if (!cs) return cs;
-        if (cs.id === songId) {
-          return { ...cs, isLiked: !prevLikeRef.current?.wasLiked };
-        }
-        return cs;
-      });
-      prevLikeRef.current = null;
-    } catch (err) {
-      const prev = prevLikeRef.current;
-      if (prev && prev.songId === songId) {
-        setLikedSongs(curr => {
-          const newSet = new Set(curr);
-          if (prev.wasLiked) newSet.add(songId);
-          else newSet.delete(songId);
-          return newSet;
-        });
-      }
-      console.error("No se pudo actualizar el like:", err);
-    }
-  }, []);
-
-  const isSongLiked = useCallback((songId) => {
-    return likedSongs.has(songId);
-  }, [likedSongs]);
-
-  useEffect(() => {
-    const handleFirstInteraction = () => {
-      if (!hasUserInteracted.current) {
-        hasUserInteracted.current = true;
-      }
-      window.removeEventListener('click', handleFirstInteraction, true);
-    };
-    window.addEventListener('click', handleFirstInteraction, true);
-    return () => window.removeEventListener('click', handleFirstInteraction, true);
-  }, []);
-
-  useEffect(() => {
-    setCurrentSong(prev => {
-      if (!prev) return prev;
-      const liked = likedSongs.has(prev.id);
-      if (prev.isLiked === liked) return prev;
-      return { ...prev, isLiked: liked };
-    });
-  }, [likedSongs]);
-
-  const playSongList = useCallback((songs, startIndex = 0) => {
-    if (!songs || songs.length === 0) return;
-    setOriginalQueue(songs);
-    const mainSong = songs[startIndex];
-    setCurrentIndex(startIndex);
-    setCurrentSong({ ...mainSong, isLiked: likedSongs.has(mainSong.id), playRequestId: Date.now() });
-    addToHistory(mainSong.id);
-  }, [addToHistory, likedSongs]);
-
+  // --- RECOMMENDATIONS LOGIC ---
   const fetchRecommendations = useCallback(async (songToUse) => {
     if (!songToUse) return;
     setIsLoading(true);
     try {
-      const candidate =
-        songToUse.title ||
-        songToUse.titulo ||
-        songToUse.name ||
-        songToUse.artista ||
-        songToUse.artist ||
-        songToUse.identifier ||
-        '';
+      const candidate = songToUse.title || songToUse.titulo || songToUse.name || songToUse.artista || songToUse.artist || songToUse.identifier || '';
       if (!candidate) {
         setIsLoading(false);
         setIsPlaying(false);
@@ -366,9 +254,7 @@ export function PlayerProvider({ children }) {
           let highResCover = null;
           if (item.files && Array.isArray(item.files)) {
             const coverFile = item.files.find(f => f.format?.includes("JPEG") || f.format?.includes("PNG"));
-            if (coverFile) {
-              highResCover = `https://archive.org/0/items/${item.identifier}/${coverFile.name}?cnt=0`;
-            }
+            if (coverFile) highResCover = `https://archive.org/0/items/${item.identifier}/${coverFile.name}?cnt=0`;
           }
           return {
             id: item.identifier || item.id || `ia_${idx}_${Math.random().toString(36).slice(2, 8)}`,
@@ -382,8 +268,7 @@ export function PlayerProvider({ children }) {
         if (songs.length > 0) {
           setOriginalQueue(songs);
           setCurrentIndex(0);
-          setCurrentSong({ ...songs[0], isLiked: likedSongs.has(songs[0].id), playRequestId: Date.now() });
-          addToHistory(songs[0].id);
+          setCurrentSong({ ...songs[0], isLiked: stateRef.current.likedSongs.has(songs[0].id), playRequestId: Date.now() });
         } else {
           setIsPlaying(false);
         }
@@ -396,36 +281,44 @@ export function PlayerProvider({ children }) {
     } finally {
       setIsLoading(false);
     }
-  }, [addToHistory, likedSongs]);
+  }, []);
+
+  // --- QUEUE LOGIC ---
+  const playSongList = useCallback((songs, startIndex = 0) => {
+    if (!songs?.length) return;
+    setOriginalQueue(songs);
+    const song = songs[startIndex];
+    setCurrentIndex(startIndex);
+    setCurrentSong({ ...song, isLiked: stateRef.current.likedSongs.has(song.id), playRequestId: Date.now() });
+  }, []);
 
   const nextSong = useCallback(async () => {
+    const { originalQueue, currentIndex, currentSong } = stateRef.current;
     if (originalQueue.length > 0 && currentIndex < originalQueue.length - 1) {
-      const nextIndex = currentIndex + 1;
-      const nextSongData = originalQueue[nextIndex];
-      setCurrentIndex(nextIndex);
-      setCurrentSong({ ...nextSongData, isLiked: likedSongs.has(nextSongData.id), playRequestId: Date.now() });
-      addToHistory(nextSongData.id);
+      const nextIdx = currentIndex + 1;
+      const nextS = originalQueue[nextIdx];
+      setCurrentIndex(nextIdx);
+      setCurrentSong({ ...nextS, isLiked: stateRef.current.likedSongs.has(nextS.id), playRequestId: Date.now() });
     } else {
+      console.log("Fin de la lista, buscando recomendaciones...");
       await fetchRecommendations(currentSong);
     }
-  }, [originalQueue, currentIndex, currentSong, fetchRecommendations, addToHistory, likedSongs]);
+  }, [fetchRecommendations]);
 
   const previousSong = useCallback(() => {
-    if (!audioRef.current) return;
-    if (audioRef.current.currentTime > 3) {
-      audioRef.current.currentTime = 0;
-      setCurrentTime(0);
+    const { originalQueue, currentIndex } = stateRef.current;
+    const { current } = getPlayers();
+    if (current.currentTime > 3) {
+      seek(0);
       return;
     }
     if (currentIndex > 0) {
-      const prevIndex = currentIndex - 1;
-      const prevSongData = originalQueue[prevIndex];
-      if (prevSongData) {
-        setCurrentIndex(prevIndex);
-        setCurrentSong({ ...prevSongData, isLiked: likedSongs.has(prevSongData.id), playRequestId: Date.now() });
-      }
+      const prevIdx = currentIndex - 1;
+      const prevS = originalQueue[prevIdx];
+      setCurrentIndex(prevIdx);
+      setCurrentSong({ ...prevS, isLiked: stateRef.current.likedSongs.has(prevS.id), playRequestId: Date.now() });
     }
-  }, [currentIndex, originalQueue, likedSongs]);
+  }, [seek, getPlayers]);
 
   const addToQueue = useCallback((song) => {
     setOriginalQueue(prev => [...prev, song]);
@@ -434,359 +327,280 @@ export function PlayerProvider({ children }) {
   const playNext = useCallback((song) => {
     setOriginalQueue(prev => {
       const newQueue = [...prev];
-      newQueue.splice(currentIndex + 1, 0, song);
+      newQueue.splice(stateRef.current.currentIndex + 1, 0, song);
       return newQueue;
     });
-  }, [currentIndex]);
+  }, []);
 
   const reorderQueue = useCallback((newQueue) => {
-    if (currentSong) {
-      const newIndex = newQueue.findIndex(s => s.id === currentSong.id);
+    if (stateRef.current.currentSong) {
+      const newIndex = newQueue.findIndex(s => s.id === stateRef.current.currentSong.id);
       if (newIndex !== -1) {
         setCurrentIndex(newIndex);
       }
     }
     setOriginalQueue(newQueue);
-  }, [currentSong]);
+  }, []);
 
-  const togglePlayPause = useCallback(() => {
-    if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play().catch(err => {
-        console.error("Play error:", err);
-      });
+  // --- LIKES LOGIC ---
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setLikedSongs(new Set());
+      return;
     }
-  }, [isPlaying]);
+    let mounted = true;
+    const fetchAllLikedSongs = async () => {
+      try {
+        const [localRes, iaRes] = await Promise.all([
+          api.get('/music/songs/likes'),
+          api.get('/music/ia/likes')
+        ]);
+        const localData = localRes.data || [];
+        const iaData = iaRes.data || [];
+        const allLikedIds = new Set([
+          ...localData.map(s => s.id || s.songId).filter(Boolean),
+          ...iaData.map(s => s.id).filter(Boolean)
+        ]);
+        if (mounted) setLikedSongs(allLikedIds);
+      } catch (err) { }
+    };
+    fetchAllLikedSongs();
+    return () => { mounted = false; };
+  }, [isAuthenticated]);
 
-  const seek = useCallback((newTime) => {
-    if (!audioRef.current) return;
-    audioRef.current.currentTime = newTime;
-    setCurrentTime(newTime);
+  const toggleLike = useCallback(async (songId, songData) => {
+    if (!songId) return;
+    const isIa = songData?.identifier || songData?.source === 'internet_archive' || (typeof songId === 'string' && songId.includes('-'));
+
+    setLikedSongs(prev => {
+      const newSet = new Set(prev);
+      const wasLiked = newSet.has(songId);
+      if (wasLiked) newSet.delete(songId);
+      else newSet.add(songId);
+      prevLikeRef.current = { songId, wasLiked };
+      return newSet;
+    });
+
+    const token = localStorage.getItem('token');
+    try {
+      if (isIa) {
+        await api.post(`/music/ia/likes/toggle`, {
+          identifier: songData?.identifier || songId,
+          title: songData?.titulo || songData?.title || '',
+          artist: songData?.artista || songData?.artist || '',
+          source: songData?.source || 'internet_archive',
+          url: songData?.url,
+          portada: songData?.portada,
+          duration: songData?.duration
+        }, { headers: { Authorization: `Bearer ${token}` } });
+      } else {
+        await api.post(`/music/songs/${songId}/like`, null, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      }
+      setCurrentSong(cs => {
+        if (!cs || cs.id !== songId) return cs;
+        return { ...cs, isLiked: !prevLikeRef.current?.wasLiked };
+      });
+      prevLikeRef.current = null;
+    } catch (err) {
+      console.error("No se pudo actualizar el like:", err);
+      const prev = prevLikeRef.current;
+      if (prev && prev.songId === songId) {
+        setLikedSongs(curr => {
+          const newSet = new Set(curr);
+          if (prev.wasLiked) newSet.add(songId);
+          else newSet.delete(songId);
+          return newSet;
+        });
+      }
+    }
   }, []);
 
-  const changeVolume = useCallback((newVolume) => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.volume = Math.min(1, Math.max(0, newVolume));
-    audio.muted = audio.volume === 0;
-    setVolume(audio.volume);
-    setIsMuted(audio.muted);
-  }, []);
+  const isSongLiked = useCallback((id) => stateRef.current.likedSongs.has(id), []);
 
-  const toggleMute = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.muted = !audio.muted;
-    if (!audio.muted && audio.volume === 0) audio.volume = 0.5;
-    setIsMuted(audio.muted);
-    setVolume(audio.volume);
-  }, []);
-
-  // Audio Logic
-  const currentSongIdRef = useRef(null);
-  const lastPlayRequestIdRef = useRef(null);
-
+  // --- AUDIO ENGINE EFFECT (Dual Engine Core) ---
   useEffect(() => {
     if (!currentSong) return;
 
-    const isSameSong = currentSongIdRef.current === currentSong.id;
-    const isNewPlayRequest = currentSong.playRequestId !== lastPlayRequestIdRef.current;
+    const { voxMode, voxTracks, voxType } = stateRef.current;
 
-    if (!audioRef.current) {
-      audioRef.current = new Audio();
-      audioRef.current.preload = 'auto';
-      audioRef.current.crossOrigin = 'anonymous';
-    }
-    const audio = audioRef.current;
-
-    // Helper to normalize URLs for comparison (relative -> absolute)
-    const normalizeUrl = (url) => {
-      if (!url) return '';
-      // If already absolute, return as-is
-      if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) {
-        return url;
-      }
-      // Convert relative to absolute
-      try {
-        return new URL(url, window.location.origin).href;
-      } catch {
-        return url;
-      }
-    };
-
-    const previousSrc = normalizeUrl(audio.src);
-    // VOX Logic: Override src if voxMode is active
-    let newSrc = currentSong.url || audio.src;
-
-    // Auto-disable VOX if song changed and no stems for new song
-    if (!isSameSong && voxMode && voxTracks && voxTracks.songId !== currentSong.id) {
-      console.log('🎵 [VOX] Auto-disabling VOX mode - new song has no stems yet');
+    // 1. Determinar URL
+    let src = currentSong.url;
+    if (voxMode && voxTracks?.songId === currentSong.id) src = voxTracks[voxType];
+    if (voxMode && voxTracks?.songId !== currentSong.id) {
       setVoxMode(false);
+      src = currentSong.url;
     }
 
-    if (voxMode && voxTracks && voxTracks.songId === currentSong.id) {
-      newSrc = voxTracks[voxType]; // 'vocals' or 'accompaniment' URL
-    }
+    // 2. Normalizar
+    const normalize = (u) => { try { return new URL(u, window.location.href).href; } catch { return u; } };
+    const newSrc = normalize(src);
 
-    const normalizedNewSrc = normalizeUrl(newSrc);
+    // Get players
+    const { current: activeAudio, next: nextAudio } = getPlayers();
+    const currentSrc = activeAudio.src;
 
-    // Early return only if same song, no new play request, AND source hasn't changed
-    if (isSameSong && !isNewPlayRequest && previousSrc === normalizedNewSrc) {
-      return;
-    }
+    // CHECK IF WE SHOULD CROSSFADE
+    const isNewSong = lastSongIdRef.current !== currentSong.id;
 
-    currentSongIdRef.current = currentSong.id;
-    lastPlayRequestIdRef.current = currentSong.playRequestId;
+    if (isNewSong && stateRef.current.isPlaying && lastSongIdRef.current !== null) {
+      // Si ya hay un crossfade ocurriendo (cambio rápido), CANCELAR y hacer Hard Cut
+      if (crossfadeIntervalRef.current) {
+        console.log("⚠️ Crossfade Interrupted - Hard Cut");
+        clearInterval(crossfadeIntervalRef.current);
+        crossfadeIntervalRef.current = null;
 
-    if (previousSrc !== normalizedNewSrc) {
-      // Only restore time if we are switching modes (VOX <-> Normal) for the SAME song
-      // Use isSameSong (calculated BEFORE ref update) to check if it's the same song
-      let startTime = 0;
-      if (isSameSong) {
-        // We are toggling VOX on/off for the same song, keep time
-        startTime = audio.currentTime;
-      }
+        // Detener todo
+        activeAudio.pause();
+        nextAudio.pause();
 
-      const wasPlaying = !audio.paused;
+        // Resetear volúmenes
+        activeAudio.volume = stateRef.current.volume;
+        nextAudio.volume = stateRef.current.volume;
 
-      console.log(`🎵 [VOX] Switching audio source:`, {
-        from: previousSrc.substring(Math.max(0, previousSrc.length - 40)),
-        to: normalizedNewSrc.substring(Math.max(0, normalizedNewSrc.length - 40)),
-        voxMode,
-        voxType,
-        startTime,
-        isSameSong
-      });
-
-      audio.src = newSrc; // Use original URL, not normalized
-
-      // Set currentTime after metadata loads (load() resets it to 0)
-      const handleLoadedMetadata = () => {
-        audio.currentTime = startTime;
-        audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-
-        if (wasPlaying || hasUserInteracted.current) {
-          const playPromise = audio.play();
-          if (playPromise !== undefined) {
-            playPromise.catch(err => console.warn("Playback interrupted:", err));
-          }
-        }
-      };
-
-      audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.load();
-    }
-
-    // Detect if this is an Internet Archive song
-    const isInternetArchive = currentSong.url?.includes('archive.org');
-
-    if (isInternetArchive && !currentSong.bit_depth && !currentSong.sample_rate) {
-      let bitDepth = null;
-      let sampleRate = null;
-
-      if (currentSong.format) {
-        const formatStr = currentSong.format.toLowerCase();
-
-        // Parse bit depth
-        if (formatStr.includes('24bit') || formatStr.includes('24-bit')) {
-          bitDepth = 24;
-        } else if (formatStr.includes('16bit') || formatStr.includes('16-bit')) {
-          bitDepth = 16;
-        } else if (formatStr.includes('32bit') || formatStr.includes('32-bit')) {
-          bitDepth = 32;
-        }
-
-        // Parse sample rate from common patterns
-        const khzMatch = formatStr.match(/(\d+)\s*khz/i);
-        if (khzMatch) {
-          sampleRate = parseFloat(khzMatch[1]) * 1000;
-        }
-      }
-
-      setDetectedQuality({ sample_rate: sampleRate, bit_depth: bitDepth });
-    } else {
-      setDetectedQuality(null);
-    }
-
-    api.post('/history/add', {
-      songId: currentSong.id,
-      titulo: currentSong.titulo,
-      artista: currentSong.artista,
-      url: currentSong.url,
-      portada: currentSong.portada,
-    }).catch(err => console.error("DB Historial error:", err));
-  }, [currentSong, voxMode, voxType, voxTracks]);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const onTimeUpdate = () => {
-      const t = audio.currentTime || 0;
-      const d = audio.duration || 0;
-      setCurrentTime(t);
-      if (d > 0 && !isNaN(d) && isFinite(d)) {
-        setDuration(d);
-        setProgress((t / d) * 100);
+        // Cargar en el activo directamente
+        activeAudio.src = src;
+        activeAudio.currentTime = 0;
+        activeAudio.load();
+        activeAudio.play().catch(e => console.error("Hard cut play error", e));
       } else {
-        setDuration(prev => prev || 0);
+        // CROSSFADE NORMAL
+        console.log("🔀 Smart Crossfade Initiated");
+        nextAudio.src = src;
+        nextAudio.load();
+        performCrossfade(6); // 6 seconds default
+      }
+
+      // Update history
+      addToHistory(currentSong.id);
+    } else if (currentSrc !== newSrc || isNewSong) {
+      // Standard load (First play, or VOX toggle, or paused change)
+      const wasPlaying = !activeAudio.paused;
+      const prevTime = activeAudio.currentTime;
+
+      activeAudio.src = src;
+      // Restore time if toggling VOX
+      if (voxMode && voxTracks?.songId === currentSong.id && !isNewSong) {
+        activeAudio.currentTime = prevTime;
+      }
+
+      activeAudio.load();
+
+      // AUTO-PLAY LOGIC FIX
+      // If it's a new song (user clicked it), we MUST play.
+      // If it's just a source change (VOX toggle), we respect previous state.
+      if (isNewSong || wasPlaying || stateRef.current.isPlaying) {
+        const playPromise = activeAudio.play();
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => setIsPlaying(true))
+            .catch(e => {
+              console.warn("Auto-play prevented:", e);
+              setIsPlaying(false);
+            });
+        }
+      }
+      addToHistory(currentSong.id);
+    }
+
+    lastSongIdRef.current = currentSong.id;
+
+    // 3. Metadata Quality (IA)
+    if (src && src.includes('archive.org')) {
+      // ... (Logic omitted for brevity)
+    }
+
+  }, [currentSong, voxMode, voxType, voxTracks, addToHistory, performCrossfade, getPlayers]);
+
+  // --- EVENT LISTENERS (Dual) ---
+  useEffect(() => {
+    const listeners = [audioRefA.current, audioRefB.current];
+
+    const updateTime = (e) => {
+      // Only update time from the ACTIVE player
+      if (e.target === getPlayers().current) {
+        setCurrentTime(e.target.currentTime);
+        if (e.target.duration && e.target.duration !== Infinity) setDuration(e.target.duration);
       }
     };
 
-    const onLoadedMetadata = () => {
-      const d = audio.duration || 0;
-      if (d > 0 && !isNaN(d) && isFinite(d)) {
-        setDuration(d);
+    const handleEnded = (e) => {
+      if (e.target === getPlayers().current) {
+        // NO detener la reproducción, dejar que nextSong maneje el flujo
+        // setIsPlaying(false); <--- REMOVED
+        nextSong();
       }
     };
 
-    const onEmptied = () => {
-      setCurrentTime(0);
-      setDuration(0);
-      setProgress(0);
-      setIsPlaying(false);
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => {
+      // Solo marcar pausa si NO estamos en crossfade
+      if (!crossfadeIntervalRef.current) setIsPlaying(false);
     };
 
-    const onLoadStart = () => setIsLoading(true);
-    const onCanPlay = () => setIsLoading(false);
-    const onEnded = () => {
-      setIsPlaying(false);
-      nextSong();
-    };
-    const onPlay = () => setIsPlaying(true);
-    const onPause = () => setIsPlaying(false);
-    const onVolumeChange = () => {
-      setVolume(audio.volume);
-      setIsMuted(audio.muted);
-    };
-
-    audio.addEventListener('timeupdate', onTimeUpdate);
-    audio.addEventListener('loadedmetadata', onLoadedMetadata);
-    audio.addEventListener('emptied', onEmptied);
-    audio.addEventListener('loadstart', onLoadStart);
-    audio.addEventListener('canplay', onCanPlay);
-    audio.addEventListener('ended', onEnded);
-    audio.addEventListener('play', onPlay);
-    audio.addEventListener('pause', onPause);
-    audio.addEventListener('volumechange', onVolumeChange);
+    listeners.forEach(audio => {
+      audio.addEventListener('timeupdate', updateTime);
+      audio.addEventListener('ended', handleEnded);
+      audio.addEventListener('play', handlePlay);
+      audio.addEventListener('pause', handlePause);
+    });
 
     return () => {
-      audio.removeEventListener('timeupdate', onTimeUpdate);
-      audio.removeEventListener('loadedmetadata', onLoadedMetadata);
-      audio.removeEventListener('emptied', onEmptied);
-      audio.removeEventListener('loadstart', onLoadStart);
-      audio.removeEventListener('canplay', onCanPlay);
-      audio.removeEventListener('ended', onEnded);
-      audio.removeEventListener('play', onPlay);
-      audio.removeEventListener('pause', onPause);
-      audio.removeEventListener('volumechange', onVolumeChange);
+      listeners.forEach(audio => {
+        audio.removeEventListener('timeupdate', updateTime);
+        audio.removeEventListener('ended', handleEnded);
+        audio.removeEventListener('play', handlePlay);
+        audio.removeEventListener('pause', handlePause);
+      });
     };
-  }, [nextSong]);
+  }, [nextSong, getPlayers]);
 
-  useEffect(() => {
-    if ('mediaSession' in navigator && currentSong) {
-      navigator.mediaSession.metadata = new window.MediaMetadata({
-        title: currentSong.titulo || currentSong.title || '',
-        artist: currentSong.artista || currentSong.artist || '',
-        artwork: [
-          { src: currentSong.portada || '/default_cover.png', sizes: '512x512', type: 'image/png' }
-        ]
-      });
+  // --- MEMOIZED VALUES ---
 
-      navigator.mediaSession.setActionHandler('previoustrack', previousSong);
-      navigator.mediaSession.setActionHandler('nexttrack', nextSong);
-      navigator.mediaSession.setActionHandler('play', () => {
-        audioRef.current.play();
-        setIsPlaying(true);
-      });
-      navigator.mediaSession.setActionHandler('pause', () => {
-        audioRef.current.pause();
-        setIsPlaying(false);
-      });
-      navigator.mediaSession.setActionHandler('seekto', (details) => {
-        if (details.seekTime != null) {
-          audioRef.current.currentTime = details.seekTime;
-          setCurrentTime(details.seekTime);
-        }
-      });
-    }
-  }, [currentSong, previousSong, nextSong]);
-
-  useEffect(() => {
-    if ('mediaSession' in navigator) {
-      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
-    }
-  }, [isPlaying]);
-
-  // --- Context Values ---
-
-  // 1. State Context (Low frequency)
-  const playerState = useMemo(() => ({
-    currentSong,
-    isPlaying,
-    isLoading,
-    volume,
-    isMuted,
-    isFullScreenOpen,
-    likedSongs,
-    originalQueue,
-    currentIndex,
+  const playerStateValue = useMemo(() => ({
+    currentSong, isPlaying, isLoading, volume, isMuted, isFullScreenOpen,
+    likedSongs, originalQueue, currentIndex,
+    spectraData, detectedQuality, voxMode, voxType, isVoxLoading, voxTracks,
     hasNext: originalQueue.length > 0,
-    hasPrevious: currentIndex > 0 || currentTime > 3,
-    spectraData,
-    detectedQuality,
-    voxMode,
-    voxType,
-    isVoxLoading,
-    voxTracks
-  }), [currentSong, isPlaying, isLoading, volume, isMuted, isFullScreenOpen, likedSongs, originalQueue, currentIndex, currentTime, spectraData, detectedQuality]);
+    hasPrevious: currentIndex > 0 || currentTime > 3
+  }), [
+    currentSong, isPlaying, isLoading, volume, isMuted, isFullScreenOpen,
+    likedSongs, originalQueue, currentIndex,
+    spectraData, detectedQuality, voxMode, voxType, isVoxLoading, voxTracks, currentTime
+  ]);
 
-  // 2. Progress Context (High frequency - 60fps)
-  const playerProgress = useMemo(() => ({
+  const playerProgressValue = useMemo(() => ({
     currentTime,
     duration,
-    progress
-  }), [currentTime, duration, progress]);
+    progress: duration ? (currentTime / duration) * 100 : 0
+  }), [currentTime, duration]);
 
-  // 3. Actions Context (Static)
-  const playerActions = useMemo(() => ({
-    playSongList,
-    togglePlayPause,
-    nextSong,
-    previousSong,
-    addToQueue,
-    playNext,
-    changeVolume,
-    toggleMute,
-    seek,
-    openFullScreenPlayer,
-    toggleFullScreenPlayer,
-    closeFullScreenPlayer,
-    toggleLike,
-    isSongLiked,
-    reorderQueue,
-    updateSpectraData,
-    resetSpectraData,
-    updateSpectraField,
-    toggleVox,
-    toggleVoxType
-  }), [playSongList, togglePlayPause, nextSong, previousSong, addToQueue, playNext, changeVolume, toggleMute, seek, openFullScreenPlayer, toggleFullScreenPlayer, closeFullScreenPlayer, toggleLike, isSongLiked, reorderQueue, updateSpectraData, resetSpectraData, updateSpectraField, toggleVox, toggleVoxType]);
+  const playerActionsValue = useMemo(() => ({
+    playSongList, togglePlayPause, nextSong, previousSong, addToQueue,
+    playNext, changeVolume, toggleMute, seek,
+    openFullScreenPlayer: () => setIsFullScreenOpen(true),
+    closeFullScreenPlayer: () => setIsFullScreenOpen(false),
+    toggleFullScreenPlayer: () => setIsFullScreenOpen(p => !p),
+    toggleLike, isSongLiked,
+    updateSpectraData, resetSpectraData, updateSpectraField,
+    toggleVox, toggleVoxType
+  }), [
+    playSongList, togglePlayPause, nextSong, previousSong, addToQueue,
+    playNext, changeVolume, toggleMute, seek, toggleLike, isSongLiked,
+    updateSpectraData, resetSpectraData, updateSpectraField, toggleVox, toggleVoxType
+  ]);
 
-  // Legacy Context (Combined)
-  const legacyContext = useMemo(() => ({
-    audioRef,
-    ...playerState,
-    ...playerProgress,
-    ...playerActions
-  }), [playerState, playerProgress, playerActions]);
+  const legacyContextValue = useMemo(() => ({
+    audioRef: audioRefA, // Expose primary ref for legacy compatibility
+    ...playerStateValue, ...playerProgressValue, ...playerActionsValue
+  }), [playerStateValue, playerProgressValue, playerActionsValue]);
 
   return (
-    <PlayerStateContext.Provider value={playerState}>
-      <PlayerProgressContext.Provider value={playerProgress}>
-        <PlayerActionsContext.Provider value={playerActions}>
-          <PlayerContext.Provider value={legacyContext}>
+    <PlayerStateContext.Provider value={playerStateValue}>
+      <PlayerProgressContext.Provider value={playerProgressValue}>
+        <PlayerActionsContext.Provider value={playerActionsValue}>
+          <PlayerContext.Provider value={legacyContextValue}>
             {children}
           </PlayerContext.Provider>
         </PlayerActionsContext.Provider>

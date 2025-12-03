@@ -3,6 +3,7 @@ import { useSwipeable } from "react-swipeable";
 import { usePlayer } from "../context/PlayerContext";
 import { useLibrary } from "../hooks/useLibrary";
 import LibraryItem from "../components/LibraryItem";
+import SkeletonSongList from "../components/skeletons/SkeletonSongList";
 import api from "../api/axiosConfig";
 import favImage from "./favImage.jpg";
 import "../styles/glass.css";
@@ -93,7 +94,7 @@ export default function LibraryPage() {
 
       {/* CONTENIDO */}
       <div className={`lib-grid ${layout}`}>
-        {isLoading && <div className="lib-loader">Cargando...</div>}
+        {isLoading && <SkeletonSongList count={12} />}
 
         {!isLoading && data.length === 0 && (
           <div className="lib-empty">

@@ -300,6 +300,65 @@ app.get('/stream/:id', (req, res) => {
     }
 });
 
+// ENDPOINT: DJ MODE RECOMMENDATION
+app.get('/recommendations/:id', (req, res) => {
+    const requestedId = req.params.id;
+    console.log(`🎧 DJ Mode: Solicitud recibida para ID ${requestedId}`);
+
+    // 1. Resolver ID: Puede ser un ID de Spectra o un ID de Tidol
+    // Priorizamos buscar por original_tidol_id si el ID parece ser de Tidol (aunque aquí asumimos que podría ser cualquiera)
+    const track = dbSpectra.prepare(`
+        SELECT id, title FROM tracks 
+        WHERE id = ? OR original_tidol_id = ? OR original_ia_id = ?
+    `).get(requestedId, requestedId, requestedId);
+
+    if (!track) {
+        console.error(`❌ DJ Mode: No se encontró la canción con ID ${requestedId} en Spectra DB.`);
+        return res.status(404).json({ error: "Track not found in Spectra. Try syncing first." });
+    }
+
+    const spectraId = track.id;
+    console.log(`   ↳ Mapeado a Spectra ID: ${spectraId} (${track.title})`);
+    console.log(`   ↳ Ejecutando Cerebro del DJ...`);
+
+    const pythonProcess = spawn('python', ['dj_brain.py', spectraId]);
+    let dataBuffer = '';
+
+    pythonProcess.stdout.on('data', (d) => dataBuffer += d.toString());
+    pythonProcess.stderr.on('data', (d) => console.error(`DJ Error: ${d}`));
+
+    pythonProcess.on('close', (code) => {
+        try {
+            // Python a veces imprime logs antes del JSON, buscamos el último JSON válido
+            const lines = dataBuffer.trim().split('\n');
+            let result = null;
+
+            // Intentar parsear desde la última línea hacia atrás
+            for (let i = lines.length - 1; i >= 0; i--) {
+                try {
+                    const parsed = JSON.parse(lines[i]);
+                    if (parsed.success || parsed.error) {
+                        result = parsed;
+                        break;
+                    }
+                } catch (e) { continue; }
+            }
+
+            if (result && result.success) {
+                console.log(`   👉 Recomendación: ${result.recommendation.title} (Score: ${result.recommendation.score})`);
+                res.json(result.recommendation);
+            } else {
+                console.error("DJ Brain falló o no devolvió recomendación:", result);
+                res.status(500).json(result || { error: "No JSON output from DJ Brain" });
+            }
+        } catch (e) {
+            console.error("Error parseando DJ Brain output:", e);
+            console.error("Raw Buffer:", dataBuffer);
+            res.status(500).json({ error: "Failed to parse DJ recommendation" });
+        }
+    });
+});
+
 // 4. Datos de Análisis (Waveform, BPM)
 app.get('/track/:id/analysis', (req, res) => {
     const track = dbSpectra.prepare('SELECT id, bpm, key_signature, waveform_data, analysis_status FROM tracks WHERE id = ?').get(req.params.id);
@@ -308,6 +367,52 @@ app.get('/track/:id/analysis', (req, res) => {
         catch (e) { track.waveform_data = []; }
     }
     res.json(track);
+});
+
+// 4b. Endpoint General de Análisis (Soporta tidol_id y ia_id)
+app.get('/analysis', (req, res) => {
+    try {
+        const { tidol_id, ia_id } = req.query;
+        let track = null;
+
+        if (tidol_id) {
+            track = dbSpectra.prepare('SELECT * FROM tracks WHERE original_tidol_id = ?').get(tidol_id);
+        } else if (ia_id) {
+            track = dbSpectra.prepare('SELECT * FROM tracks WHERE original_ia_id = ?').get(ia_id);
+        }
+
+        if (!track) {
+            return res.status(404).json({ error: 'Track not found in Spectra DB' });
+        }
+
+        // Parsear waveform_data
+        if (track.waveform_data) {
+            try { track.waveform_data = JSON.parse(track.waveform_data); }
+            catch (e) { track.waveform_data = []; }
+        }
+
+        // Verificar stems
+        const stemsPath = path.join(MEDIA_DIR, 'stems', `track_${track.id}`);
+        const stemsExist = fs.existsSync(stemsPath);
+
+        res.json({
+            id: track.id,
+            bpm: track.bpm,
+            key: track.key_signature,
+            waveform_data: track.waveform_data,
+            analysis_status: track.analysis_status,
+            stems: stemsExist ? {
+                vocals: `/media/stems/track_${track.id}/vocals.mp3`,
+                drums: `/media/stems/track_${track.id}/drums.mp3`,
+                bass: `/media/stems/track_${track.id}/bass.mp3`,
+                other: `/media/stems/track_${track.id}/other.mp3`
+            } : null
+        });
+
+    } catch (error) {
+        console.error("Error en /analysis:", error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // 5. Smart Flow (Playlist Automática por BPM)

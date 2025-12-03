@@ -26,22 +26,24 @@ export const addToHistory = async (req, res) => {
       // -----------------------------------------------------------------
       // CASO 1: Es una canción local. Usamos la tabla 'homeRecomendations'.
       query = `
-        INSERT INTO homeRecomendations (user_id, song_id, played_at)
-        VALUES (?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO homeRecomendations (user_id, song_id, played_at, play_count)
+        VALUES (?, ?, CURRENT_TIMESTAMP, 1)
         ON CONFLICT(user_id, song_id) DO UPDATE SET
-          played_at = CURRENT_TIMESTAMP;
+          played_at = CURRENT_TIMESTAMP,
+          play_count = play_count + 1;
       `;
       params = [userId, songId];
-      
+
     } else {
       // -----------------------------------------------------------------
       // CASO 2: No es local. Asumimos que es de IA y usamos 'ia_history'.
       // El 'songId' se guarda como 'ia_identifier'.
       query = `
-        INSERT INTO ia_history (user_id, ia_identifier, titulo, artista, url, portada, played_at)
-        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO ia_history (user_id, ia_identifier, titulo, artista, url, portada, played_at, play_count)
+        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 1)
         ON CONFLICT(user_id, ia_identifier) DO UPDATE SET
           played_at = CURRENT_TIMESTAMP,
+          play_count = play_count + 1,
           titulo = EXCLUDED.titulo,
           artista = EXCLUDED.artista,
           url = EXCLUDED.url,
@@ -49,10 +51,10 @@ export const addToHistory = async (req, res) => {
       `;
       params = [userId, songId, titulo, artista, url, portada];
     }
-    
+
     // 4. Ejecutamos la consulta decidida
     await db.run(query, params);
-    
+
     res.status(201).json({ message: 'Historial actualizado.' });
     // -----------------------------------------------------------------
 
@@ -82,12 +84,13 @@ export const getHistory = async (req, res) => {
         a.nombre AS artista,
         al.titulo AS album,
         hr.played_at,
+        hr.play_count,
         'local' as type -- Añadimos un campo 'type' para distinguirlas
       FROM homeRecomendations hr
       JOIN canciones c ON hr.song_id = c.id
       LEFT JOIN artistas a ON c.artista_id = a.id
       LEFT JOIN albumes al ON c.album_id = al.id
-      WHERE hr.user_id = ?
+      WHERE hr.user_id = ? AND hr.play_count > 5
 
       UNION ALL
 
@@ -101,19 +104,20 @@ export const getHistory = async (req, res) => {
         ia.artista,
         'Internet Archive' AS album,   -- Mantenemos un valor genérico para el álbum si no se almacena
         ia.played_at,
+        ia.play_count,
         'ia' as type -- Añadimos el tipo 'ia'
       FROM ia_history ia
-      WHERE ia.user_id = ?
+      WHERE ia.user_id = ? AND ia.play_count > 5
 
       -- 3. Ordenamos la lista COMBINADA por fecha y la limitamos
       ORDER BY played_at DESC
       LIMIT 20;
     `;
     // -----------------------------------------------------------------
-    
+
     // Pasamos el userId dos veces, uno para cada parte del UNION
     const history = await db.all(query, [userId, userId]);
-    
+
     res.json(history);
 
   } catch (err) {

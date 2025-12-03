@@ -59,6 +59,7 @@ try {
       portada TEXT,
       duration INTEGER,
       played_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      play_count INTEGER DEFAULT 1,
       PRIMARY KEY (user_id, ia_identifier),
       FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE ON UPDATE CASCADE
     );
@@ -164,6 +165,31 @@ try {
   try {
     await db.exec(`ALTER TABLE canciones ADD COLUMN bit_rate INTEGER DEFAULT 0;`);
     console.log("🆕 Columna 'bit_rate' agregada a canciones");
+  } catch (err) { if (!/duplicate column/i.test(err.message)) console.error(err.message); }
+
+  // ========== MIGRACIÓN PLAY COUNT ==========
+  try {
+    await db.exec(`ALTER TABLE ia_history ADD COLUMN play_count INTEGER DEFAULT 1;`);
+    console.log("🆕 Columna 'play_count' agregada a ia_history");
+  } catch (err) { if (!/duplicate column/i.test(err.message)) console.error(err.message); }
+
+  try {
+    // Intentamos crear la tabla homeRecomendations si no existe, ya que no la vi en el schema
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS homeRecomendations (
+        user_id INTEGER NOT NULL,
+        song_id INTEGER NOT NULL,
+        played_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        play_count INTEGER DEFAULT 1,
+        PRIMARY KEY (user_id, song_id),
+        FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+        FOREIGN KEY (song_id) REFERENCES canciones(id) ON DELETE CASCADE
+      );
+    `);
+
+    // Intentamos agregar la columna si la tabla ya existía
+    await db.exec(`ALTER TABLE homeRecomendations ADD COLUMN play_count INTEGER DEFAULT 1;`);
+    console.log("🆕 Columna 'play_count' agregada a homeRecomendations");
   } catch (err) { if (!/duplicate column/i.test(err.message)) console.error(err.message); }
 
   // ========== PLAYLISTS ==========

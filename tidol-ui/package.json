@@ -19,6 +19,7 @@
     "react-router-dom": "^6.23.1",
     "react-slick": "^0.31.0",
     "react-swipeable": "^7.0.2",
+    "react-window": "^2.2.3",
     "serve": "^14.2.5",
     "slick-carousel": "^1.8.1",
     "socks-proxy-agent": "^8.0.5"

@@ -6,9 +6,9 @@ import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const dbPath = path.join(__dirname, "models", "database.sqlite");
+const dbPath = path.join(__dirname, "models", "database.sqlite.corrupt.1764145684615");
 const backupPath = path.join(__dirname, "models", "database.sqlite.backup");
-const repairedPath = path.join(__dirname, "models", "database_repaired.sqlite");
+const repairedPath = path.join(__dirname, "models", "database_repaired_old.sqlite");
 const tempSource = path.join(__dirname, "models", "database_temp_source.sqlite");
 
 async function repairDatabase() {
@@ -105,11 +105,8 @@ async function repairDatabase() {
         try { fs.unlinkSync(tempSource); } catch { }
 
         console.log("\n✅ Reparación completada!");
-        console.log(`📁 Nueva DB: ${repairedPath}`);
-        console.log("\n⚠️  Pasos siguientes:");
-        console.log("1. Detén TODOS los servidores (backend y spectra)");
-        console.log("2. Renombra database_repaired.sqlite a database.sqlite");
-        console.log("3. Reinicia");
+        console.log(`📁 Nueva DB recuperada: ${repairedPath}`);
+        console.log("ℹ️  Para usar esta DB, renómbrala manualmente a database.sqlite");
 
     } catch (err) {
         console.error("❌ Error durante la reparación:", err.message);

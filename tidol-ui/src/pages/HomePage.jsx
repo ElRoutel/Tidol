@@ -6,6 +6,7 @@ import api from '../api/axiosConfig';
 import axios from 'axios';
 import ChipsCarousel from '../components/home/ChipsCarousel';
 import HomeAllView from '../components/home/views/HomeAllView';
+import SkeletonSongList from '../components/skeletons/SkeletonSongList';
 import '../styles/glass.css';
 
 export default function HomePage() {
@@ -76,13 +77,8 @@ export default function HomePage() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen w-full">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
-      </div>
-    );
-  }
+  // Render First Strategy: No blocking return
+
 
   return (
     <div className="pb-24 md:pb-32">
@@ -96,7 +92,13 @@ export default function HomePage() {
 
       {/* Content Section */}
       <div className="flex flex-col gap-10 md:gap-14 px-0 md:px-8 max-w-[1600px] mx-auto">
-        <HomeAllView data={data} onPlay={handlePlaySong} />
+        {isLoading ? (
+          <div className="px-4 md:px-0">
+            <SkeletonSongList count={8} />
+          </div>
+        ) : (
+          <HomeAllView data={data} onPlay={handlePlaySong} />
+        )}
       </div>
     </div>
   );

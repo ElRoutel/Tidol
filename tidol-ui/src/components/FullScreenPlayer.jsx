@@ -17,7 +17,8 @@ import {
   IoHeartOutline,
   IoList,
   IoReorderTwo,
-  IoMic
+  IoMic,
+  IoFlash
 } from 'react-icons/io5';
 
 const FullScreenPlayer = ({ isEmbedded = false }) => {
@@ -727,6 +728,63 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
               className={`transition-all duration-300 hover:scale-110 active:scale-95 p-2 rounded-full ${showQueue ? 'text-white bg-white/20 shadow-[0_0_15px_rgba(255,255,255,0.2)]' : 'text-white/60 hover:text-white'}`}
             >
               <IoList size={24} className="md:w-7 md:h-7" />
+            </button>
+
+            {/* DJ MODE BUTTON */}
+            <button
+              onClick={async () => {
+                if (!currentSong?.id) return;
+                try {
+                  // Notificar al usuario (podrías usar un toast aquí)
+                  console.log("🎧 DJ Mode: Buscando la mezcla perfecta...");
+
+                  // Llamar al endpoint de Spectra (puerto 3001, vía proxy o directo)
+                  // Asumiendo que /spectra en vite.config.js apunta a localhost:3001
+                  const res = await api.get(`/spectra/recommendations/${currentSong.id}`);
+
+                  if (res.data) {
+                    const nextTrack = res.data;
+                    console.log("👉 DJ Recomienda:", nextTrack.title);
+
+                    // Agregar a la cola (necesitamos acceder a addToQueue o similar del contexto)
+                    // Como no tenemos addToQueue expuesto directamente aquí, usaremos playSongList
+                    // para insertar la canción siguiente.
+
+                    // Hack rápido: Insertar en la cola actual
+                    const newQueue = [...originalQueue];
+                    const insertIndex = currentIndex + 1;
+
+                    // Adaptar formato de Spectra al formato de Tidol
+                    const trackFormatted = {
+                      id: nextTrack.id,
+                      titulo: nextTrack.title,
+                      artista: nextTrack.artist,
+                      album: 'DJ Mix',
+                      portada: nextTrack.cover,
+                      url: nextTrack.url,
+                      duration: 0, // Se actualizará al cargar
+                      source: 'spectra'
+                    };
+
+                    newQueue.splice(insertIndex, 0, trackFormatted);
+
+                    // Actualizar la cola (esto requiere que usePlayer exponga setQueue o similar)
+                    // Si no existe, tendremos que improvisar.
+                    // Revisando usePlayer... parece que tenemos reorderQueue.
+                    // Si no podemos modificar la cola directamente, al menos podemos reproducirla.
+
+                    // Opción B: Reproducir inmediatamente (DJ Style)
+                    playSongList(newQueue, insertIndex);
+
+                  }
+                } catch (e) {
+                  console.error("DJ Mode Error:", e);
+                }
+              }}
+              className="transition-all duration-300 hover:scale-110 active:scale-95 p-2 rounded-full text-white/60 hover:text-purple-400"
+              title="DJ Mode: Mezcla Inteligente"
+            >
+              <IoFlash size={24} className="md:w-7 md:h-7" />
             </button>
           </div>
         </div>
