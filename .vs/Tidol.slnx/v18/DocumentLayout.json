@@ -1,0 +1,194 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\CATLO\\Desktop\\Tidol\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\CATLO\\Desktop\\Tidol\\Tidol.bat||{3B902123-F8A7-4915-9F01-361F908088D0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:Tidol.bat||{3B902123-F8A7-4915-9F01-361F908088D0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\server.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:backend\\server.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\generateLyricsSQL.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:backend\\generateLyricsSQL.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\package.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:backend\\package.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\check_proxies.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:backend\\check_proxies.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\debug_db.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:backend\\debug_db.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\check_db.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:backend\\check_db.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\check-duplicates.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:backend\\check-duplicates.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\audioQuality.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:backend\\audioQuality.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\CATLO\\Desktop\\Tidol\\.temp_toggleVox.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:.temp_toggleVox.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "Tidol.bat",
+              "DocumentMoniker": "C:\\Users\\CATLO\\Desktop\\Tidol\\Tidol.bat",
+              "RelativeDocumentMoniker": "Tidol.bat",
+              "ToolTip": "C:\\Users\\CATLO\\Desktop\\Tidol\\Tidol.bat",
+              "RelativeToolTip": "Tidol.bat",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000614|",
+              "WhenOpened": "2025-12-12T22:44:39.756Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "generateLyricsSQL.js",
+              "DocumentMoniker": "C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\generateLyricsSQL.js",
+              "RelativeDocumentMoniker": "backend\\generateLyricsSQL.js",
+              "ToolTip": "C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\generateLyricsSQL.js",
+              "RelativeToolTip": "backend\\generateLyricsSQL.js",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2025-12-12T22:44:30.932Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "package.json",
+              "DocumentMoniker": "C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\package.json",
+              "RelativeDocumentMoniker": "backend\\package.json",
+              "ToolTip": "C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\package.json",
+              "RelativeToolTip": "backend\\package.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2025-12-12T22:44:26.957Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "check_proxies.js",
+              "DocumentMoniker": "C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\check_proxies.js",
+              "RelativeDocumentMoniker": "backend\\check_proxies.js",
+              "ToolTip": "C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\check_proxies.js",
+              "RelativeToolTip": "backend\\check_proxies.js",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2025-12-12T22:44:25.187Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "debug_db.js",
+              "DocumentMoniker": "C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\debug_db.js",
+              "RelativeDocumentMoniker": "backend\\debug_db.js",
+              "ToolTip": "C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\debug_db.js",
+              "RelativeToolTip": "backend\\debug_db.js",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2025-12-12T22:44:24.278Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "check_db.js",
+              "DocumentMoniker": "C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\check_db.js",
+              "RelativeDocumentMoniker": "backend\\check_db.js",
+              "ToolTip": "C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\check_db.js",
+              "RelativeToolTip": "backend\\check_db.js",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2025-12-12T22:44:23.057Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "check-duplicates.js",
+              "DocumentMoniker": "C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\check-duplicates.js",
+              "RelativeDocumentMoniker": "backend\\check-duplicates.js",
+              "ToolTip": "C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\check-duplicates.js",
+              "RelativeToolTip": "backend\\check-duplicates.js",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2025-12-12T22:44:22.166Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "audioQuality.js",
+              "DocumentMoniker": "C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\audioQuality.js",
+              "RelativeDocumentMoniker": "backend\\audioQuality.js",
+              "ToolTip": "C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\audioQuality.js",
+              "RelativeToolTip": "backend\\audioQuality.js",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2025-12-12T22:44:21.255Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "server.js",
+              "DocumentMoniker": "C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\server.js",
+              "RelativeDocumentMoniker": "backend\\server.js",
+              "ToolTip": "C:\\Users\\CATLO\\Desktop\\Tidol\\backend\\server.js",
+              "RelativeToolTip": "backend\\server.js",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2025-12-12T22:43:40.815Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": ".temp_toggleVox.js",
+              "DocumentMoniker": "C:\\Users\\CATLO\\Desktop\\Tidol\\.temp_toggleVox.js",
+              "RelativeDocumentMoniker": ".temp_toggleVox.js",
+              "ToolTip": "C:\\Users\\CATLO\\Desktop\\Tidol\\.temp_toggleVox.js",
+              "RelativeToolTip": ".temp_toggleVox.js",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2025-12-12T22:43:17.646Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{cce594b6-0c39-4442-ba28-10c64ac7e89f}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

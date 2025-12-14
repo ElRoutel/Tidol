@@ -38,7 +38,7 @@ def recommend(track_id):
         
         # 1. Cargar datos
         # Solo recomendamos canciones ya analizadas
-        df = pd.read_sql_query("SELECT id, title, artist, bpm, key_signature, filepath, coverpath FROM tracks WHERE analysis_status = 'analyzed'", conn)
+        df = pd.read_sql_query("SELECT id, title, artist, bpm, key_signature, filepath, coverpath, original_ia_id FROM tracks WHERE analysis_status = 'analyzed'", conn)
         conn.close()
 
         if df.empty:
@@ -46,16 +46,27 @@ def recommend(track_id):
             return
 
         # 2. Encontrar track actual
-        current = df[df['id'] == int(track_id)]
+        # Intentamos buscar por ID numérico o por IA_ID
+        current = pd.DataFrame()
+        
+        # Check if track_id is an integer (Tidol ID)
+        if str(track_id).isdigit():
+             current = df[df['id'] == int(track_id)]
+        
+        # If not found or not int, try searching by original_ia_id
         if current.empty:
-            print(json.dumps({"error": "Current track not found in DB"}))
+             current = df[df['original_ia_id'] == str(track_id)]
+
+        if current.empty:
+            print(json.dumps({"error": f"Current track not found in DB (ID: {track_id})"}))
             return
         
         curr_bpm = current.iloc[0]['bpm']
         curr_key = current.iloc[0]['key_signature']
 
         # 3. Excluir el track actual de los candidatos
-        candidates = df[df['id'] != int(track_id)].copy()
+        current_id = current.iloc[0]['id']
+        candidates = df[df['id'] != current_id].copy()
 
         # 4. CALCULAR SCORES
         candidates['score_bpm'] = candidates['bpm'].apply(lambda x: calculate_bpm_score(curr_bpm, x))

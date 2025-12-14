@@ -76,20 +76,42 @@ async def process_track(req: ProcessRequest):
             # Por ahora, subprocess es robusto y limpia su VRAM al terminar.
             cmd = [
                 "demucs", "-n", "htdemucs", "--two-stems=vocals", 
-                "--device", DEVICE, "-o", req.output_dir_stems, req.input_path
+                "--device", "cpu", "-o", req.output_dir_stems, req.input_path
             ]
             
             # Ejecutar Demucs
             process = subprocess.run(cmd, capture_output=True, text=True)
             
             if process.returncode != 0:
+                print(f"❌ Demucs stderr: {process.stderr}", flush=True)
                 raise Exception(f"Demucs failed: {process.stderr}")
+
+            print(f"✅ Demucs finished. Start stdout:\n{process.stdout}\nEnd stdout", flush=True)
+            print(f"Demucs stderr (if any):\n{process.stderr}", flush=True)
 
             # Mover archivos de la estructura de Demucs a la nuestra
             # Demucs output default: <out>/htdemucs/<track_name>/...
-            demucs_output_root = os.path.join(req.output_dir_stems, "htdemucs", filename)
+            htdemucs_dir = os.path.join(req.output_dir_stems, "htdemucs")
             
-            if os.path.exists(demucs_output_root):
+            # Find the output folder dynamically to avoid naming mismatches
+            demucs_output_root = None
+            if os.path.exists(htdemucs_dir):
+                # List directories in htdemucs
+                subdirs = [d for d in os.listdir(htdemucs_dir) if os.path.isdir(os.path.join(htdemucs_dir, d))]
+                if subdirs:
+                    # We assume the most recently created or the only one is ours
+                    # Since we process one by one (mostly), taking the first one is a reasonable fallback
+                    # But ideally we try to match the filename
+                    
+                    # Try exact match first
+                    if filename in subdirs:
+                        demucs_output_root = os.path.join(htdemucs_dir, filename)
+                    else:
+                        # Fallback: take the first one found
+                        print(f"⚠️ Exact match not found for '{filename}' in Demucs output. Using '{subdirs[0]}'")
+                        demucs_output_root = os.path.join(htdemucs_dir, subdirs[0])
+            
+            if demucs_output_root and os.path.exists(demucs_output_root):
                 # Crear directorio destino si no existe
                 os.makedirs(final_track_dir, exist_ok=True)
                 
@@ -113,7 +135,7 @@ async def process_track(req: ProcessRequest):
                     pass
             else:
                 # Fallback: a veces demucs usa el nombre sin extension o con espacios diferentes
-                print(f"⚠️ Warning: Demucs output not found at expected path: {demucs_output_root}")
+                print(f"⚠️ Warning: Demucs output not found at expected path: {demucs_output_root or htdemucs_dir}")
 
         # --- FASE 2: WHISPER ---
         if not req.skip_transcription:

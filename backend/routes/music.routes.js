@@ -29,7 +29,10 @@ import {
   checkIfIaLiked,
   getUserIaLikes,
   syncLocalSong,
-  getIaDiscoveries
+  getIaDiscoveries,
+  registerExternalSong,
+  streamAudio,
+  getSmartMix
 } from "../controllers/music.controller.js";
 import { authMiddleware } from "../middleware/auth.middleware.js";
 import { getBestCover } from "../services/coverService.js";
@@ -87,6 +90,9 @@ router.post("/ia/comparator", registerIaComparator);
 
 // --- Sync Local ---
 router.post("/sync-local-song", syncLocalSong);
+router.post("/register-external", registerExternalSong);
+router.get("/stream", streamAudio);
+router.get("/recommend/:id", getSmartMix);
 
 // --- Cover Art Service ---
 router.get("/getCover/:identifier", async (req, res) => {

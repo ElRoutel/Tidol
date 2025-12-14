@@ -618,7 +618,10 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
             <div className="w-8"></div> {/* Spacer */}
             <h2 className="text-3xl font-bold text-center drop-shadow-lg">Cola de Reproducción</h2>
             <button
-              onClick={toggleDjMode}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleDjMode();
+              }}
               className={`transition-all duration-300 hover:scale-110 active:scale-95 p-2 rounded-full ${djMode ? 'text-purple-400 bg-white/20 shadow-[0_0_15px_rgba(168,85,247,0.5)]' : 'text-white/40 hover:text-white'}`}
               title="DJ Mode: Mezcla Inteligente"
             >
@@ -630,8 +633,8 @@ const FullScreenPlayer = ({ isEmbedded = false }) => {
               <p className="text-center text-white/50 mt-10">La cola está vacía</p>
             ) : (
               <Reorder.Group axis="y" values={originalQueue} onReorder={reorderQueue} className="space-y-3">
-                {originalQueue.map((song) => (
-                  <Reorder.Item key={song.id} value={song}>
+                {originalQueue.map((song, index) => (
+                  <Reorder.Item key={`${song.id}-${index}`} value={song}>
                     <div
                       className={`flex items-center gap-4 p-4 rounded-xl cursor-grab active:cursor-grabbing transition-all duration-300 backdrop-blur-md border ${song.id === currentSong?.id
                         ? 'bg-white/20 border-white/20 shadow-lg'

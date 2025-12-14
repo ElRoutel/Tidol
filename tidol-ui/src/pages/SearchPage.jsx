@@ -24,7 +24,7 @@ export function SearchPage() {
   const { playSongList } = usePlayer();
 
   const handlePlayArchive = async (item) => {
-    try { await api.post("/music/ia/click", { identifier: item.identifier, title: item.titulo }); } catch (_) { }
+    try { await api.post("/music/ia/click", { query, identifier: item.identifier, title: item.titulo }); } catch (_) { }
     navigate(`/ia-album/${item.identifier}`);
   };
 

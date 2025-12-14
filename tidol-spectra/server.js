@@ -18,14 +18,160 @@ app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 const MEDIA_DIR = path.join(__dirname, 'media');
-const UPLOADS_MUSIC_DIR = path.join(__dirname, 'uploads', 'musica');
-const UPLOADS_COVERS_DIR = path.join(__dirname, 'uploads', 'covers');
+// UNIFICACIÓN DE ALMACENAMIENTO: Guardar en el backend principal
+const UPLOADS_MUSIC_DIR = path.join(__dirname, '../backend/uploads/musica');
+const UPLOADS_COVERS_DIR = path.join(__dirname, '../backend/uploads/covers');
 const DB_PATH_SPECTRA = path.join(__dirname, 'spectra.db');
 
 // Asegurar que existan las carpetas
 if (!fs.existsSync(MEDIA_DIR)) fs.mkdirSync(MEDIA_DIR);
 if (!fs.existsSync(UPLOADS_MUSIC_DIR)) fs.mkdirSync(UPLOADS_MUSIC_DIR, { recursive: true });
 if (!fs.existsSync(UPLOADS_COVERS_DIR)) fs.mkdirSync(UPLOADS_COVERS_DIR, { recursive: true });
+
+// ... (Resto del código hasta /ingest-remote)
+
+// 6. LAZY CACHING ENDPOINT (Internet Archive → Local Storage)
+app.post('/ingest-remote', async (req, res) => {
+    const { audioUrl, coverUrl, metadata } = req.body;
+
+    // Validaciones básicas
+    if (!audioUrl) {
+        return res.status(400).json({ error: 'audioUrl is required' });
+    }
+
+    // Validar que audioUrl sea una URL remota válida, no una ruta local
+    if (!audioUrl.startsWith('http://') && !audioUrl.startsWith('https://')) {
+        console.warn(`⚠️  URL inválida o local detectada: ${audioUrl}`);
+        return res.status(400).json({
+            error: 'Invalid audioUrl - must be a remote HTTP/HTTPS URL',
+            details: 'Local file paths are not supported. Only remote URLs from Internet Archive are allowed.',
+            receivedUrl: audioUrl
+        });
+    }
+
+    try {
+        // 1. Generar nombres de archivo sanitizados
+        const artist = metadata?.artist || 'Unknown';
+        const title = metadata?.title || 'Unknown Track';
+        const ia_id = metadata?.ia_id || null;
+
+        const audioFilename = sanitizeFilename(`${artist} - ${title}.mp3`);
+        const coverFilename = sanitizeFilename(`${artist} - ${title}.jpg`);
+
+        const audioPath = path.join(UPLOADS_MUSIC_DIR, audioFilename);
+        const coverPath = coverUrl ? path.join(UPLOADS_COVERS_DIR, coverFilename) : null;
+
+        // 2. Verificar si ya existe en Spectra DB (evitar duplicados)
+        let existingTrack = null;
+        if (ia_id) {
+            existingTrack = dbSpectra.prepare('SELECT id FROM tracks WHERE original_ia_id = ?').get(ia_id);
+        }
+
+        if (existingTrack) {
+            console.log(`💾 Canción ya cacheada en Spectra (ID: ${existingTrack.id})`);
+            return res.json({
+                success: true,
+                trackId: existingTrack.id,
+                msg: 'Track already cached in Spectra',
+                alreadyExists: true
+            });
+        }
+
+        // 3. Descargar audio (con manejo de errores)
+        console.log(`📥 Descargando audio desde: ${audioUrl}`);
+        await downloadFile(audioUrl, audioPath);
+        console.log(`✅ Audio guardado en: ${audioPath}`);
+
+        // 4. Descargar cover (opcional)
+        if (coverUrl) {
+            try {
+                console.log(`🖼️  Descargando cover desde: ${coverUrl}`);
+                await downloadFile(coverUrl, coverPath);
+                console.log(`✅ Cover guardado en: ${coverPath}`);
+            } catch (coverError) {
+                console.warn(`⚠️  No se pudo descargar cover: ${coverError.message}`);
+            }
+        }
+
+        // 5. Extraer metadata del archivo descargado
+        const fileMeta = await mm.parseFile(audioPath);
+        const trackInfo = {
+            title: title,
+            artist: artist,
+            album: metadata?.album || fileMeta.common.album || 'Internet Archive',
+            filepath: `uploads/musica/${audioFilename}`, // Path relativo para Spectra (aunque ahora está en ../backend)
+            coverpath: coverPath ? `uploads/covers/${coverFilename}` : null,
+            duration: fileMeta.format.duration || metadata?.duration || 0,
+            bitrate: fileMeta.format.bitrate || 128000,
+            format: fileMeta.format.container || 'mp3',
+            original_ia_id: ia_id
+        };
+
+        // 6. Insertar en la base de datos de Spectra
+        const insert = dbSpectra.prepare(`
+            INSERT INTO tracks (title, artist, album, filepath, coverpath, duration, bitrate, format, original_ia_id)
+            VALUES (@title, @artist, @album, @filepath, @coverpath, @duration, @bitrate, @format, @original_ia_id)
+        `);
+
+        let result;
+        try {
+            result = insert.run(trackInfo);
+        } catch (err) {
+            if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+                console.log(`⚠️ Track already exists (UNIQUE constraint): ${trackInfo.filepath}`);
+                const existing = dbSpectra.prepare('SELECT id FROM tracks WHERE filepath = ?').get(trackInfo.filepath);
+                if (existing) {
+                    result = { lastInsertRowid: existing.id };
+                } else {
+                    throw err;
+                }
+            } else {
+                throw err;
+            }
+        }
+
+        console.log(`💾 Track #${result.lastInsertRowid} guardado en Spectra DB`);
+
+        // 7. REGISTRAR EN BACKEND PRINCIPAL (TIDOL)
+        try {
+            console.log(`🔗 Registrando en Tidol Backend...`);
+            await axios.post('http://localhost:3000/api/music/register-external', {
+                title: trackInfo.title,
+                artist: trackInfo.artist,
+                album: trackInfo.album,
+                filename: audioFilename, // Solo el nombre, el backend sabe la ruta
+                coverFilename: coverFilename,
+                duration: trackInfo.duration,
+                ia_id: ia_id,
+                bit_rate: trackInfo.bitrate,
+                sample_rate: fileMeta.format.sampleRate,
+                bit_depth: fileMeta.format.bitsPerSample || 16
+            });
+            console.log(`✅ Registrado en Tidol correctamente.`);
+        } catch (regError) {
+            console.error(`❌ Error registrando en Tidol: ${regError.message}`);
+            // No fallamos la request completa, pero logueamos el error
+        }
+
+        // 8. Disparar análisis de Python en segundo plano
+        runPythonAnalysis(result.lastInsertRowid, audioPath);
+
+        // 9. Responder al frontend inmediatamente
+        res.json({
+            success: true,
+            trackId: result.lastInsertRowid,
+            msg: 'Download complete, analysis started',
+            localPath: trackInfo.filepath
+        });
+
+    } catch (error) {
+        console.error('❌ Error en /ingest-remote:', error);
+        res.status(500).json({
+            error: error.message,
+            details: 'Failed to download or process remote track'
+        });
+    }
+});
 
 // --- GESTIÓN DEL SERVIDOR PYTHON (Spectra Engine) ---
 let pythonServerProcess = null;
@@ -555,127 +701,10 @@ async function downloadFile(url, destinationPath) {
 }
 
 // 6. LAZY CACHING ENDPOINT (Internet Archive → Local Storage)
-app.post('/ingest-remote', async (req, res) => {
-    const { audioUrl, coverUrl, metadata } = req.body;
+// Duplicate /ingest-remote endpoint removed
 
-    // Validaciones básicas
-    if (!audioUrl) {
-        return res.status(400).json({ error: 'audioUrl is required' });
-    }
 
-    // Validar que audioUrl sea una URL remota válida, no una ruta local
-    if (!audioUrl.startsWith('http://') && !audioUrl.startsWith('https://')) {
-        console.warn(`⚠️  URL inválida o local detectada: ${audioUrl}`);
-        return res.status(400).json({
-            error: 'Invalid audioUrl - must be a remote HTTP/HTTPS URL',
-            details: 'Local file paths are not supported. Only remote URLs from Internet Archive are allowed.',
-            receivedUrl: audioUrl
-        });
-    }
-
-    // Validar que sea de Internet Archive (opcional pero recomendado)
-    if (!audioUrl.includes('archive.org')) {
-        console.warn(`⚠️  URL no es de Internet Archive: ${audioUrl}`);
-        // No bloqueamos, pero advertimos
-    }
-
-    try {
-        // 1. Generar nombres de archivo sanitizados
-        const artist = metadata?.artist || 'Unknown';
-        const title = metadata?.title || 'Unknown Track';
-        const ia_id = metadata?.ia_id || null;
-
-        const audioFilename = sanitizeFilename(`${artist} - ${title}.mp3`);
-        const coverFilename = sanitizeFilename(`${artist} - ${title}.jpg`);
-
-        const audioPath = path.join(UPLOADS_MUSIC_DIR, audioFilename);
-        const coverPath = coverUrl ? path.join(UPLOADS_COVERS_DIR, coverFilename) : null;
-
-        // 2. Verificar si ya existe en Spectra DB (evitar duplicados)
-        // Solo verificamos en Spectra - las canciones_externas son índices, no archivos
-        let existingTrack = null;
-
-        if (ia_id) {
-            existingTrack = dbSpectra.prepare(
-                'SELECT id FROM tracks WHERE original_ia_id = ?'
-            ).get(ia_id);
-        }
-
-        if (!existingTrack) {
-            existingTrack = dbSpectra.prepare(
-                'SELECT id FROM tracks WHERE title = ? AND artist = ?'
-            ).get(title, artist);
-        }
-
-        if (existingTrack) {
-            console.log(`💾 Canción ya cacheada en Spectra (ID: ${existingTrack.id})`);
-            return res.json({
-                success: true,
-                trackId: existingTrack.id,
-                msg: 'Track already cached in Spectra',
-                alreadyExists: true
-            });
-        }
-
-        // 3. Descargar audio (con manejo de errores)
-        console.log(`📥 Descargando audio desde: ${audioUrl}`);
-        await downloadFile(audioUrl, audioPath);
-        console.log(`✅ Audio guardado en: ${audioPath}`);
-
-        // 4. Descargar cover (opcional)
-        if (coverUrl) {
-            try {
-                console.log(`🖼️  Descargando cover desde: ${coverUrl}`);
-                await downloadFile(coverUrl, coverPath);
-                console.log(`✅ Cover guardado en: ${coverPath}`);
-            } catch (coverError) {
-                console.warn(`⚠️  No se pudo descargar cover: ${coverError.message}`);
-                // No es crítico, continuamos sin cover
-            }
-        }
-
-        // 5. Extraer metadata del archivo descargado
-        const fileMeta = await mm.parseFile(audioPath);
-        const trackInfo = {
-            title: title,
-            artist: artist,
-            album: metadata?.album || fileMeta.common.album || 'Internet Archive',
-            filepath: `uploads/musica/${audioFilename}`, // Path relativo
-            coverpath: coverPath ? `uploads/covers/${coverFilename}` : null,
-            duration: fileMeta.format.duration || metadata?.duration || 0,
-            bitrate: fileMeta.format.bitrate || 128000,
-            format: fileMeta.format.container || 'mp3',
-            original_ia_id: ia_id
-        };
-
-        // 6. Insertar en la base de datos
-        const insert = dbSpectra.prepare(`
-            INSERT INTO tracks (title, artist, album, filepath, coverpath, duration, bitrate, format, original_ia_id)
-            VALUES (@title, @artist, @album, @filepath, @coverpath, @duration, @bitrate, @format, @original_ia_id)
-        `);
-        const result = insert.run(trackInfo);
-
-        console.log(`💾 Track #${result.lastInsertRowid} guardado en DB`);
-
-        // 7. Disparar análisis de Python en segundo plano
-        runPythonAnalysis(result.lastInsertRowid, audioPath);
-
-        // 8. Responder al frontend inmediatamente
-        res.json({
-            success: true,
-            trackId: result.lastInsertRowid,
-            msg: 'Download complete, analysis started',
-            localPath: trackInfo.filepath
-        });
-
-    } catch (error) {
-        console.error('❌ Error en /ingest-remote:', error);
-        res.status(500).json({
-            error: error.message,
-            details: 'Failed to download or process remote track'
-        });
-    }
-});
+// Dangling code removed
 
 // --- ANÁLISIS DE CANCIONES LOCALES ---
 
@@ -817,10 +846,16 @@ app.post('/sync-local-song', async (req, res) => {
         ).get(songId, title, artist || 'Unknown');
 
         if (existing) {
+            // Si existe pero no tiene el ID de Tidol vinculado, lo actualizamos
+            if (existing.original_tidol_id != songId) {
+                console.log(`🔗 Vinculando Tidol ID ${songId} a Track #${existing.id} ("${title}")`);
+                dbSpectra.prepare('UPDATE tracks SET original_tidol_id = ? WHERE id = ?').run(songId, existing.id);
+            }
+
             return res.json({
                 success: true,
                 trackId: existing.id,
-                message: 'Song already in Spectra',
+                message: 'Song already in Spectra (Linked)',
                 alreadyExists: true
             });
         }
@@ -873,64 +908,46 @@ app.post('/sync-local-song', async (req, res) => {
 });
 
 // 10b. Ingest Remote Song (Internet Archive)
-app.post('/ingest-remote', async (req, res) => {
-    try {
-        const { audioUrl, coverUrl, metadata } = req.body;
+// Helper to run DJ Analysis
+const runDjAnalysis = (filePath) => {
+    return new Promise((resolve, reject) => {
+        const pythonScript = path.join(__dirname, 'analyze_dj.py');
+        const pythonProcess = spawn('python', [pythonScript, filePath]);
 
-        if (!audioUrl || !metadata) {
-            return res.status(400).json({ error: 'Missing audioUrl or metadata' });
-        }
+        let dataString = '';
+        let errorString = '';
 
-        const { title, artist, album, ia_id, duration } = metadata;
-
-        // Check if already exists
-        const existing = dbSpectra.prepare(
-            'SELECT id FROM tracks WHERE original_ia_id = ?'
-        ).get(ia_id);
-
-        if (existing) {
-            return res.json({
-                success: true,
-                trackId: existing.id,
-                message: 'Song already in Spectra',
-                alreadyExists: true
-            });
-        }
-
-        // For IA songs, we store the URL directly as filepath
-        // The actual download/caching happens lazily if needed
-        const insert = dbSpectra.prepare(`
-            INSERT INTO tracks (
-                title, artist, album, filepath, duration, 
-                coverpath, analysis_status, original_ia_id
-            )
-            VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
-        `);
-
-        const result = insert.run(
-            title || 'Unknown Title',
-            artist || 'Unknown Artist',
-            album || 'Internet Archive',
-            audioUrl, // Store URL as filepath for remote songs
-            duration || 0,
-            coverUrl || null,
-            ia_id
-        );
-
-        console.log(`✅ IA Song ingested: "${title}" (ID: ${Number(result.lastInsertRowid)})`);
-
-        res.json({
-            success: true,
-            trackId: Number(result.lastInsertRowid),
-            message: 'Remote song ingested',
-            alreadyExists: false
+        pythonProcess.stdout.on('data', (data) => {
+            dataString += data.toString();
         });
 
-    } catch (error) {
-        console.error('❌ Error en /ingest-remote:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
+        pythonProcess.stderr.on('data', (data) => {
+            errorString += data.toString();
+        });
+
+        pythonProcess.on('close', (code) => {
+            if (code !== 0) {
+                console.error(`DJ Analysis failed with code ${code}: ${errorString}`);
+                resolve({}); // Resolve empty to not block ingestion
+            } else {
+                try {
+                    const result = JSON.parse(dataString);
+                    if (result.error) {
+                        console.error("DJ Analysis Error:", result.error);
+                        resolve({});
+                    } else {
+                        resolve(result);
+                    }
+                } catch (e) {
+                    console.error("Failed to parse DJ Analysis output:", e);
+                    resolve({});
+                }
+            }
+        });
+    });
+};
+
+// Conflicting /ingest-remote endpoint removed
 
 // 11. Analizar todas las canciones pendientes (ANTIGUAS Y NUEVAS)
 app.post('/analyze-all', async (req, res) => {
@@ -1456,6 +1473,7 @@ app.post('/generate-lyrics', async (req, res) => {
 // 20b. LOCAL SONGS - Generate Lyrics (dedicated endpoint)
 app.post('/local/generate-lyrics/:tidol_id', async (req, res) => {
     const { tidol_id } = req.params;
+    console.log(`🎤 Solicitud de letras para Tidol ID: ${tidol_id}`);
     const track = dbSpectra.prepare('SELECT * FROM tracks WHERE original_tidol_id = ?').get(tidol_id);
 
     if (!track) return res.status(404).json({ error: 'Track not found in Spectra. Please sync the song first.' });

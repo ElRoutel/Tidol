@@ -110,9 +110,9 @@ export default function HomeAllView({ data, onPlay }) {
                         <ListenAgainCard
                             key={`${item.id}-${index}`}
                             item={item}
-                            isActive={isCurrentSong(item)}
-                            isPlaying={isSongPlaying(item)}
-                            onClick={() => onPlay(item, index, iaDiscoveries)}
+                            isActive={false} // IA Discoveries are albums/collections, not playable songs directly here
+                            isPlaying={false}
+                            onClick={() => navigate(`/ia-album/${item.identifier || item.id}`)}
                         />
                     ))}
                 </Shelf>

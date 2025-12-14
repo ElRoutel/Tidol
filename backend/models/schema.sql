@@ -61,6 +61,11 @@ CREATE TABLE IF NOT EXISTS canciones (
     bit_depth INTEGER DEFAULT 0,
     sample_rate INTEGER DEFAULT 44100,
     bit_rate INTEGER DEFAULT 0,
+    ia_id TEXT UNIQUE,
+    bpm REAL DEFAULT 0,
+    musical_key TEXT DEFAULT '',
+    cue_in REAL DEFAULT 0,
+    cue_out REAL DEFAULT 0,
     fecha_subida DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (artista_id) REFERENCES artistas(id) ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (album_id) REFERENCES albumes(id) ON DELETE SET NULL ON UPDATE CASCADE

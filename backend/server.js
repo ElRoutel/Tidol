@@ -7,7 +7,10 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 
-import db from "./models/db.js";
+import db, { initDB } from "./models/db.js";
+
+// Inicializar DB y migraciones
+await initDB();
 import chalk from "chalk";
 import gradient from "gradient-string";
 import chalkAnimation from "chalk-animation";
@@ -24,7 +27,7 @@ import helmet from "helmet";
 import compression from "compression";
 
 async function showAnimatedBanner() {
-  console.clear();
+  // console.clear();
 
   const banner = `
  ███████████ █████ ██████████      ███████    █████       
@@ -42,12 +45,12 @@ async function showAnimatedBanner() {
   const neonAnim = chalkAnimation.pulse(banner);
   await new Promise(res => setTimeout(res, 2000));
   neonAnim.stop();
-  console.clear();
+  // console.clear();
   console.log(gradient.pastel.multiline(banner));
   const startAnim = chalkAnimation.rainbow("💻 Iniciando servidor Routel Music API...");
   await new Promise(res => setTimeout(res, 1000));
   startAnim.stop();
-  console.clear();
+  // console.clear();
   console.log(gradient.pastel.multiline(banner));
   console.log(chalk.green("✅ Servidor iniciado correctamente.\n"));
 }

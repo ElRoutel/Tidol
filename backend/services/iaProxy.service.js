@@ -6,19 +6,21 @@ import db from "../models/db.js";
 
 // --- CONFIGURACIÓN ---
 const DEFAULT_PROXY = 'socks5://127.0.0.1:9050';
-const CONCURRENCY_PER_PROXY = 2; // Cuántas peticiones simultáneas permite CADA proxy
-const REQUEST_TIMEOUT = 45000;   // 45 segundos máximo (aumentado para Tor)
+const CONCURRENCY_PER_PROXY = 3; // Aumentado ligeramente
+const REQUEST_TIMEOUT = 30000;   // 30 segundos
+const MAX_RETRIES = 5;           // Intentar hasta 5 veces
+const COOLDOWN_ERROR_MS = 30000; // 30s castigo por error genérico
+const COOLDOWN_429_MS = 120000;  // 2 min castigo por Rate Limit
 
 /**
- * Gestor de Proxies con Rotación (Round-Robin) y Reutilización de Agentes
+ * Gestor de Proxies con Rotación Inteligente y Salud
  */
 class ProxyRotator {
     constructor() {
-        this.proxies = []; // Lista de { address, agent, activeRequests }
-        this.currentIndex = 0;
+        this.proxies = []; // Lista de { address, agent, activeRequests, failureCount, cooldownUntil }
         this.lastRefresh = 0;
         this.refreshInterval = 60000 * 5; // Refrescar lista de DB cada 5 min
-        this.queue = []; // Cola de espera para cuando todos los proxies están llenos
+        this.queue = []; // Cola de espera
     }
 
     /**
@@ -26,59 +28,55 @@ class ProxyRotator {
      */
     async loadProxies() {
         try {
-            // Solo refrescar si pasó el tiempo
             if (Date.now() - this.lastRefresh < this.refreshInterval && this.proxies.length > 0) {
                 return;
             }
 
             const rows = await db.all("SELECT address FROM proxies WHERE active = 1");
-
-            // Si no hay en DB, usamos el Default (Tor Local)
             const addresses = rows && rows.length > 0
                 ? rows.map(r => r.address)
                 : [process.env.TOR_PROXY_ADDRESS || DEFAULT_PROXY];
 
-            // Crear pool de agentes
-            // Mantenemos los agentes existentes si la dirección no ha cambiado para no romper conexiones vivas
+            // Mantenemos estado de proxies existentes
             const newProxies = addresses.map(addr => {
                 const existing = this.proxies.find(p => p.address === addr);
                 if (existing) return existing;
 
                 const isHttp = addr.startsWith('http');
-
                 return {
                     address: addr,
-                    // CREAR AGENTE UNA SOLA VEZ (Ahorra handshake SSL/SOCKS)
                     agent: isHttp
                         ? new HttpsProxyAgent(addr)
                         : new SocksProxyAgent(addr, { keepAlive: true, timeout: REQUEST_TIMEOUT }),
-                    pendingRequests: 0,
-                    lastUsed: 0
+                    activeRequests: 0,
+                    failureCount: 0,
+                    cooldownUntil: 0,
+                    totalSuccess: 0,
+                    totalFail: 0
                 };
             });
 
             this.proxies = newProxies;
             this.lastRefresh = Date.now();
             console.log(`🔄 Proxy Pool actualizado: ${this.proxies.length} proxies activos.`);
-
-            // Intentar procesar la cola si llegaron nuevos proxies
             this.processQueue();
 
         } catch (err) {
             console.warn("⚠️ Error cargando proxies, usando fallback:", err.message);
-            // Fallback de emergencia
             if (this.proxies.length === 0) {
                 this.proxies = [{
                     address: DEFAULT_PROXY,
                     agent: new SocksProxyAgent(DEFAULT_PROXY),
-                    pendingRequests: 0
+                    activeRequests: 0,
+                    failureCount: 0,
+                    cooldownUntil: 0
                 }];
             }
         }
     }
 
     /**
-     * Obtiene un proxy disponible o espera en cola
+     * Obtiene el MEJOR proxy disponible
      */
     async waitForProxy() {
         await this.loadProxies();
@@ -92,90 +90,170 @@ class ProxyRotator {
     processQueue() {
         if (this.queue.length === 0) return;
 
-        // Buscar un proxy con cupo
-        let attempts = 0;
-        let selectedProxy = null;
+        const now = Date.now();
 
-        // Intentamos encontrar uno libre
-        while (attempts < this.proxies.length) {
-            const proxy = this.proxies[this.currentIndex];
-            this.currentIndex = (this.currentIndex + 1) % this.proxies.length;
+        // Filtrar proxies en cooldown
+        const availableProxies = this.proxies.filter(p =>
+            p.cooldownUntil < now &&
+            p.activeRequests < CONCURRENCY_PER_PROXY
+        );
 
-            if (proxy.pendingRequests < CONCURRENCY_PER_PROXY) {
-                selectedProxy = proxy;
-                break;
-            }
-            attempts++;
+        if (availableProxies.length === 0) return; // Nadie disponible, esperar
+
+        // Ordenar por "Salud": Menos fallos, menos carga
+        availableProxies.sort((a, b) => {
+            const scoreA = (a.failureCount * 10) + a.activeRequests;
+            const scoreB = (b.failureCount * 10) + b.activeRequests;
+            return scoreA - scoreB;
+        });
+
+        // Asignar al mejor candidato
+        const bestProxy = availableProxies[0];
+        const nextResolve = this.queue.shift();
+
+        if (nextResolve) {
+            bestProxy.activeRequests++;
+            nextResolve(bestProxy);
+            this.processQueue(); // Seguir procesando si hay más
         }
-
-        // Si encontramos uno libre, despachamos al primero de la cola
-        if (selectedProxy) {
-            const nextResolve = this.queue.shift();
-            if (nextResolve) {
-                selectedProxy.pendingRequests++;
-                nextResolve(selectedProxy);
-                // Intentar procesar el siguiente por si hay más cupo en otros proxies
-                this.processQueue();
-            }
-        }
-        // Si no hay libres, se quedan en la cola hasta que alguien libere (llamando a releaseProxy)
     }
 
     releaseProxy(proxy) {
         if (proxy) {
-            proxy.pendingRequests--;
-            // Al liberar un slot, intentamos procesar la cola
+            proxy.activeRequests = Math.max(0, proxy.activeRequests - 1);
             this.processQueue();
         }
     }
+
+    reportSuccess(proxy) {
+        proxy.failureCount = Math.max(0, proxy.failureCount - 1); // Reducir score de fallo
+        proxy.totalSuccess++;
+    }
+
+    reportFailure(proxy, is429 = false) {
+        proxy.failureCount++;
+        proxy.totalFail++;
+
+        const now = Date.now();
+        const penalty = is429 ? COOLDOWN_429_MS : COOLDOWN_ERROR_MS;
+
+        // Cooldown exponencial si falla mucho
+        const multiplier = Math.min(proxy.failureCount, 5);
+        proxy.cooldownUntil = now + (penalty * multiplier);
+
+        console.warn(`⚠️ Proxy ${proxy.address} castigado por ${proxy.cooldownUntil - now}ms (Fallos: ${proxy.failureCount})`);
+    }
 }
 
-// Instancia global del rotador
 const rotator = new ProxyRotator();
 
 /**
- * Función Principal de Fetch
+ * Fetch con Reintentos y Rotación
  */
-export const fetchWithProxy = async (url) => {
-    // 1. Obtener proxy asignado (esperando si es necesario)
-    const proxyNode = await rotator.waitForProxy();
+export const fetchWithProxy = async (url, options = {}) => {
+    let lastError = null;
 
-    try {
-        // console.log(`🌐 Proxy [${proxyNode.pendingRequests}/${CONCURRENCY_PER_PROXY}]: ${proxyNode.address} -> ${url.substring(0, 40)}...`);
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        const proxyNode = await rotator.waitForProxy();
 
-        const response = await axios.get(url, {
-            httpAgent: proxyNode.agent,
-            httpsAgent: proxyNode.agent,
-            headers: {
-                // User-Agent rotativo o genérico ayuda a evitar bloqueos
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) TidolMusic/2.0',
-                'Connection': 'keep-alive'
-            },
-            timeout: REQUEST_TIMEOUT
-        });
+        try {
+            // console.log(`🌐 Intento ${attempt}/${MAX_RETRIES} usando ${proxyNode.address}`);
 
-        return response.data;
+            const response = await axios.get(url, {
+                httpAgent: proxyNode.agent,
+                httpsAgent: proxyNode.agent,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) TidolMusic/2.0',
+                    'Connection': 'keep-alive',
+                    ...options.headers
+                },
+                timeout: REQUEST_TIMEOUT,
+                validateStatus: status => status < 500 // Aceptar 404 como respuesta válida (no error de red)
+            });
 
-    } catch (error) {
-        // Manejo específico de errores
-        if (error.response && error.response.status === 429) {
-            console.error(`⛔ Bloqueo 429 en proxy ${proxyNode.address}.`);
-            // Aquí podrías marcar el proxy como inactivo en DB temporalmente
-        } else {
-            console.error(`❌ Error Fetch (${proxyNode.address}): ${error.message}`);
+            rotator.reportSuccess(proxyNode);
+            return response.data;
+
+        } catch (error) {
+            const is429 = error.response && error.response.status === 429;
+            rotator.reportFailure(proxyNode, is429);
+            lastError = error;
+
+            // Si es 404, no tiene sentido reintentar (el archivo no existe)
+            if (error.response && error.response.status === 404) {
+                throw error;
+            }
+
+            console.warn(`❌ Fallo intento ${attempt} (${proxyNode.address}): ${error.message}`);
+
+            // Esperar un poco antes del siguiente reintento
+            if (attempt < MAX_RETRIES) {
+                await new Promise(r => setTimeout(r, 1000 * attempt));
+            }
+
+        } finally {
+            rotator.releaseProxy(proxyNode);
         }
-        throw error;
-
-    } finally {
-        // Liberar el slot del proxy
-        rotator.releaseProxy(proxyNode);
     }
+
+    throw lastError || new Error("Max retries exceeded");
 };
 
 /**
- * Inicializa el sistema de proxies (Carga desde DB)
+ * Stream de Audio con Proxies (Soporta Range Headers)
  */
+export const getProxyStream = async (url, headers = {}) => {
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        const proxyNode = await rotator.waitForProxy();
+
+        try {
+            // console.log(`🎧 Stream Intento ${attempt} via ${proxyNode.address}`);
+
+            const response = await axios({
+                method: 'GET',
+                url: url,
+                responseType: 'stream',
+                httpAgent: proxyNode.agent,
+                httpsAgent: proxyNode.agent,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) TidolMusic/2.0',
+                    'Connection': 'keep-alive',
+                    ...headers // Forward Range headers from client
+                },
+                timeout: 30000, // Timeout de conexión inicial
+                validateStatus: status => status < 500
+            });
+
+            // Si es exitoso, retornamos el stream y el proxy node para reportar éxito después
+            // Nota: No podemos reportar éxito inmediatamente, idealmente sería al terminar el stream
+            // Pero por simplicidad, lo marcamos como éxito si conecta.
+            rotator.reportSuccess(proxyNode);
+            rotator.releaseProxy(proxyNode);
+
+            return {
+                stream: response.data,
+                headers: response.headers,
+                status: response.status
+            };
+
+        } catch (error) {
+            const is429 = error.response && error.response.status === 429;
+            rotator.reportFailure(proxyNode, is429);
+            rotator.releaseProxy(proxyNode);
+            lastError = error;
+
+            if (error.response && error.response.status === 404) throw error;
+
+            console.warn(`❌ Fallo Stream ${attempt} (${proxyNode.address}): ${error.message}`);
+            if (attempt < MAX_RETRIES) await new Promise(r => setTimeout(r, 500 * attempt));
+        }
+    }
+    throw lastError || new Error("Stream failed after retries");
+};
+
 export const initProxies = async () => {
-    console.log("🚀 Inicializando sistema de proxies...");
+    console.log("🚀 Inicializando sistema de proxies inteligente...");
     await rotator.loadProxies();
 };

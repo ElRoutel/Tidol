@@ -190,32 +190,82 @@ async function _searchArchive(originalQuery) {
   const smartExpirationLimit = now - (CACHE_SMART_EXPIRATION_DAYS * 24 * 60 * 60 * 1000);
 
   try {
+    let results = [];
+    let fromCache = false;
+
+    // 1. Intentar HITs directos
     const hit = await db.get(`SELECT top_identifier FROM ia_hits WHERE query = ?`, [queryKey]);
     if (hit && hit.top_identifier) {
       const cachedHit = await db.get(`SELECT results, timestamp FROM ia_cache WHERE query = ?`, [queryKey]);
       if (cachedHit) {
         logStatus("Sub-búsqueda IA", true, `HIT ia_hits`);
         await db.run(`UPDATE ia_cache SET last_access = ? WHERE query = ?`, [now, queryKey]);
-        return JSON.parse(cachedHit.results);
+        results = JSON.parse(cachedHit.results);
+        fromCache = true;
       }
     }
 
-    const cached = await db.get(`SELECT results, timestamp FROM ia_cache WHERE query = ?`, [queryKey]);
-    if (cached) {
-      const ts = cached.timestamp || 0;
-      if (ts >= expirationLimit) {
-        await db.run(`UPDATE ia_cache SET last_access = ? WHERE query = ?`, [now, queryKey]);
-        logStatus("Caché IA", true, `HIT fresco`);
-        return JSON.parse(cached.results);
-      } else if (ts >= smartExpirationLimit) {
-        await db.run(`UPDATE ia_cache SET last_access = ? WHERE query = ?`, [now, queryKey]);
-        logStatus("Caché IA", true, `HIT viejo-background`);
-        (async () => { try { await _searchArchiveForceFetch(originalQuery); } catch { } })();
-        return JSON.parse(cached.results);
+    // 2. Intentar Cache Normal
+    if (!fromCache) {
+      const cached = await db.get(`SELECT results, timestamp FROM ia_cache WHERE query = ?`, [queryKey]);
+      if (cached) {
+        const ts = cached.timestamp || 0;
+        if (ts >= expirationLimit) {
+          await db.run(`UPDATE ia_cache SET last_access = ? WHERE query = ?`, [now, queryKey]);
+          logStatus("Caché IA", true, `HIT fresco`);
+          results = JSON.parse(cached.results);
+          fromCache = true;
+        } else if (ts >= smartExpirationLimit) {
+          await db.run(`UPDATE ia_cache SET last_access = ? WHERE query = ?`, [now, queryKey]);
+          logStatus("Caché IA", true, `HIT viejo-background`);
+          (async () => { try { await _searchArchiveForceFetch(originalQuery); } catch { } })();
+          results = JSON.parse(cached.results);
+          fromCache = true;
+        }
       }
     }
 
-    return await _searchArchiveForceFetch(originalQuery);
+    // 3. Fetch si no hay cache
+    if (!fromCache) {
+      results = await _searchArchiveForceFetch(originalQuery);
+    }
+
+    // 4. ENRIQUECIMIENTO LOCAL (Smart Caching)
+    // Verificar si alguno de los resultados ya existe localmente en 'canciones'
+    if (results && results.length > 0) {
+      const identifiers = results.map(r => r.identifier).filter(Boolean);
+      if (identifiers.length > 0) {
+        const placeholders = identifiers.map(() => '?').join(',');
+        const localMatches = await db.all(
+          `SELECT ia_id, archivo, bit_rate, sample_rate, bit_depth FROM canciones WHERE ia_id IN (${placeholders})`,
+          identifiers
+        );
+
+        if (localMatches.length > 0) {
+          const localMap = {};
+          localMatches.forEach(m => localMap[m.ia_id] = m);
+
+          results = results.map(r => {
+            if (localMap[r.identifier]) {
+              const local = localMap[r.identifier];
+              // console.log(`⚡ Usando versión local para: ${r.titulo}`);
+              return {
+                ...r,
+                url: local.archivo, // Reemplazar URL remota por local (/uploads/musica/...)
+                isLocal: true,
+                bit_rate: local.bit_rate,
+                sample_rate: local.sample_rate,
+                bit_depth: local.bit_depth
+              };
+            }
+            return r;
+          });
+        }
+      }
+    }
+
+    return results;
+
   } catch (err) {
     logStatus("Sub-búsqueda IA", false, `Error: ${err.message}`);
     throw new Error("Error al buscar en Internet Archive.");
@@ -753,6 +803,88 @@ export const syncLocalSong = async (req, res) => {
   }
 };
 
+export const registerExternalSong = async (req, res) => {
+  const {
+    title, artist, album, filename, coverFilename, duration, ia_id,
+    bit_rate, sample_rate, bit_depth,
+    bpm, musical_key, cue_in, cue_out
+  } = req.body;
+
+  if (!filename || !ia_id) {
+    return res.status(400).json({ error: "Faltan datos requeridos (filename, ia_id)" });
+  }
+
+  try {
+    // 1. Buscar o Crear Artista
+    let artistId = null;
+    if (artist) {
+      const existingArtist = await db.get("SELECT id FROM artistas WHERE nombre = ?", [artist]);
+      if (existingArtist) {
+        artistId = existingArtist.id;
+      } else {
+        const result = await db.run("INSERT INTO artistas (nombre) VALUES (?)", [artist]);
+        artistId = result.lastID;
+      }
+    }
+
+    // 2. Buscar o Crear Álbum
+    let albumId = null;
+    if (album && artistId) {
+      const existingAlbum = await db.get("SELECT id FROM albumes WHERE titulo = ? AND artista_id = ?", [album, artistId]);
+      if (existingAlbum) {
+        albumId = existingAlbum.id;
+      } else {
+        const result = await db.run("INSERT INTO albumes (titulo, artista_id, portada) VALUES (?, ?, ?)", [
+          album,
+          artistId,
+          coverFilename ? `/uploads/covers/${coverFilename}` : null
+        ]);
+        albumId = result.lastID;
+      }
+    }
+
+    // 3. Insertar Canción (con manejo de duplicados por ia_id)
+    await db.run(`
+      INSERT INTO canciones (
+        titulo, archivo, artista_id, album_id, duracion, 
+        portada, bit_rate, sample_rate, bit_depth, ia_id,
+        bpm, musical_key, cue_in, cue_out
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(ia_id) DO UPDATE SET
+        archivo = excluded.archivo,
+        bit_rate = excluded.bit_rate,
+        sample_rate = excluded.sample_rate,
+        bit_depth = excluded.bit_depth,
+        bpm = excluded.bpm,
+        musical_key = excluded.musical_key,
+        cue_in = excluded.cue_in,
+        cue_out = excluded.cue_out
+    `, [
+      title || "Unknown Title",
+      `/uploads/musica/${filename}`, // Ruta relativa servida por express
+      artistId,
+      albumId,
+      duration || 0,
+      coverFilename ? `/uploads/covers/${coverFilename}` : null,
+      bit_rate || 128000,
+      sample_rate || 44100,
+      bit_depth || 16,
+      ia_id,
+      bpm || 0,
+      musical_key || '',
+      cue_in || 0,
+      cue_out || 0
+    ]);
+
+    console.log(`✅ Canción externa registrada: ${title} (${ia_id}) [BPM: ${bpm || 'N/A'}]`);
+    res.json({ success: true });
+
+  } catch (error) {
+    console.error("❌ Error registrando canción externa:", error.message);
+    res.status(500).json({ error: "Error al registrar canción" });
+  }
+};
+
 export const getIaDiscoveries = async (req, res) => {
   try {
     // 1. Get Top Search Queries (Explicit Interest)
@@ -858,6 +990,49 @@ export const getIaDiscoveries = async (req, res) => {
   }
 };
 
+export const streamAudio = async (req, res) => {
+  const { url } = req.query;
+  if (!url) return res.status(400).send("Missing url");
+
+  try {
+    // Forward Range header for seeking support
+    const range = req.headers.range;
+    const headers = range ? { Range: range } : {};
+
+    const { stream, headers: proxyHeaders, status } = await getProxyStream(url, headers);
+
+    // Forward important headers
+    if (proxyHeaders['content-type']) res.setHeader('Content-Type', proxyHeaders['content-type']);
+    if (proxyHeaders['content-length']) res.setHeader('Content-Length', proxyHeaders['content-length']);
+    if (proxyHeaders['content-range']) res.setHeader('Content-Range', proxyHeaders['content-range']);
+    if (proxyHeaders['accept-ranges']) res.setHeader('Accept-Ranges', proxyHeaders['accept-ranges']);
+
+    res.status(status);
+    stream.pipe(res);
+
+    stream.on('error', (err) => {
+      console.error("Stream error:", err.message);
+      res.end();
+    });
+
+  } catch (err) {
+    console.error("Stream failed:", err.message);
+    if (!res.headersSent) res.status(502).send("Stream Proxy Error");
+  }
+};
+
+export const getSmartMix = async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Proxy to Spectra
+    const response = await axios.get(`http://localhost:5000/recommend/${id}`);
+    res.json(response.data);
+  } catch (error) {
+    console.error("Smart Mix Error:", error.message);
+    res.status(500).json({ error: "Failed to get smart mix" });
+  }
+};
+
 export default {
-  searchAll, search, searchArchive, getRecommendations, getSongs, getAlbums, getAlbumDetails, getAlbumSongs, getArtists, getArtistDetails, getArtistSongs, getHomeRecommendations, getLyricsBySong, toggleLike, checkIfLiked, getUserLikes, registerIaClick, registerComparatorRelation, registerIaComparator, toggleIaLike, checkIfIaLiked, getUserIaLikes, getCover, syncLocalSong, getIaDiscoveries
+  searchAll, search, searchArchive, getRecommendations, getSongs, getAlbums, getAlbumDetails, getAlbumSongs, getArtists, getArtistDetails, getArtistSongs, getHomeRecommendations, getLyricsBySong, toggleLike, checkIfLiked, getUserLikes, registerIaClick, registerComparatorRelation, registerIaComparator, toggleIaLike, checkIfIaLiked, getUserIaLikes, getCover, syncLocalSong, getIaDiscoveries, getSmartMix
 };
