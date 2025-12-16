@@ -3,7 +3,7 @@ import { IoPlay } from 'react-icons/io5';
 import MiniVisualizer from '../MiniVisualizer';
 import { useContextMenu } from '../../context/ContextMenuContext';
 
-export default function QuickSelectionCard({ item, onClick, isActive }) {
+const QuickSelectionCard = ({ item, onClick, isActive }) => {
     const { openContextMenu } = useContextMenu();
 
     const handleContextMenu = (e) => {
@@ -48,4 +48,6 @@ export default function QuickSelectionCard({ item, onClick, isActive }) {
             </div>
         </div>
     );
-}
+};
+
+export default React.memo(QuickSelectionCard);

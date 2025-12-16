@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePlayer } from '../../../context/PlayerContext';
 import { useAuth } from '../../../context/AuthContext';
@@ -6,14 +6,14 @@ import Shelf from '../../Shelf';
 import QuickSelectionCard from '../../cards/QuickSelectionCard';
 import ListenAgainCard from '../../cards/ListenAgainCard';
 
-export default function HomeAllView({ data, onPlay }) {
+const HomeAllView = ({ data, onPlay }) => {
     const { recentListenings, quickSelection, recommendations, albums, coversRemixes, iaDiscoveries } = data || {};
     const { currentSong, isPlaying } = usePlayer();
     const { user } = useAuth();
     const navigate = useNavigate();
 
-    const isCurrentSong = (item) => currentSong?.id === item.id;
-    const isSongPlaying = (item) => isCurrentSong(item) && isPlaying;
+    const isCurrentSong = useCallback((item) => currentSong?.id === item.id, [currentSong]);
+    const isSongPlaying = useCallback((item) => isCurrentSong(item) && isPlaying, [isCurrentSong, isPlaying]);
 
     return (
         <div className="flex flex-col gap-12 pb-20 animate-fade-in">
@@ -119,4 +119,6 @@ export default function HomeAllView({ data, onPlay }) {
             )}
         </div>
     );
-}
+};
+
+export default React.memo(HomeAllView);

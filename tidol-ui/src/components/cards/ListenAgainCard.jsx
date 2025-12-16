@@ -25,7 +25,7 @@ const getSubtitle = (item) => {
     return 'Desconocido';
 };
 
-export default function ListenAgainCard({ item, onClick, onPlay, isActive }) {
+const ListenAgainCard = ({ item, onClick, onPlay, isActive }) => {
     const { openContextMenu } = useContextMenu();
 
     // Defensive Data Mapping
@@ -90,4 +90,6 @@ export default function ListenAgainCard({ item, onClick, onPlay, isActive }) {
             </div>
         </div>
     );
-}
+};
+
+export default React.memo(ListenAgainCard);
