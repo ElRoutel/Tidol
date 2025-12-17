@@ -1,8 +1,7 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { usePlayer } from '../context/PlayerContext';
 import { useHome } from '../hooks/useHome';
 import useLazyCaching from '../hooks/useLazyCaching';
-import api from '../api/axiosConfig';
 import axios from 'axios';
 import ChipsCarousel from '../components/home/ChipsCarousel';
 import HomeAllView from '../components/home/views/HomeAllView';
@@ -12,14 +11,37 @@ import '../styles/glass.css';
 export default function HomePage() {
   const { playSongList } = usePlayer();
   const { selectedChip, setSelectedChip, isLoading, data } = useHome();
-  const { handlePlayTrack, handlePlayList } = useLazyCaching();
+  const { handlePlayList } = useLazyCaching();
 
-  const handlePlaySong = (song, index, songList) => {
-    // Detectar si es una canción de Internet Archive
-    // Las canciones de IA pueden venir de varias fuentes:
-    // 1. Con campo 'type' = 'ia' (desde getHistory)
-    // 2. Con campo 'identifier' (desde búsqueda/Search)
-    // 3. URL contiene 'archive.org'
+  // Sincronizar canción local a Spectra
+  // Memoizada con useCallback para estabilizar su referencia
+  const syncLocalToSpectra = useCallback(async (song) => {
+    try {
+      // Use axios directly to hit the /spectra proxy (port 3001)
+      const response = await axios.post('/spectra/sync-local-song', {
+        songId: song.id,
+        title: song.titulo || song.title,
+        artist: song.artista || song.artist || 'Unknown',
+        album: song.album || 'Local Music',
+        filepath: song.archivo || song.url,
+        coverpath: song.portada || null,
+        duration: song.duracion || song.duration || 0,
+        bitrate: song.bit_rate || 0
+      });
+
+      const responseData = response.data;
+      if (responseData.success && !responseData.alreadyExists) {
+        console.log('📊 Canción local sincronizada a Spectra para análisis:', song.titulo);
+      }
+    } catch (error) {
+      console.warn('⚠️  No se pudo sincronizar a Spectra:', error.message);
+    }
+  }, []); // Sin dependencias, la función no necesita recrearse
+
+  // Maneja la reproducción de la canción
+  // Memoizada con useCallback para evitar recrearse en cada render,
+  // lo que previene re-renders innecesarios en componentes hijos (HomeAllView y sus tarjetas)
+  const handlePlaySong = useCallback((song, index, songList) => {
     const isInternetArchive =
       song.type === 'ia' ||
       song.identifier ||
@@ -36,7 +58,6 @@ export default function HomePage() {
 
     if (isInternetArchive) {
       // Usar lazy caching para canciones de IA
-      // Esto reproduce inmediatamente Y dispara descarga en background
       if (index === 0) {
         handlePlayList(songList, 0);
       } else {
@@ -46,38 +67,9 @@ export default function HomePage() {
       // CANCIONES LOCALES: Reproducir + Sincronizar a Spectra
       const playlist = songList.slice(index);
       playSongList(playlist, 0);
-
-      // Sincronizar canción local a Spectra para análisis
       syncLocalToSpectra(song);
     }
-  };
-
-  // Sincronizar canción local a Spectra
-  const syncLocalToSpectra = async (song) => {
-    try {
-      // Use axios directly to hit the /spectra proxy (port 3001)
-      // Endpoint is now /spectra/sync-local-song (proxied to port 3001)
-      const response = await axios.post('/spectra/sync-local-song', {
-        songId: song.id,
-        title: song.titulo || song.title,
-        artist: song.artista || song.artist || 'Unknown',
-        album: song.album || 'Local Music',
-        filepath: song.archivo || song.url,
-        coverpath: song.portada || null,
-        duration: song.duracion || song.duration || 0,
-        bitrate: song.bit_rate || 0
-      });
-
-      const data = response.data;
-      if (data.success && !data.alreadyExists) {
-        console.log('📊 Canción local sincronizada a Spectra para análisis:', song.titulo);
-      }
-    } catch (error) {
-      console.warn('⚠️  No se pudo sincronizar a Spectra:', error.message);
-    }
-  };
-
-  // Render First Strategy: No blocking return
+  }, [playSongList, handlePlayList, syncLocalToSpectra]); // Dependencias estables
 
 
   return (
