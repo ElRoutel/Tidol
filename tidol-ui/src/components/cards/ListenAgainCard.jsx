@@ -25,7 +25,10 @@ const getSubtitle = (item) => {
     return 'Desconocido';
 };
 
-export default function ListenAgainCard({ item, onClick, onPlay, isActive }) {
+// ⚡ Bolt Optimization: Wrapped with React.memo
+// This prevents the card from re-rendering if its props haven't changed,
+// which is common in lists where parent components might re-render.
+const ListenAgainCard = ({ item, onClick, onPlay, isActive }) => {
     const { openContextMenu } = useContextMenu();
 
     // Defensive Data Mapping
@@ -90,4 +93,6 @@ export default function ListenAgainCard({ item, onClick, onPlay, isActive }) {
             </div>
         </div>
     );
-}
+};
+
+export default React.memo(ListenAgainCard);

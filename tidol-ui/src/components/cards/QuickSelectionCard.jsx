@@ -3,7 +3,10 @@ import { IoPlay } from 'react-icons/io5';
 import MiniVisualizer from '../MiniVisualizer';
 import { useContextMenu } from '../../context/ContextMenuContext';
 
-export default function QuickSelectionCard({ item, onClick, isActive }) {
+// ⚡ Bolt Optimization: Wrapped with React.memo
+// This prevents the card from re-rendering if its props haven't changed,
+// which is crucial for performance in grids and lists.
+const QuickSelectionCard = ({ item, onClick, isActive }) => {
     const { openContextMenu } = useContextMenu();
 
     const handleContextMenu = (e) => {
@@ -48,4 +51,6 @@ export default function QuickSelectionCard({ item, onClick, isActive }) {
             </div>
         </div>
     );
-}
+};
+
+export default React.memo(QuickSelectionCard);
