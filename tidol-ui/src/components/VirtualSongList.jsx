@@ -1,49 +1,62 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { FixedSizeList as List } from 'react-window';
 import LibraryItem from './LibraryItem';
+import favImage from '../pages/favImage.jpg';
 
-const VirtualSongList = ({ songs, onPlay, height = 600, itemSize = 72, currentView }) => {
+const Row = React.memo(({ index, style, data }) => {
+  const { songs, onPlay, getSubtitle, currentView, layout } = data;
+  const item = songs[index];
+  const uniqueKey = item.id || item.identifier || `idx-${index}`;
 
-    const Row = ({ index, style }) => {
-        const item = songs[index];
-        const uniqueKey = item.id || item.identifier || `idx-${index}`;
+  return (
+    <div style={style} className="px-2">
+      <LibraryItem
+        key={uniqueKey}
+        title={item.titulo || item.title || item.nombre || "Sin título"}
+        subtitle={getSubtitle(item)}
+        image={item.portada || item.cover_url || favImage}
+        viewMode={layout}
+        item={item}
+        type={currentView === "playlists" ? "playlist" : "song"}
+        onClick={() => onPlay(songs, index)}
+      />
+    </div>
+  );
+});
 
-        // Helper para subtítulos (copiado de LibraryPage)
-        const getSubtitle = (itm) => {
-            if (currentView === "playlists") {
-                const count = itm.canciones ? itm.canciones.length : 0;
-                return `${count} canciones`;
-            }
-            return itm.artista || itm.artist || itm.subtitle || "Desconocido";
-        };
+const VirtualSongList = ({ songs, onPlay, getSubtitle, currentView, layout }) => {
+  const [height, setHeight] = useState(window.innerHeight - 220);
 
-        return (
-            <div style={style} className="px-2">
-                <LibraryItem
-                    key={uniqueKey}
-                    title={item.titulo || item.title || item.nombre || "Sin título"}
-                    subtitle={getSubtitle(item)}
-                    image={item.portada || item.cover_url || "default-cover.jpg"} // Fallback handled in component usually
-                    viewMode="list" // Virtual list forces list view usually, or we can adapt
-                    item={item}
-                    type={currentView === "playlists" ? "playlist" : "song"}
-                    onClick={() => onPlay(songs, index)}
-                />
-            </div>
-        );
+  useEffect(() => {
+    const handleResize = () => {
+      setHeight(window.innerHeight - 220);
     };
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
 
-    return (
-        <List
-            height={height}
-            itemCount={songs.length}
-            itemSize={itemSize}
-            width={'100%'}
-            overscanCount={5}
-        >
-            {Row}
-        </List>
-    );
+  const itemData = {
+    songs,
+    onPlay,
+    getSubtitle,
+    currentView,
+    layout,
+  };
+
+  return (
+    <List
+      height={height}
+      itemCount={songs.length}
+      itemSize={72}
+      width="100%"
+      itemData={itemData}
+      overscanCount={5}
+    >
+      {Row}
+    </List>
+  );
 };
 
 export default VirtualSongList;

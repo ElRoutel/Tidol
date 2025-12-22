@@ -5,7 +5,7 @@ import { useLibrary } from "../hooks/useLibrary";
 import LibraryItem from "../components/LibraryItem";
 import SkeletonSongList from "../components/skeletons/SkeletonSongList";
 
-// import VirtualSongList from "../components/VirtualSongList"; // Disabled due to Vite error
+import VirtualSongList from "../components/VirtualSongList";
 import api from "../api/axiosConfig";
 import favImage from "./favImage.jpg";
 import "../styles/glass.css";
@@ -101,13 +101,14 @@ export default function LibraryPage() {
         {isLoading && <SkeletonSongList count={12} />}
 
         {!isLoading && data.length > 0 && (
-          layout === 'list_DISABLED_DEBUG' ? (
+          layout === 'list' ? (
             <VirtualSongList
               songs={data}
               currentView={currentView}
               layout={layout}
+              getSubtitle={getSubtitle}
               onPlay={(list, index) => {
-                if (currentView === 'playlists') {
+                if (currentView === "playlists") {
                   handlePlayPlaylist(list[index].id);
                 } else {
                   playSongList(list, index);
