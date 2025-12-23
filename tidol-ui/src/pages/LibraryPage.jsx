@@ -1,11 +1,11 @@
-import React from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { useSwipeable } from "react-swipeable";
 import { usePlayer } from "../context/PlayerContext";
 import { useLibrary } from "../hooks/useLibrary";
 import LibraryItem from "../components/LibraryItem";
 import SkeletonSongList from "../components/skeletons/SkeletonSongList";
 
-// import VirtualSongList from "../components/VirtualSongList"; // Disabled due to Vite error
+import VirtualSongList from "../components/VirtualSongList";
 import api from "../api/axiosConfig";
 import favImage from "./favImage.jpg";
 import "../styles/glass.css";
@@ -15,8 +15,30 @@ export default function LibraryPage() {
   const { currentView, setCurrentView, layout, setLayout, data, isLoading } = useLibrary();
   const { playSongList } = usePlayer();
 
-  console.log("LibraryPage Render:", { currentView, layout, dataLength: data?.length, isLoading });
+  const containerRef = useRef(null);
+  const [containerHeight, setContainerHeight] = useState(0);
 
+  // ⚡ Optimization:
+  // Measure the container's height and pass it to react-window.
+  // This makes the virtualized list responsive to layout changes.
+  useEffect(() => {
+    const observer = new ResizeObserver(entries => {
+      if (entries[0]) {
+        setContainerHeight(entries[0].contentRect.height);
+      }
+    });
+
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+    }
+
+    return () => {
+      // Disconnect observer on cleanup
+      if (containerRef.current) {
+        observer.unobserve(containerRef.current);
+      }
+    };
+  }, []); // Run once on mount
 
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => {
@@ -97,15 +119,16 @@ export default function LibraryPage() {
       </div>
 
       {/* CONTENIDO */}
-      <div className={`lib-grid ${layout}`} style={{ height: 'calc(100vh - 220px)' }}>
+      <div ref={containerRef} className={`lib-grid ${layout}`} style={{ height: 'calc(100vh - 220px)' }}>
         {isLoading && <SkeletonSongList count={12} />}
 
         {!isLoading && data.length > 0 && (
-          layout === 'list_DISABLED_DEBUG' ? (
+          // ⚡ Optimization: Re-enabled VirtualSongList for 'list' layout.
+          layout === 'list' && containerHeight > 0 ? (
             <VirtualSongList
               songs={data}
               currentView={currentView}
-              layout={layout}
+              height={containerHeight}
               onPlay={(list, index) => {
                 if (currentView === 'playlists') {
                   handlePlayPlaylist(list[index].id);
@@ -115,6 +138,7 @@ export default function LibraryPage() {
               }}
             />
           ) : (
+            // Grid view uses the standard map function
             data.map((item, i) => {
               const uniqueKey = item.id || item.identifier || `idx-${i}`;
               return (
