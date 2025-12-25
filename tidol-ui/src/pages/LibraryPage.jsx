@@ -5,7 +5,7 @@ import { useLibrary } from "../hooks/useLibrary";
 import LibraryItem from "../components/LibraryItem";
 import SkeletonSongList from "../components/skeletons/SkeletonSongList";
 
-// import VirtualSongList from "../components/VirtualSongList"; // Disabled due to Vite error
+import VirtualSongList from "../components/VirtualSongList"; // Habilitado para virtualización
 import api from "../api/axiosConfig";
 import favImage from "./favImage.jpg";
 import "../styles/glass.css";
@@ -14,9 +14,6 @@ import "./Library.css";
 export default function LibraryPage() {
   const { currentView, setCurrentView, layout, setLayout, data, isLoading } = useLibrary();
   const { playSongList } = usePlayer();
-
-  console.log("LibraryPage Render:", { currentView, layout, dataLength: data?.length, isLoading });
-
 
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => {
@@ -45,13 +42,24 @@ export default function LibraryPage() {
     }
   };
 
-  // HELPER PARA SUBTÍTULOS
+  // HELPER PARA SUBTÍTULOS (usado por el modo Grid)
   const getSubtitle = (item) => {
     if (currentView === "playlists") {
       const count = item.canciones ? item.canciones.length : 0;
       return `${count} canciones`;
     }
     return item.artista || item.artist || item.subtitle || "Desconocido";
+  };
+
+  // Handler unificado para reproducir, para pasarlo a la lista virtualizada
+  // y al modo grid para consistencia.
+  const handlePlay = (list, index) => {
+    const item = list[index];
+    if (currentView === "playlists") {
+      handlePlayPlaylist(item.id);
+    } else {
+      playSongList(list, index);
+    }
   };
 
   return (
@@ -96,43 +104,42 @@ export default function LibraryPage() {
         </div>
       </div>
 
-      {/* CONTENIDO */}
-      <div className={`lib-grid ${layout}`} style={{ height: 'calc(100vh - 220px)' }}>
+      {/*
+        ⚡ Bolt: Optimización de Rendimiento
+        - Se usa un wrapper 'lib-content-wrapper' para que la lista virtualizada
+          pueda calcular su altura (height: 100%) correctamente.
+        - En modo 'list', se renderiza <VirtualSongList /> para un scroll eficiente.
+        - En modo 'grid', se mantiene el .map() y se le aplica un contenedor div para
+          que el estilo de la grid funcione como se espera.
+      */}
+      <div className={`lib-content-wrapper ${layout}`} style={{ height: 'calc(100vh - 220px)' }}>
         {isLoading && <SkeletonSongList count={12} />}
 
         {!isLoading && data.length > 0 && (
-          layout === 'list_DISABLED_DEBUG' ? (
+          layout === 'list' ? (
             <VirtualSongList
               songs={data}
               currentView={currentView}
-              layout={layout}
-              onPlay={(list, index) => {
-                if (currentView === 'playlists') {
-                  handlePlayPlaylist(list[index].id);
-                } else {
-                  playSongList(list, index);
-                }
-              }}
+              onPlay={handlePlay}
             />
           ) : (
-            data.map((item, i) => {
-              const uniqueKey = item.id || item.identifier || `idx-${i}`;
-              return (
-                <LibraryItem
-                  key={uniqueKey}
-                  title={item.titulo || item.title || item.nombre || "Sin título"}
-                  subtitle={getSubtitle(item)}
-                  image={item.portada || item.cover_url || favImage}
-                  viewMode={layout}
-                  item={item}
-                  type={currentView === "playlists" ? "playlist" : "song"}
-                  onClick={() => {
-                    if (currentView === "playlists") handlePlayPlaylist(item.id);
-                    else playSongList(data, i);
-                  }}
-                />
-              );
-            })
+            <div className="lib-grid">
+              {data.map((item, i) => {
+                const uniqueKey = item.id || item.identifier || `idx-${i}`;
+                return (
+                  <LibraryItem
+                    key={uniqueKey}
+                    title={item.titulo || item.title || item.nombre || "Sin título"}
+                    subtitle={getSubtitle(item)}
+                    image={item.portada || item.cover_url || favImage}
+                    viewMode={layout}
+                    item={item}
+                    type={currentView === "playlists" ? "playlist" : "song"}
+                    onClick={() => handlePlay(data, i)}
+                  />
+                );
+              })}
+            </div>
           )
         )}
       </div>
