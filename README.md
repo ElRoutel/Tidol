@@ -102,6 +102,7 @@ Si prefieres ejecutar cada servicio por separado en tu máquina host.
     # Instalar dependencias del servidor Node de Spectra si es necesario
     npm install
     cd ..
+    Opcional pero recomendado modificar los .env para usar tus propias claves (Tidol\backend\.env y Tidol\tidol-spectra\.env)
     ```
 
 4.  **Ejecutar:**
