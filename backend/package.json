@@ -28,6 +28,7 @@
     "p-limit": "^7.2.0",
     "react-icons": "^5.5.0",
     "sharp": "^0.34.5",
+    "socks-proxy-agent": "^8.0.5",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7"
   },

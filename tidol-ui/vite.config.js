@@ -13,6 +13,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      workbox: {
+        cleanupOutdatedCaches: true, // Limpiar versiones viejas automáticamente
+      },
       manifest: {
         name: 'Tidol Music',
         short_name: 'Tidol',

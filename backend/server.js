@@ -103,22 +103,25 @@ app.use(helmet({
 // ... (compression)
 
 // --- Proxy para Spectra (Microservicio Python en puerto 3001) ---
-// Redirige /api/spectra/* a http://localhost:3001/*
-app.use('/api/spectra', createProxyMiddleware({
+// Soportamos tanto /api/spectra/ como /spectra/ para compatibilidad con el frontend
+const spectraProxy = createProxyMiddleware({
   target: 'http://localhost:3001',
   changeOrigin: true,
   pathRewrite: {
-    '^/api/spectra': '', // remove /api/spectra prefix when forwarding
+    '^/api/spectra': '', // remove /api/spectra prefix
+    '^/spectra': '',     // remove /spectra prefix
   },
   onProxyReq: (proxyReq, req, res) => {
-    // Opcional: Log proxy requests
-    // console.log(`[Proxy] ${req.method} ${req.url} -> http://localhost:3001${req.url}`);
+    // console.log(`[Proxy Spectra] ${req.method} ${req.url}`);
   },
   onError: (err, req, res) => {
     console.error('[Proxy Error] Spectra not available:', err);
     res.status(503).send('Spectra Service Unavailable');
   }
-}));
+});
+
+app.use('/api/spectra', spectraProxy);
+app.use('/spectra', spectraProxy);
 
 // ... (rest of middleware)
 
@@ -400,16 +403,24 @@ async function ensureColumn(table, column, typeDef) {
     logStatus("Frontend", true, `Sirviendo archivos estáticos desde ${frontendDistPath}`);
 
     // Middleware "catch-all" para Single Page Applications (SPA).
-    // Debe ir DESPUÉS de todas las rutas de la API.
-    // Redirige cualquier otra petición al index.html del frontend para que el router del cliente se encargue.
     app.get('*', (req, res) => {
-      // Evita que las rutas de la API caigan aquí por error.
-      if (!req.originalUrl.startsWith('/api')) {
-        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
-        res.sendFile(path.join(frontendDistPath, 'index.html'));
+      // 1. Si es una ruta de API, no devolver el index.html
+      if (req.originalUrl.startsWith('/api')) {
+        return res.status(404).json({ error: "Ruta de API no encontrada" });
       }
+
+      // 2. Si es un archivo estático (tiene extensión o está en /assets/) que no se encontró en express.static
+      // devolvemos 404 en lugar de index.html para evitar errores de MIME type.
+      const isFile = req.path.includes('.') || req.path.includes('/assets/');
+      if (isFile) {
+        return res.status(404).send('Archivo no encontrado');
+      }
+
+      // 3. Para todo lo demás (rutas del router de React), servir index.html
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.sendFile(path.join(frontendDistPath, 'index.html'));
     });
 
     // --- Health Check (Optimized) ---

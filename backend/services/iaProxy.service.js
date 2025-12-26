@@ -42,12 +42,12 @@ class ProxyRotator {
                 const existing = this.proxies.find(p => p.address === addr);
                 if (existing) return existing;
 
-                const isHttp = addr.startsWith('http');
+                const isSocks = addr.startsWith('socks');
                 return {
                     address: addr,
-                    agent: isHttp
-                        ? new HttpsProxyAgent(addr)
-                        : new SocksProxyAgent(addr, { keepAlive: true, timeout: REQUEST_TIMEOUT }),
+                    agent: isSocks
+                        ? new SocksProxyAgent(addr, { keepAlive: true, timeout: REQUEST_TIMEOUT })
+                        : new HttpsProxyAgent(addr.includes('://') ? addr : `http://${addr}`),
                     activeRequests: 0,
                     failureCount: 0,
                     cooldownUntil: 0,
@@ -184,7 +184,8 @@ export const fetchWithProxy = async (url, options = {}) => {
                 throw error;
             }
 
-            console.warn(`❌ Fallo intento ${attempt} (${proxyNode.address}): ${error.message}`);
+            const errorMsg = error.response ? `Status ${error.response.status}` : error.code || error.message;
+            console.warn(`❌ Fallo intento ${attempt} (${proxyNode.address}): ${errorMsg}`);
 
             // Esperar un poco antes del siguiente reintento
             if (attempt < MAX_RETRIES) {
