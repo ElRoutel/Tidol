@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+pydantic
+torch
+faster-whisper
+librosa
+numpy
+pandas
+demucs
+python-dotenv
+requests

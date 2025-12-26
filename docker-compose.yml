@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  tidol-ui:
+    build: ./tidol-ui
+    ports:
+      - "5173:5173"
+    networks:
+      - tidol-net
+    depends_on:
+      - backend
+
+  backend:
+    build: ./backend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./backend/models/database.sqlite:/app/models/database.sqlite
+    networks:
+      - tidol-net
+    depends_on:
+      - tidol-spectra
+
+  tidol-spectra:
+    build: ./tidol-spectra
+    ports:
+      - "3001:3001"
+      - "8008:8008"
+    volumes:
+      - ./tidol-spectra/uploads:/app/uploads
+      - ./tidol-spectra/spectra.db:/app/spectra.db
+      - ./backend/uploads/musica:/app/../backend/uploads/musica
+    networks:
+      - tidol-net
+  # Opional: Integrar el Warp Farm aquí si se desea centralizado.
+  # Por ahora el usuario lo inicia por separado en Tidol.bat,
+  # pero dejaré las bases para que pueda usarse en el futuro.
+
+networks:
+  tidol-net:
+    driver: bridge

@@ -1,0 +1,254 @@
+version: "3"
+services:
+  warp-1:
+    image: qmcgaw/gluetun
+    container_name: warp-proxy-1
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 8881:8888/tcp # HTTP Proxy
+    volumes:
+      - ./node_1/wgcf-profile.conf:/gluetun/wireguard/wg0.conf:ro
+    environment:
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+      - HTTPPROXY=on
+      - HTTPPROXY_LOG=off
+    restart: always
+
+  warp-2:
+    image: qmcgaw/gluetun
+    container_name: warp-proxy-2
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 8882:8888/tcp # HTTP Proxy
+    volumes:
+      - ./node_2/wgcf-profile.conf:/gluetun/wireguard/wg0.conf:ro
+    environment:
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+      - HTTPPROXY=on
+      - HTTPPROXY_LOG=off
+    restart: always
+
+  warp-3:
+    image: qmcgaw/gluetun
+    container_name: warp-proxy-3
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 8883:8888/tcp # HTTP Proxy
+    volumes:
+      - ./node_3/wgcf-profile.conf:/gluetun/wireguard/wg0.conf:ro
+    environment:
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+      - HTTPPROXY=on
+      - HTTPPROXY_LOG=off
+    restart: always
+
+  warp-4:
+    image: qmcgaw/gluetun
+    container_name: warp-proxy-4
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 8884:8888/tcp # HTTP Proxy
+    volumes:
+      - ./node_4/wgcf-profile.conf:/gluetun/wireguard/wg0.conf:ro
+    environment:
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+      - HTTPPROXY=on
+      - HTTPPROXY_LOG=off
+    restart: always
+
+  warp-5:
+    image: qmcgaw/gluetun
+    container_name: warp-proxy-5
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 8885:8888/tcp # HTTP Proxy
+    volumes:
+      - ./node_5/wgcf-profile.conf:/gluetun/wireguard/wg0.conf:ro
+    environment:
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+      - HTTPPROXY=on
+      - HTTPPROXY_LOG=off
+    restart: always
+
+  warp-6:
+    image: qmcgaw/gluetun
+    container_name: warp-proxy-6
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 8886:8888/tcp # HTTP Proxy
+    volumes:
+      - ./node_6/wgcf-profile.conf:/gluetun/wireguard/wg0.conf:ro
+    environment:
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+      - HTTPPROXY=on
+      - HTTPPROXY_LOG=off
+    restart: always
+
+  warp-7:
+    image: qmcgaw/gluetun
+    container_name: warp-proxy-7
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 8887:8888/tcp # HTTP Proxy
+    volumes:
+      - ./node_7/wgcf-profile.conf:/gluetun/wireguard/wg0.conf:ro
+    environment:
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+      - HTTPPROXY=on
+      - HTTPPROXY_LOG=off
+    restart: always
+
+  warp-8:
+    image: qmcgaw/gluetun
+    container_name: warp-proxy-8
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 8888:8888/tcp # HTTP Proxy
+    volumes:
+      - ./node_8/wgcf-profile.conf:/gluetun/wireguard/wg0.conf:ro
+    environment:
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+      - HTTPPROXY=on
+      - HTTPPROXY_LOG=off
+    restart: always
+
+  warp-9:
+    image: qmcgaw/gluetun
+    container_name: warp-proxy-9
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 8889:8888/tcp # HTTP Proxy
+    volumes:
+      - ./node_9/wgcf-profile.conf:/gluetun/wireguard/wg0.conf:ro
+    environment:
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+      - HTTPPROXY=on
+      - HTTPPROXY_LOG=off
+    restart: always
+
+  warp-10:
+    image: qmcgaw/gluetun
+    container_name: warp-proxy-10
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 8890:8888/tcp # HTTP Proxy
+    volumes:
+      - ./node_10/wgcf-profile.conf:/gluetun/wireguard/wg0.conf:ro
+    environment:
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+      - HTTPPROXY=on
+      - HTTPPROXY_LOG=off
+    restart: always
+
+  warp-11:
+    image: qmcgaw/gluetun
+    container_name: warp-proxy-11
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 8891:8888/tcp # HTTP Proxy
+    volumes:
+      - ./node_11/wgcf-profile.conf:/gluetun/wireguard/wg0.conf:ro
+    environment:
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+      - HTTPPROXY=on
+      - HTTPPROXY_LOG=off
+    restart: always
+
+  warp-12:
+    image: qmcgaw/gluetun
+    container_name: warp-proxy-12
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 8892:8888/tcp # HTTP Proxy
+    volumes:
+      - ./node_12/wgcf-profile.conf:/gluetun/wireguard/wg0.conf:ro
+    environment:
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+      - HTTPPROXY=on
+      - HTTPPROXY_LOG=off
+    restart: always
+
+  warp-13:
+    image: qmcgaw/gluetun
+    container_name: warp-proxy-13
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 8893:8888/tcp # HTTP Proxy
+    volumes:
+      - ./node_13/wgcf-profile.conf:/gluetun/wireguard/wg0.conf:ro
+    environment:
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+      - HTTPPROXY=on
+      - HTTPPROXY_LOG=off
+    restart: always
+
+  warp-14:
+    image: qmcgaw/gluetun
+    container_name: warp-proxy-14
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 8894:8888/tcp # HTTP Proxy
+    volumes:
+      - ./node_14/wgcf-profile.conf:/gluetun/wireguard/wg0.conf:ro
+    environment:
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+      - HTTPPROXY=on
+      - HTTPPROXY_LOG=off
+    restart: always
+

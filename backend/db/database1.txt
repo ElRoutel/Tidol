@@ -1,0 +1,109 @@
+-- -----------------------
+-- Tabla de usuarios
+-- -----------------------
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE, -- Nombre de usuario único
+    password TEXT NOT NULL,        -- Contraseña encriptada (bcrypt)
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Índice para login rápido
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+
+-- ============================
+-- Tabla de artistas (actualizada)
+-- ============================
+CREATE TABLE IF NOT EXISTS artistas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL UNIQUE,
+    bio TEXT DEFAULT '',            -- Descripción o biografía breve
+    imagen TEXT DEFAULT '/img/default-artist.png', -- Imagen del artista
+    genero TEXT DEFAULT '',         -- Género musical principal
+    pais TEXT DEFAULT '',           -- País de origen
+    fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+
+CREATE INDEX IF NOT EXISTS idx_artistas_nombre ON artistas(nombre);
+
+-- ============================
+-- Tabla de álbumes
+-- ============================
+CREATE TABLE IF NOT EXISTS albumes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    titulo TEXT NOT NULL,
+    artista_id INTEGER NOT NULL,
+    portada TEXT DEFAULT '',
+    anio INTEGER,
+    genero TEXT DEFAULT '',
+    fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (artista_id) REFERENCES artistas(id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_albumes_titulo ON albumes(titulo);
+
+-- ============================
+-- Tabla de canciones
+-- ============================
+CREATE TABLE IF NOT EXISTS canciones (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    titulo TEXT NOT NULL,
+    archivo TEXT NOT NULL,
+    artista_id INTEGER NOT NULL,
+    album_id INTEGER,
+    duracion INTEGER DEFAULT 0,
+    genero TEXT DEFAULT '',
+    portada TEXT DEFAULT '',
+    bit_depth INTEGER DEFAULT 0,
+    sample_rate INTEGER DEFAULT 44100,
+    bit_rate INTEGER DEFAULT 0,
+    fecha_subida DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (artista_id) REFERENCES artistas(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (album_id) REFERENCES albumes(id) ON DELETE SET NULL ON UPDATE CASCADE
+    
+);
+
+CREATE INDEX IF NOT EXISTS idx_canciones_titulo ON canciones(titulo);
+
+-- ============================
+-- Tabla de playlists
+-- ============================
+CREATE TABLE IF NOT EXISTS playlists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL,
+    usuario_id INTEGER NOT NULL,
+    fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- ============================
+-- Tabla intermedia playlist_canciones
+-- ============================
+CREATE TABLE IF NOT EXISTS playlist_canciones (
+    playlist_id INTEGER NOT NULL,
+    cancion_id INTEGER NOT NULL,
+    fecha_agregada DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (playlist_id, cancion_id),
+    FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (cancion_id) REFERENCES canciones(id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+-- ============================
+-- Tabla para calidad de audio y espectrograma
+-- ============================
+CREATE TABLE IF NOT EXISTS calidad_audio (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cancion_id INTEGER NOT NULL,         -- ID de la canción en la tabla canciones
+    codec TEXT NOT NULL DEFAULT 'flac',  -- Codec real detectado (flac, mp3, aac, etc.)
+    bit_depth INTEGER DEFAULT 0,         -- Profundidad de bits
+    sample_rate INTEGER DEFAULT 44100,   -- Frecuencia de muestreo
+    bit_rate INTEGER DEFAULT 0,          -- Bitrate efectivo en bps
+    clasificacion TEXT DEFAULT '',       -- Standard / CD / Hi-Res / Sospechoso
+    sospechoso BOOLEAN DEFAULT 0,        -- True si parece un FLAC renombrado de MP3
+    espectrograma TEXT DEFAULT '',       -- Ruta a la imagen del espectrograma
+    fecha_analisis DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (cancion_id) REFERENCES canciones(id) ON DELETE CASCADE
+);
+
+-- Índice para acceder rápido a la calidad por canción
+CREATE INDEX IF NOT EXISTS idx_calidad_cancion_id ON calidad_audio(cancion_id);

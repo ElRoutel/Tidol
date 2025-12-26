@@ -1,0 +1,84 @@
+.fullscreen-lyrics-container {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.95);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+}
+
+.close-button {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  color: rgba(255, 255, 255, 0.7);
+  transition: color 0.2s ease;
+}
+
+.close-button:hover {
+  color: #fff;
+}
+
+
+.lyrics-scroll-area {
+  flex-grow: 1;
+  overflow-y: auto;
+  /* scroll-behavior: smooth; <- REMOVED: Managed by framer-motion spring */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 50vh;
+  /* Center first item */
+  padding-bottom: 50vh;
+  /* Center last item */
+
+  /* Mascara de gradiente simple */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%);
+}
+
+/* Scrollbar hidden for cleaner look */
+.lyrics-scroll-area::-webkit-scrollbar {
+  display: none;
+}
+
+.lyrics-scroll-area {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-lyrics-text {
+  margin-top: auto;
+  margin-bottom: auto;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: center;
+  font-size: 1.2rem;
+}
+
+.lyric-line {
+  /* Font size increased slightly for Apple Music feel */
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  font-weight: 700;
+  text-align: center;
+  margin: 1.2rem 0;
+  /* More spacing */
+  max-width: 90%;
+  cursor: pointer;
+
+  /* Transitions handled by React/Framer mostly, but color is CSS */
+  transition: color 0.3s ease;
+
+  /* Performance Optimizations */
+  will-change: transform, filter, opacity;
+  transform: translateZ(0);
+  /* Force GPU layer */
+  backface-visibility: hidden;
+}
+
+.active-line {
+  color: #ffffff;
+  /* Pure white for focus */
+  /* Scale/Blur handled by JS styles */
+}

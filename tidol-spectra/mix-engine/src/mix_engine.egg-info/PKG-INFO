@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: mix_engine
+Version: 0.1.0
+Summary: Song ordering and mixing module
+Requires-Dist: librosa
+Requires-Dist: numpy
+Requires-Dist: soundfile
+Requires-Dist: fastapi
+Requires-Dist: uvicorn[standard]
+Requires-Dist: yt-dlp

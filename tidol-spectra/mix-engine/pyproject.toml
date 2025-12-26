@@ -1,0 +1,16 @@
+[project]
+name = "mix_engine"
+version = "0.1.0"
+description = "Song ordering and mixing module"
+dependencies = [
+  "librosa",
+  "numpy",
+  "soundfile",
+  "fastapi",
+  "uvicorn[standard]",
+  "yt-dlp",
+]
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
