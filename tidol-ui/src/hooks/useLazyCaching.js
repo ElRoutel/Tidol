@@ -25,7 +25,8 @@ export function useLazyCaching() {
             console.warn('⚠️  URL no es de Internet Archive:', song.url);
         }
 
-        const SPECTRA_URL = 'http://localhost:3001';
+        // Usar la ruta relativa (proxied vía backend) para mejor compatibilidad LAN
+        const SPECTRA_URL = '/spectra';
 
         fetch(`${SPECTRA_URL}/ingest-remote`, {
             method: 'POST',

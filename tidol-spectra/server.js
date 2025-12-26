@@ -34,8 +34,8 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // --- DIRECTORIOS ---
 const MEDIA_DIR = path.join(__dirname, 'media');
-const UPLOADS_MUSIC_DIR = path.join(__dirname, '../backend/uploads/musica');
-const UPLOADS_COVERS_DIR = path.join(__dirname, '../backend/uploads/covers');
+const UPLOADS_MUSIC_DIR = path.resolve(__dirname, '../backend/uploads/musica');
+const UPLOADS_COVERS_DIR = path.resolve(__dirname, '../backend/uploads/covers');
 const UPLOADS_STEMS_DIR = path.join(__dirname, 'uploads', 'stems');
 const UPLOADS_LYRICS_DIR = path.join(__dirname, 'uploads', 'lyrics');
 const DB_PATH_SPECTRA = path.join(__dirname, 'spectra.db');
@@ -229,10 +229,38 @@ async function downloadFile(url, dest) {
 
 function getTrackByLookup(query) {
     if (!query) return null;
-    const { id, tidol_id, ia_id } = query;
+    let { id, tidol_id, ia_id } = query;
     if (id) return dbSpectra.prepare('SELECT * FROM tracks WHERE id = ?').get(id);
     if (tidol_id) return dbSpectra.prepare('SELECT * FROM tracks WHERE original_tidol_id = ?').get(tidol_id);
-    if (ia_id) return dbSpectra.prepare('SELECT * FROM tracks WHERE original_ia_id = ?').get(ia_id);
+
+    if (ia_id) {
+        // --- SMART IA LOOKUP ---
+        // Normalizamos: quitamos extensiones comunes y prefijo 'ia_'
+        const clean = ia_id.replace(/\.(mp3|flac|wav|m4a)$/i, '').replace(/^ia_/, '');
+
+        // Intentamos 4 variantes: Exacta, sin ia_, con ia_, y con/sin extensión
+        const variations = [
+            ia_id,                               // Original
+            clean,                               // Super limpia
+            `ia_${clean}`,                       // Con prefijo estándar
+            `${clean}.mp3`,                      // Con extensión común
+            `ia_${clean}.mp3`,                   // Prefijada + Extensión
+            `${clean}.flac`,
+            `ia_${clean}.flac`
+        ];
+
+        vLog('Lookup', `Probando variantes para: ${ia_id}`);
+        const stmt = dbSpectra.prepare('SELECT * FROM tracks WHERE original_ia_id = ?');
+
+        for (const v of variations) {
+            const track = stmt.get(v);
+            if (track) return track;
+        }
+
+        // Último intento: LIKE (Búsqueda parcial segura)
+        const partial = dbSpectra.prepare('SELECT * FROM tracks WHERE original_ia_id LIKE ?').get(`%${clean}%`);
+        if (partial) return partial;
+    }
     return null;
 }
 
@@ -296,7 +324,7 @@ app.post('/ingest-remote', async (req, res) => {
         const result = dbSpectra.prepare(`
             INSERT INTO tracks (title, artist, album, filepath, duration, bitrate, format, original_ia_id)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(title, artist, metadata?.album || 'Internet Archive', `uploads/musica/${audioFilename}`, duration, fileMeta.format.bitrate, 'mp3', ia_id);
+        `).run(title, artist, metadata?.album || 'Internet Archive', audioPath, duration, fileMeta.format.bitrate, 'mp3', ia_id);
 
         // Registro silencioso en Tidol
         axios.post('http://localhost:3000/api/music/register-external', {

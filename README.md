@@ -134,6 +134,19 @@ Para superar los límites de descarga de sitios como Internet Archive, Tidol uti
 > [!TIP]
 > Si experimentas errores de conexión, puedes resetear la granja usando `.\clean_farm.bat` y volviendo a ejecutar el setup.
 
+## 🧹 Mantenimiento y Utilidades
+
+Tidol incluye herramientas para mantener la integridad de los datos y gestionar el espacio en disco de forma eficiente.
+
+### Gestión de Letras y Caché
+Si necesitas limpiar las letras generadas o sincronizar la base de datos con los archivos físicos, utiliza los siguientes scripts desde la raíz del proyecto:
+
+*   **`LimpiarCacheLetras.bat`**: Escanea la carpeta de letras y desactiva las banderas de letras en la base de datos para aquellas canciones cuyos archivos `.lrc` físicos hayan sido eliminados manualmente. También vacía la tabla de caché de letras línea por línea.
+*   **`FORZAR_ResetLetras.bat`**: **Acción Nuclear**. Elimina todos los archivos `.lrc` físicos, vacía la caché de letras y reinicia todas las banderas de procesamiento en la base de datos para forzar una regeneración completa en la próxima reproducción.
+
+### Scripts de Motor (Spectra)
+*   **`tidol-spectra/check_gpu.py`**: Verifica si el sistema detecta correctamente tu GPU (NVIDIA/CUDA) para acelerar el procesamiento de IA.
+
 ## 🛡️ Estado del Proyecto
 
 🚀 **MVP Funcional** | 🚧 **En desarrollo activo: Expandiendo capacidades de IA y optimización.**

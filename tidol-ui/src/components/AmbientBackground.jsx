@@ -16,8 +16,6 @@ import './AmbientBackground.css';
  * @param {number} intensity - Opacity multiplier (0-1), default 0.6
  */
 export default function AmbientBackground({ songId, colors, intensity = 0.6 }) {
-    // DEBUG: Log colors to console
-    console.log('[Aurora] songId:', songId, 'colors:', colors, 'intensity:', intensity);
 
     // Fallback to vibrant test colors if no colors provided (for debugging)
     const safeColors = colors || {
@@ -37,7 +35,6 @@ export default function AmbientBackground({ songId, colors, intensity = 0.6 }) {
         darkMuted: '#9900ff'
     } : safeColors;
 
-    console.log('[Aurora] Using colors:', finalColors);
 
     // CSS custom properties for gradient colors
     const style = {

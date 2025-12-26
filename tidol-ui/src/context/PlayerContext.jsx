@@ -131,7 +131,6 @@ export function PlayerProvider({ children }) {
       repeatMode,
       isTransitioning: stateRef.current.isTransitioning
     };
-    console.log('🔄 StateRef Updated. DJ Mode:', djMode);
   }, [
     currentSong,
     originalQueue,
@@ -217,7 +216,6 @@ export function PlayerProvider({ children }) {
     // Skip if already requested (prevent loops)
     if (currentSong._colorRequested) return;
 
-    console.log('[Colors] Auto-extracting for:', currentSong.titulo);
 
     // Mark as requested to prevent duplicate calls
     setCurrentSong(prev => ({ ...prev, _colorRequested: true }));
@@ -230,7 +228,6 @@ export function PlayerProvider({ children }) {
     })
       .then(({ data }) => {
         if (data.success && data.colors) {
-          console.log('[Colors] ✓ Extracted:', data.colors);
           // Update currentSong with new colors (Aurora will transition smoothly)
           setCurrentSong(prev => ({
             ...prev,
