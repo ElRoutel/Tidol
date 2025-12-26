@@ -163,4 +163,5 @@ Si te interesa implementar una solución de procesamiento de audio con IA simila
 ---
 <div align="center">
   <i>Desarrollado con ❤️ y mucho café por Routel</i>
+ Si llegaste hasta aqui siempre puedes cambiar el cover (default_cover.jpg) que es una rana por la imagen de tu preferencia
 </div>
