@@ -6,9 +6,9 @@ import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const dbPath = path.join(__dirname, "models", "database.sqlite.corrupt.1764145684615");
-const backupPath = path.join(__dirname, "models", "database.sqlite.backup");
-const repairedPath = path.join(__dirname, "models", "database_repaired_old.sqlite");
+const dbPath = path.join(__dirname, "models", "database.sqlite");
+const backupPath = path.join(__dirname, "models", "database.sqlite.backup_" + Date.now());
+const repairedPath = path.join(__dirname, "models", "repaired_database.sqlite");
 const tempSource = path.join(__dirname, "models", "database_temp_source.sqlite");
 
 async function repairDatabase() {

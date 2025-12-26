@@ -152,16 +152,6 @@ CREATE TABLE IF NOT EXISTS ia_history (
     FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
--- Add new columns if they don't exist (for existing databases)
--- These ALTER TABLE statements are for existing databases that might not have these columns.
--- They will fail gracefully if the columns already exist.
--- In a real-world scenario, you might use a proper migration system.
--- For this exercise, we'll add them here.
-ALTER TABLE ia_history ADD COLUMN titulo TEXT;
-ALTER TABLE ia_history ADD COLUMN artista TEXT;
-ALTER TABLE ia_history ADD COLUMN url TEXT;
-ALTER TABLE ia_history ADD COLUMN portada TEXT;
-
 -- =======================================
 -- 10) CANCIONES EXTERNAS (Para Internet Archive y otros)
 -- =======================================

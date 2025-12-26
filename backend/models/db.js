@@ -19,12 +19,14 @@ const db = await open({
 await db.exec("PRAGMA foreign_keys = ON;");
 await db.exec("PRAGMA journal_mode = WAL;");
 
-// 1️⃣ Crear DB si no existe
-if (!fs.existsSync(dbPath)) {
-  console.warn("⚠️ Base de datos no encontrada. Creando...");
+// 1️⃣ Crear DB si no hay tablas
+const tableCheck = await db.all("SELECT name FROM sqlite_master WHERE type='table'");
+if (tableCheck.length === 0) {
+  console.warn("⚠️ Base de datos vacía. Aplicando esquema desde schema.sql...");
   if (fs.existsSync(schemaPath)) {
     try {
       const schema = fs.readFileSync(schemaPath, "utf-8");
+      // Split and execute segments to avoid "too many statements" issues or simply exec
       await db.exec(schema);
       console.log("✅ Esquema inicial aplicado correctamente");
     } catch (err) {
@@ -39,6 +41,46 @@ if (!fs.existsSync(dbPath)) {
 async function initDB() {
   try {
     console.log("🚀 Aplicando migraciones automáticas...\n");
+    console.log("🔧 ASEGURANDO TABLAS BASE...\n");
+
+    // ========== USUARIOS (BASE) ==========
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS usuarios (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL UNIQUE,
+        email TEXT UNIQUE,
+        password TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'user',
+        profile_img TEXT DEFAULT '/public/default_cover.png',
+        fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // ========== CANCIONES (BASE) ==========
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS canciones (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        titulo TEXT NOT NULL,
+        archivo TEXT NOT NULL,
+        artista_id INTEGER NOT NULL,
+        album_id INTEGER,
+        duracion INTEGER DEFAULT 0,
+        genero TEXT DEFAULT '',
+        portada TEXT DEFAULT '',
+        bit_depth INTEGER DEFAULT 0,
+        sample_rate INTEGER DEFAULT 44100,
+        bit_rate INTEGER DEFAULT 0,
+        ia_id TEXT UNIQUE,
+        bpm REAL DEFAULT 0,
+        musical_key TEXT DEFAULT '',
+        cue_in REAL DEFAULT 0,
+        cue_out REAL DEFAULT 0,
+        fecha_subida DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (artista_id) REFERENCES artistas(id) ON DELETE CASCADE ON UPDATE CASCADE,
+        FOREIGN KEY (album_id) REFERENCES albumes(id) ON DELETE SET NULL ON UPDATE CASCADE
+      );
+    `);
+
     console.log("🔧 FORZANDO CREACIÓN DE COLUMNAS DJ METADATA (TEMPORAL)...\n");
 
     // ========== IA CACHE ==========
@@ -68,40 +110,41 @@ async function initDB() {
   `);
 
     // ========== USUARIOS ==========
-    // Agregar columna 'role'
-    try {
+    const hasUsuarios = (await db.all("SELECT name FROM sqlite_master WHERE type='table' AND name='usuarios'")).length > 0;
+    if (hasUsuarios) {
+      // Agregar columna 'role'
+      try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN role TEXT DEFAULT 'user';`);
+        console.log("🆕 Columna 'role' agregada");
+      } catch (err) {
+        if (!/duplicate column/i.test(err.message)) console.error(err.message);
+      }
+
+      // Agregar columna 'profile_img'
+      try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN profile_img TEXT DEFAULT '/public/default_cover.png';`);
+        console.log("🆕 Columna 'profile_img' agregada");
+      } catch (err) {
+        if (!/duplicate column/i.test(err.message)) console.error(err.message);
+      }
+
+      // Asignar rol 'owner' a tu usuario
       await db.exec(`
-      ALTER TABLE usuarios ADD COLUMN role TEXT DEFAULT 'user';
-    `);
-      console.log("🆕 Columna 'role' agregada");
-    } catch (err) {
-      if (!/duplicate column/i.test(err.message)) console.error(err.message);
-    }
+        UPDATE usuarios
+        SET role = 'owner'
+        WHERE LOWER(nombre) IN ('routel', 'elroutel', 'adolfo');
+      `);
 
-    // Agregar columna 'profile_img'
-    try {
+      // Insertar usuarios base
       await db.exec(`
-      ALTER TABLE usuarios ADD COLUMN profile_img TEXT DEFAULT '/public/default_cover.png';
-    `);
-      console.log("🆕 Columna 'profile_img' agregada");
-    } catch (err) {
-      if (!/duplicate column/i.test(err.message)) console.error(err.message);
+        INSERT OR IGNORE INTO usuarios (nombre, password, role)
+        VALUES 
+          ('admin', '$2b$12$RmttDJ9ySItjgv8vsBYyRe0owrY02N.Ssh4bSjQNilJxqh2dYR0Vm', 'admin'),
+          ('ADOLFO', '$2b$12$eTB99h98Nn3csDPEDTYw1.1uLgA4sQGAORRNwDWdU2ubpICu/vpjy', 'tester');
+      `);
+    } else {
+      console.warn("⚠️ Tabla 'usuarios' no existe. Saltando sus migraciones.");
     }
-
-    // Asignar rol 'owner' a tu usuario
-    await db.exec(`
-    UPDATE usuarios
-    SET role = 'owner'
-    WHERE LOWER(nombre) IN ('routel', 'elroutel', 'adolfo');
-  `);
-
-    // Insertar usuarios base
-    await db.exec(`
-    INSERT OR IGNORE INTO usuarios (nombre, password, role)
-    VALUES 
-      ('admin', '$2b$12$RmttDJ9ySItjgv8vsBYyRe0owrY02N.Ssh4bSjQNilJxqh2dYR0Vm', 'admin'),
-      ('ADOLFO', '$2b$12$eTB99h98Nn3csDPEDTYw1.1uLgA4sQGAORRNwDWdU2ubpICu/vpjy', 'tester');
-  `);
 
     // ========== ARTISTAS ==========
     await db.exec(`
@@ -132,43 +175,43 @@ async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_albumes_artista ON albumes(artista_id);
   `);
 
-    try {
-      await db.exec(`ALTER TABLE canciones ADD COLUMN bit_rate INTEGER DEFAULT 0; `);
-      console.log("🆕 Columna 'bit_rate' agregada a canciones");
-    } catch (err) { if (!/duplicate column/i.test(err.message)) console.error(err.message); }
+    // ========== CANCIONES DJ METADATA ==========
+    const hasCanciones = (await db.all("SELECT name FROM sqlite_master WHERE type='table' AND name='canciones'")).length > 0;
+    if (hasCanciones) {
+      try {
+        await db.exec(`ALTER TABLE canciones ADD COLUMN bit_rate INTEGER DEFAULT 0; `);
+        console.log("🆕 Columna 'bit_rate' agregada a canciones");
+      } catch (err) { if (!/duplicate column/i.test(err.message)) console.error(err.message); }
 
-    // ========== MIGRACIÓN DJ METADATA (ROBUST CHECK) ==========
-    const columns = await db.all("PRAGMA table_info(canciones)");
-    const columnNames = columns.map(c => c.name);
-    console.log("📊 Columnas actuales en 'canciones':", columnNames.join(", "));
+      const columns = await db.all("PRAGMA table_info(canciones)");
+      const columnNames = columns.map(c => c.name);
+      // console.log("📊 Columnas actuales en 'canciones':", columnNames.join(", "));
 
-    const columnsToAdd = [
-      { name: 'ia_id', type: 'TEXT' }, // Removed UNIQUE constraint here
-      { name: 'bpm', type: 'REAL DEFAULT 0' },
-      { name: 'musical_key', type: 'TEXT DEFAULT ""' },
-      { name: 'cue_in', type: 'REAL DEFAULT 0' },
-      { name: 'cue_out', type: 'REAL DEFAULT 0' }
-    ];
+      const columnsToAdd = [
+        { name: 'ia_id', type: 'TEXT' },
+        { name: 'bpm', type: 'REAL DEFAULT 0' },
+        { name: 'musical_key', type: 'TEXT DEFAULT ""' },
+        { name: 'cue_in', type: 'REAL DEFAULT 0' },
+        { name: 'cue_out', type: 'REAL DEFAULT 0' }
+      ];
 
-    for (const col of columnsToAdd) {
-      if (!columnNames.includes(col.name)) {
-        try {
-          console.log(`🔧 Agregando columna '${col.name}'...`);
-          await db.exec(`ALTER TABLE canciones ADD COLUMN ${col.name} ${col.type};`);
-          console.log(`✅ Columna '${col.name}' agregada exitosamente.`);
+      for (const col of columnsToAdd) {
+        if (!columnNames.includes(col.name)) {
+          try {
+            console.log(`🔧 Agregando columna '${col.name}'...`);
+            await db.exec(`ALTER TABLE canciones ADD COLUMN ${col.name} ${col.type};`);
+            console.log(`✅ Columna '${col.name}' agregada exitosamente.`);
 
-          // Create UNIQUE index separately for ia_id
-          if (col.name === 'ia_id') {
-            await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_canciones_ia_id ON canciones(ia_id);`);
-            console.log(`✅ Índice UNIQUE creado para 'ia_id'`);
+            if (col.name === 'ia_id') {
+              await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_canciones_ia_id ON canciones(ia_id);`);
+            }
+          } catch (err) {
+            console.error(`❌ Error agregando '${col.name}':`, err.message);
           }
-
-        } catch (err) {
-          console.error(`❌ Error agregando '${col.name}':`, err.message);
         }
-      } else {
-        console.log(`ℹ️  Columna '${col.name}' ya existe.`);
       }
+    } else {
+      console.warn("⚠️ Tabla 'canciones' no existe. Saltando sus migraciones.");
     }
 
     // ========== MIGRACIÓN PLAY COUNT ==========

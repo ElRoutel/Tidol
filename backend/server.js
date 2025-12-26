@@ -81,7 +81,7 @@ import { createProxyMiddleware } from 'http-proxy-middleware';
 
 // ... (imports)
 
-// Helmet para seguridad (Configuración relajada para SPA + Imágenes externas + Google Fonts)
+// Helmet para seguridad (Configuración optimizada para desarrollo local/LAN sin SSL)
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -89,11 +89,15 @@ app.use(helmet({
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       imgSrc: ["'self'", "data:", "blob:", "https://archive.org", "https://*.archive.org"],
-      connectSrc: ["'self'", "https://archive.org", "https://*.archive.org", "http://localhost:3001"], // Allow direct connect to Spectra just in case, but proxy is preferred
-      mediaSrc: ["'self'", "https://archive.org", "https://*.archive.org"],
+      connectSrc: ["'self'", "https://archive.org", "https://*.archive.org", "http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"],
+      mediaSrc: ["'self'", "https://archive.org", "https://*.archive.org", "blob:"],
       fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
+      upgradeInsecureRequests: null, // No forzar HTTPS en desarrollo local
     },
   },
+  crossOriginOpenerPolicy: false, // Evitar bloqueos por origen en COOP
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // Permitir recursos cruzados si es necesario
+  hsts: false, // No forzar HTTPS (causa ERR_SSL_PROTOCOL_ERROR en HTTP local)
 }));
 
 // ... (compression)

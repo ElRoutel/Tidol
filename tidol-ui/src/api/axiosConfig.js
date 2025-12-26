@@ -2,17 +2,18 @@ import axios from "axios";
 
 // 1. Determinar URL base
 const getBaseURL = () => {
-  if (window.location.protocol === 'https:') {
-    return "/api"; // Producción / Cloudflare
-  }
-  return import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+  // Si hay una URL explícita definida en env, usarla (ideal para modo dev separado)
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+
+  // En producción (dentro de dist/) o si servimos desde el mismo host, usar ruta relativa
+  return "/api";
 };
 
 const api = axios.create({
   baseURL: getBaseURL(),
   // IMPORTANTE: Quitamos 'withCredentials: true' global.
   // JWT en localStorage no necesita esto, y esto es lo que rompía Archive.org
-  withCredentials: false 
+  withCredentials: false
 });
 
 // 2. Interceptor INTELIGENTE
@@ -31,7 +32,7 @@ api.interceptors.request.use((config) => {
     delete config.headers.Authorization;
     config.withCredentials = false;
   }
-  
+
   return config;
 }, (error) => {
   return Promise.reject(error);
@@ -44,7 +45,7 @@ api.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       console.warn("Sesión expirada o inválida. Cerrando sesión...");
       localStorage.removeItem("token");
-      
+
       // Evitar bucle infinito de redirección
       if (!window.location.pathname.includes('/login')) {
         window.location.href = '/login';
