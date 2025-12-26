@@ -14,7 +14,7 @@
 ---
 
 <div align="center">
-  <img width="1296" height="144" alt="Screenshot 2025-12-25 221708" src="https://github.com/user-attachments/assets/0e7f107f-193d-4fa3-93d0-1fad80fe8611" alt="TIDOL Banner" width="100% />
+  <img src="https://github.com/user-attachments/assets/0e7f107f-193d-4fa3-93d0-1fad80fe8611" alt="TIDOL Banner" width="100%" />
 </div>
 
 ## 📄 Descripción
@@ -141,11 +141,11 @@ Tidol incluye herramientas para mantener la integridad de los datos y gestionar 
 ### Gestión de Letras y Caché
 Si necesitas limpiar las letras generadas o sincronizar la base de datos con los archivos físicos, utiliza los siguientes scripts desde la raíz del proyecto:
 
-*   **`LimpiarCacheLetras.bat`**: Escanea la carpeta de letras y desactiva las banderas de letras en la base de datos para aquellas canciones cuyos archivos `.lrc` físicos hayan sido eliminados manualmente. También vacía la tabla de caché de letras línea por línea.
-*   **`FORZAR_ResetLetras.bat`**: **Acción Nuclear**. Elimina todos los archivos `.lrc` físicos, vacía la caché de letras y reinicia todas las banderas de procesamiento en la base de datos para forzar una regeneración completa en la próxima reproducción.
+* **`LimpiarCacheLetras.bat`**: Escanea la carpeta de letras y desactiva las banderas de letras en la base de datos para aquellas canciones cuyos archivos `.lrc` físicos hayan sido eliminados manualmente. También vacía la tabla de caché de letras línea por línea.
+* **`FORZAR_ResetLetras.bat`**: **Acción Nuclear**. Elimina todos los archivos `.lrc` físicos, vacía la caché de letras y reinicia todas las banderas de procesamiento en la base de datos para forzar una regeneración completa en la próxima reproducción.
 
 ### Scripts de Motor (Spectra)
-*   **`tidol-spectra/check_gpu.py`**: Verifica si el sistema detecta correctamente tu GPU (NVIDIA/CUDA) para acelerar el procesamiento de IA.
+* **`tidol-spectra/check_gpu.py`**: Verifica si el sistema detecta correctamente tu GPU (NVIDIA/CUDA) para acelerar el procesamiento de IA.
 
 ## 🛡️ Estado del Proyecto
 
@@ -163,5 +163,6 @@ Si te interesa implementar una solución de procesamiento de audio con IA simila
 ---
 <div align="center">
   <i>Desarrollado con ❤️ y mucho café por Routel</i>
- Si llegaste hasta aqui siempre puedes cambiar el cover (default_cover.jpg) que es una rana por la imagen de tu preferencia
+  <br>
+  <small>Si llegaste hasta aquí siempre puedes cambiar el cover (default_cover.jpg) que es una rana por la imagen de tu preferencia 🐸</small>
 </div>
