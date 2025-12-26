@@ -79,8 +79,8 @@ Si prefieres ejecutar cada servicio por separado en tu máquina host.
 
 1.  **Clonar el repositorio:**
     ```bash
-    git clone [https://github.com/TuUsuario/tidol.git](https://github.com/TuUsuario/tidol.git)
-    cd tidol
+    git clone https://github.com/ElRoutel/Tidol.git
+    cd Tidol
     ```
 
 2.  **Instalar dependencias (Backend y Frontend):**
