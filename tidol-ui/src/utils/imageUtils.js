@@ -9,22 +9,17 @@ export const getOptimizedImageUrl = (url, width, quality = 80) => {
     if (!url) return '/img/default-album.png'; // Fallback placeholder
 
     // Si es una URL externa (http/https), por ahora la devolvemos tal cual
-    // (A futuro podríamos hacer un proxy para optimizarlas también)
     if (url.startsWith('http')) {
         return url;
     }
 
-    // Si es una ruta local (ej: /uploads/...)
-    // Aseguramos que empiece con /uploads para que el backend la encuentre
-    // (aunque el backend ya maneja la limpieza, es bueno ser consistente)
+    // Skip optimization for static assets that are not in uploads
+    // Examples: /default_cover.png, /img/..., /default_artist.png
+    if (url.startsWith('/img/') || url.includes('default_') || !url.startsWith('/uploads')) {
+        return url;
+    }
 
     // Construir la URL de optimización
-    // Nota: Asumimos que la API está en el mismo host/puerto relativo '/api'
-    // Si el frontend y backend están en puertos distintos en dev, esto podría necesitar ajuste (proxy en vite o URL completa)
-
-    // En producción (mismo origen): /api/images/optimize
-    // En desarrollo (vite proxy): /api/images/optimize
-
     const params = new URLSearchParams();
     params.append('path', url);
     if (width) params.append('w', width);

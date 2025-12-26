@@ -1,15 +1,16 @@
 
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { usePlayerState, usePlayerActions, usePlayerProgress, usePlayer } from '../context/PlayerContext';
 import {
     IoChevronDown, IoPlaySharp, IoPauseSharp, IoPlaySkipBackSharp,
     IoPlaySkipForwardSharp, IoEllipsisHorizontal, IoVolumeHigh,
-    IoShuffle, IoRepeat, IoText, IoList, IoHeart, IoHeartOutline, IoDisc, IoMic
+    IoShuffle, IoRepeat, IoText, IoList, IoHeart, IoHeartOutline, IoDisc, IoMic, IoPersonSharp
 } from 'react-icons/io5';
 import LikeButton from './LikeButton';
 import { LyricsView } from './LyricsView';
 import AmbientBackground from './AmbientBackground';
-import { motion, useDragControls, useAnimation } from 'framer-motion';
+import { motion, useDragControls, useAnimation, AnimatePresence } from 'framer-motion';
 import './FullScreenPlayer.css';
 
 export default function FullScreenPlayer({ isEmbedded = false }) {
@@ -24,10 +25,12 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
 
     const [showLyrics, setShowLyrics] = useState(false); // Default: Art View
     const [showQueue, setShowQueue] = useState(false);
+    const [showOptions, setShowOptions] = useState(false);
     const [isScrubbing, setIsScrubbing] = useState(false);
     const [localProgress, setLocalProgress] = useState(0);
     const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
     const [mounted, setMounted] = useState(false);
+    const navigate = useNavigate();
 
     const dragControls = useDragControls();
     const controls = useAnimation();
@@ -103,6 +106,39 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
         onDragEnd: handleDragEnd
     };
 
+    const handleGoToArtist = () => {
+        if (!currentSong) return;
+        setShowOptions(false);
+        const artist = currentSong.artista || currentSong.artist;
+
+        if (currentSong.source === 'internet_archive' || !!currentSong.identifier) {
+            // IA Search for artist
+            navigate(`/search?q=${encodeURIComponent(artist)}&source=ia`);
+        } else if (currentSong.artistId) {
+            navigate(`/artist/${currentSong.artistId}`);
+        } else {
+            // Fallback to search
+            navigate(`/search?q=${encodeURIComponent(artist)}`);
+        }
+        closeFullScreenPlayer();
+    };
+
+    const handleGoToAlbum = () => {
+        if (!currentSong) return;
+        setShowOptions(false);
+        const album = currentSong.album;
+
+        if (currentSong.source === 'internet_archive' || !!currentSong.identifier) {
+            // IA Search for album
+            navigate(`/search?q=${encodeURIComponent(album)}&source=ia`);
+        } else if (currentSong.albumId) {
+            navigate(`/album/${currentSong.albumId}`);
+        } else {
+            navigate(`/search?q=${encodeURIComponent(album)}`);
+        }
+        closeFullScreenPlayer();
+    };
+
     if (!isFullScreenOpen && isEmbedded && !mounted) return null;
     if (!isFullScreenOpen && !isEmbedded) return null;
 
@@ -114,20 +150,20 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
 
             {/* 🌌 Background Atmosphere */}
             <div
-                className="absolute inset-0 z-0 opacity-60 transition-colors duration-1000 ease-in-out"
+                className="absolute inset-0 z-0 opacity-60 transition-colors duration-1000 ease-in-out pointer-events-none"
                 style={{
                     background: `radial - gradient(circle at 20 % 30 %, ${dominantColor}, transparent 70 %),
     radial - gradient(circle at 80 % 80 %, ${secondaryColor}, transparent 70 %)`
                 }}
             />
-            <div className="absolute inset-0 z-0 opacity-40 mix-blend-screen">
+            <div className="absolute inset-0 z-0 opacity-40 mix-blend-screen pointer-events-none">
                 <AmbientBackground songId={currentSong?.id} colors={currentSong?.extractedColors} intensity={0.5} />
             </div>
             {/* FIXED GRADIENT: Lowered start point to transparent 75% */}
-            <div className="absolute inset-0 z-0"
+            <div className="absolute inset-0 z-0 pointer-events-none"
                 style={{ background: 'linear-gradient(to bottom, transparent 75%, #000 100%)' }}
             />
-            <div className="absolute inset-0 z-0 backdrop-blur-[60px]" />
+            <div className="absolute inset-0 z-0 backdrop-blur-[60px] pointer-events-none" />
 
 
             {/* --- CONTENT SWITCHER --- */}
@@ -217,7 +253,7 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
 
                         <div className="flex flex-col items-center justify-center flex-1 max-w-[600px] gap-2">
                             <div className="flex items-center gap-8">
-                                <button onClick={toggleShuffle} className={`text-white/60 hover:text-white ${isShuffle ? 'text-[#1db954]' : ''}`}>
+                                <button onClick={toggleShuffle} className={`transition-all ${isShuffle ? 'text-white scale-110' : 'text-white/60 hover:text-white'}`}>
                                     <IoShuffle size={20} />
                                 </button>
                                 <button onClick={previousSong} className="text-white hover:scale-110 transition-transform"><IoPlaySkipBackSharp size={28} /></button>
@@ -225,8 +261,11 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                                     {isPlaying ? <IoPauseSharp size={24} /> : <IoPlaySharp size={24} className="ml-1" />}
                                 </button>
                                 <button onClick={nextSong} className="text-white hover:scale-110 transition-transform"><IoPlaySkipForwardSharp size={28} /></button>
-                                <button onClick={toggleRepeat} className={`text-white/60 hover:text-white ${repeatMode !== 'off' ? 'text-[#1db954]' : ''}`}>
+                                <button onClick={toggleRepeat} className={`transition-all relative ${repeatMode !== 'off' ? 'text-white scale-110' : 'text-white/60 hover:text-white'}`}>
                                     <IoRepeat size={20} />
+                                    {repeatMode === 'one' && (
+                                        <span className="absolute -top-1 -right-1 text-[8px] font-bold bg-white text-black rounded-full w-3 h-3 flex items-center justify-center">1</span>
+                                    )}
                                 </button>
                             </div>
                             {/* Scrubber */}
@@ -319,7 +358,10 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                             <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 backdrop-blur-md text-white/80 transition-transform active:scale-95">
                                 <LikeButton song={currentSong} isLiked={isLiked} onLikeToggle={handleLikeToggle} iconSize={18} isArchive={currentSong?.source === 'internet_archive' || !!currentSong?.identifier} />
                             </div>
-                            <button className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 backdrop-blur-md text-white/80 hover:bg-white/20 transition-all active:scale-95">
+                            <button
+                                onClick={() => setShowOptions(!showOptions)}
+                                className={`flex items-center justify-center w-8 h-8 rounded-full bg-white/10 backdrop-blur-md text-white/80 hover:bg-white/20 transition-all active:scale-95 ${showOptions ? 'bg-white/30 text-white' : ''}`}
+                            >
                                 <IoEllipsisHorizontal size={18} />
                             </button>
                         </div>
@@ -342,12 +384,21 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
 
                     {/* Controls */}
                     <div className="mt-auto flex flex-col items-center w-full pb-6 relative z-20">
-                        <div className="flex items-center justify-center gap-12 mb-8">
+                        <div className="flex items-center justify-center gap-10 mb-8 w-full">
+                            <button onClick={toggleShuffle} className={`transition-all ${isShuffle ? 'text-white scale-110' : 'text-white/50 hover:text-white'}`}>
+                                <IoShuffle size={26} />
+                            </button>
                             <button onClick={previousSong} className="text-white hover:text-white/80 active:scale-90 transition-all"><IoPlaySkipBackSharp size={42} /></button>
                             <button onClick={togglePlayPause} className="w-[72px] h-[72px] rounded-full bg-white flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all text-black">
                                 {isPlaying ? <IoPauseSharp size={32} /> : <IoPlaySharp size={32} className="ml-1" />}
                             </button>
                             <button onClick={nextSong} className="text-white hover:text-white/80 active:scale-90 transition-all"><IoPlaySkipForwardSharp size={42} /></button>
+                            <button onClick={toggleRepeat} className={`transition-all relative ${repeatMode !== 'off' ? 'text-white scale-110' : 'text-white/50 hover:text-white'}`}>
+                                <IoRepeat size={26} />
+                                {repeatMode === 'one' && (
+                                    <span className="absolute -top-1 -right-1 text-[10px] font-bold bg-white text-black rounded-full w-4 h-4 flex items-center justify-center">1</span>
+                                )}
+                            </button>
                         </div>
                         <div className="w-full max-w-[80%] flex items-center justify-between px-4 text-white/50">
                             {/* Lyrics Button - Wired */}
@@ -423,6 +474,31 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                     )}
                 </div>
             )}
+
+            {/* Options Menu Overlay (Dropdown style) */}
+            <AnimatePresence>
+                {showOptions && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 20 }}
+                        className="absolute bottom-24 right-6 z-[100] bg-[#1a1a1a]/95 border border-white/10 rounded-2xl p-2 w-[220px] shadow-2xl backdrop-blur-3xl"
+                    >
+                        <button onClick={handleGoToArtist} className="flex items-center gap-3 w-full p-4 hover:bg-white/10 rounded-xl transition-colors text-white/90 text-[16px]">
+                            <IoPersonSharp className="text-white/40" />
+                            Ir al Artista
+                        </button>
+                        <button onClick={handleGoToAlbum} className="flex items-center gap-3 w-full p-4 hover:bg-white/10 rounded-xl transition-colors text-white/90 text-[16px]">
+                            <IoDisc className="text-white/40" />
+                            Ir al Álbum
+                        </button>
+                        <div className="h-[1px] bg-white/5 my-1" />
+                        <button onClick={() => setShowOptions(false)} className="flex items-center justify-center w-full p-4 text-red-400 font-semibold text-[15px]">
+                            Cerrar
+                        </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
         </ContainerTag>
     );

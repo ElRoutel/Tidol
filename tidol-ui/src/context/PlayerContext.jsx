@@ -86,6 +86,7 @@ export function PlayerProvider({ children }) {
   const throttledSetCurrentTime = useRef(null);
   const lastTransitionIdRef = useRef(0);
   const songStartTimeRef = useRef(0);
+  const lastPlayRequestIdRef = useRef(null);
 
   const { isAuthenticated } = useAuth();
 
@@ -525,8 +526,26 @@ export function PlayerProvider({ children }) {
   }, []);
 
   const toggleShuffle = useCallback(() => {
-    setIsShuffle(prev => !prev);
-    // TODO: Implement actual queue shuffling logic here
+    setIsShuffle(prev => {
+      const newState = !prev;
+      const { originalQueue, currentIndex, currentSong } = stateRef.current;
+
+      if (newState && originalQueue.length > 1) {
+        // Shuffle logic: Keep current song at index 0, shuffle the rest
+        const queueToShuffle = originalQueue.filter((_, idx) => idx !== currentIndex);
+        const shuffled = [...queueToShuffle].sort(() => Math.random() - 0.5);
+        const newQueue = [originalQueue[currentIndex], ...shuffled];
+
+        setOriginalQueue(newQueue);
+        setCurrentIndex(0);
+      } else if (!newState) {
+        // Simple disable: Keep queue as is for now
+        // Note: Real "unshuffle" would require storing the initial order, 
+        // but for now we'll just stop the shuffle mode.
+      }
+
+      return newState;
+    });
   }, []);
 
   const toggleRepeat = useCallback(() => {
@@ -645,6 +664,22 @@ export function PlayerProvider({ children }) {
       isLiked: stateRef.current.likedSongs.has(song.id),
       playRequestId: Date.now()
     });
+    setIsPlaying(true);
+  }, []);
+
+  // Play a specific item in the queue (used by the fullscreen queue UI)
+  const playAt = useCallback(index => {
+    const { originalQueue } = stateRef.current;
+    if (!Array.isArray(originalQueue) || index < 0 || index >= originalQueue.length) return;
+    const song = originalQueue[index];
+
+    setCurrentIndex(index);
+    setCurrentSong({
+      ...song,
+      isLiked: stateRef.current.likedSongs.has(song.id),
+      playRequestId: Date.now()
+    });
+    setIsPlaying(true);
   }, []);
 
   // --- SMART MIX ---
@@ -675,7 +710,26 @@ export function PlayerProvider({ children }) {
   }, []);
 
   const nextSong = useCallback(async () => {
-    const { originalQueue, currentIndex, currentSong, djMode } = stateRef.current;
+    const { originalQueue, currentIndex, currentSong, djMode, repeatMode } = stateRef.current;
+
+    // 0. Repeat One Logic
+    if (repeatMode === 'one' && currentSong) {
+      console.log('🔁 [Repeat One] Restarting current song:', currentSong.titulo);
+      const { current } = getPlayers();
+
+      // Reset transition safety guards
+      stateRef.current.isTransitioning = false;
+      lastTransitionIdRef.current = Date.now();
+
+      current.currentTime = 0;
+      setIsPlaying(true);
+      current.play().catch(e => {
+        console.error('🔁 [Repeat One] play error - attempting reload:', e);
+        current.load();
+        current.play().catch(p2 => console.error('🔁 [Repeat One] reload play failed:', p2));
+      });
+      return;
+    }
 
     // 1. Normal Queue
     if (originalQueue.length > 0 && currentIndex < originalQueue.length - 1) {
@@ -689,6 +743,7 @@ export function PlayerProvider({ children }) {
         isLiked: stateRef.current.likedSongs.has(nextS.id),
         playRequestId: Date.now()
       });
+      setIsPlaying(true);
       return;
     }
 
@@ -744,11 +799,18 @@ export function PlayerProvider({ children }) {
       return;
     }
 
-    // 3. Fallback (IA Radio)
+    // 3. Repeat All Logic (At end of list)
+    if (repeatMode === 'all' && originalQueue.length > 0) {
+      console.log('🔄 Loop All: Restarting queue');
+      playAt(0);
+      return;
+    }
+
+    // 4. Fallback (IA Radio)
     smartMixAttemptsRef.current = 0;
     console.log('Fin de la lista, buscando recomendaciones...');
     await fetchRecommendations(currentSong);
-  }, [fetchRecommendations, getSmartRecommendation]);
+  }, [fetchRecommendations, getSmartRecommendation, playAt, seek, getPlayers]);
 
   const previousSong = useCallback(() => {
     const { originalQueue, currentIndex } = stateRef.current;
@@ -769,6 +831,7 @@ export function PlayerProvider({ children }) {
         isLiked: stateRef.current.likedSongs.has(prevS.id),
         playRequestId: Date.now()
       });
+      setIsPlaying(true);
     }
   }, [seek, getPlayers]);
 
@@ -796,19 +859,6 @@ export function PlayerProvider({ children }) {
     setOriginalQueue(newQueue);
   }, []);
 
-  // Play a specific item in the queue (used by the fullscreen queue UI)
-  const playAt = useCallback(index => {
-    const { originalQueue } = stateRef.current;
-    if (!Array.isArray(originalQueue) || index < 0 || index >= originalQueue.length) return;
-    const song = originalQueue[index];
-
-    setCurrentIndex(index);
-    setCurrentSong({
-      ...song,
-      isLiked: stateRef.current.likedSongs.has(song.id),
-      playRequestId: Date.now()
-    });
-  }, []);
 
 
   // --- LIKES LOGIC ---
@@ -1047,19 +1097,16 @@ export function PlayerProvider({ children }) {
       }
 
       addToHistory(currentSong.id);
-    } else if (currentSrc !== newSrc || isNewSong) {
+    } else if (currentSrc !== newSrc || isNewSong || (currentSong.playRequestId && currentSong.playRequestId !== lastPlayRequestIdRef.current)) {
       console.log('💿 Standard Load (No Crossfade)');
+      const forcePlay = currentSong.playRequestId && currentSong.playRequestId !== lastPlayRequestIdRef.current;
+      lastPlayRequestIdRef.current = currentSong.playRequestId;
+
       // Standard load
       const wasPlaying = !activeAudio.paused;
       const prevTime = activeAudio.currentTime;
 
-      // Restore time for VOX toggle
-      if (voxMode && voxTracks?.songId === currentSong.id && !isNewSong) {
-        activeAudio.currentTime = prevTime;
-      }
-
       // 4. Update Audio Source
-      // Prevent empty src error
       if (!src) {
         console.warn('PlayerContext: Computed src is empty, skipping load', { currentSong, src });
         return;
@@ -1070,21 +1117,32 @@ export function PlayerProvider({ children }) {
       activeAudio.src = src;
       activeAudio.volume = stateRef.current.volume; // Ensure volume is set
 
-      // 5. Try to play (handling autoplay policies)
-      const playPromise = activeAudio.play();
+      // Load the new source
+      activeAudio.load();
 
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
-            setIsPlaying(true);
-            // If successful, we can preload next track if needed
-          })
-          .catch(error => {
-            if (error.name !== 'AbortError') {
-              console.error('Playback failed:', error);
-              setIsPlaying(false);
-            }
-          });
+      // Restore time for VOX toggle (preserve playback position)
+      if (voxMode && voxTracks?.songId === currentSong.id && !isNewSong && prevTime > 0) {
+        console.log(`🎵 Restoring playback position: ${prevTime.toFixed(2)}s`);
+        activeAudio.currentTime = prevTime;
+      }
+
+      // 5. Try to play (handling autoplay policies)
+      if (forcePlay || isNewSong || wasPlaying || stateRef.current.isPlaying) {
+        const playPromise = activeAudio.play();
+
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              setIsPlaying(true);
+              // If successful, we can preload next track if needed
+            })
+            .catch(error => {
+              if (error.name !== 'AbortError') {
+                console.error('Playback failed:', error.message);
+                setIsPlaying(false);
+              }
+            });
+        }
       }
 
       if (isNewSong) {
