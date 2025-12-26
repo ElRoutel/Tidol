@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { IoMenu, IoSearch, IoArrowBack, IoClose } from "react-icons/io5";
+import { IoMenu, IoSearch, IoArrowBack, IoClose, IoCloudUploadOutline } from "react-icons/io5";
 import MobileDrawer from './MobileDrawer';
 import api from '../api/axiosConfig';
 
@@ -66,8 +66,11 @@ const MobileHeader = () => {
           </Link>
         </div>
 
-        {/* Right: Search & Profile */}
+        {/* Right: Upload, Search & Profile */}
         <div className="flex items-center gap-4">
+          <Link to="/upload" className="text-white p-2">
+            <IoCloudUploadOutline size={26} />
+          </Link>
           <button onClick={() => setIsSearchOpen(true)} className="text-white p-2">
             <IoSearch size={24} />
           </button>

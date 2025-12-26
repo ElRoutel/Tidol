@@ -42,6 +42,11 @@ function MainNav() {
         <span>Explorar</span>
       </NavLink>
 
+      <NavLink to="/upload" className={linkClass}>
+        <IoCloudUploadOutline size={24} />
+        <span>Subir Música</span>
+      </NavLink>
+
       <NavLink to="/library" className={linkClass}>
         <IoLibrarySharp size={24} />
         <span>Biblioteca</span>
