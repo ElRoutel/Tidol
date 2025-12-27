@@ -138,8 +138,4 @@ Si buscas soluciones personalizadas de procesamiento de audio con IA o automatiz
 <small>Personaliza tu experiencia cambiando el `default_cover.jpg` por la imagen de tu preferencia 🐸</small>
 </div>
 
-```
 
-**¿Te gustaría que te ayude a crear una sección de "Preguntas Frecuentes" (FAQ) en inglés para adelantarnos a las dudas de Reddit?** Sería el toque final perfecto.
-
-```
