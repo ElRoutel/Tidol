@@ -9,15 +9,13 @@
 ![PyTorch](https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?style=for-the-badge&logo=PyTorch&logoColor=white)
 ![Estado](https://img.shields.io/badge/Estado-MVP%20Funcional-success?style=for-the-badge)
 
+**[English](README_EN.md) | Español**
+
 </div>
-
-
 
 <div align="center">
   <img src="https://github.com/user-attachments/assets/0e7f107f-193d-4fa3-93d0-1fad80fe8611" alt="TIDOL Banner" width="100%" />
 </div>
-
-> 🌐 **English speakers:** Use [Google Translate](https://github-com.translate.goog/ElRoutel/Tidol?_x_tr_sl=es&_x_tr_tl=en) to view this page in English. Full English documentation is coming soon!
 
 ## 📄 Descripción
 
@@ -62,8 +60,7 @@ El proyecto integra el procesamiento pesado de IA en **Python (Spectra Engine)**
 2. Ejecuta:
    ```bash
    docker-compose up --build -d
-
-```
+   ```
 
 *Frontend: puerto 5173 | Backend: puerto 3000 | Spectra IA: puerto 3001*
 
@@ -71,19 +68,15 @@ El proyecto integra el procesamiento pesado de IA en **Python (Spectra Engine)**
 
 1. **Clonar el repositorio:**
 ```bash
-git clone [https://github.com/ElRoutel/Tidol.git](https://github.com/ElRoutel/Tidol.git)
+git clone https://github.com/ElRoutel/Tidol.git
 cd Tidol
-
 ```
-
 
 2. **Dependencias (Backend/Frontend):**
 ```bash
 cd backend && npm install && cd ..
 cd tidol-ui && npm install && cd ..
-
 ```
-
 
 3. **Motor Spectra (IA):**
 ```bash
@@ -93,9 +86,7 @@ python -m venv venv
 pip install -r requirements.txt
 npm install
 cd ..
-
 ```
-
 
 *Se recomienda configurar los archivos `.env` en `/backend` y `/tidol-spectra` con tus propias preferencias.*
 
@@ -131,11 +122,7 @@ Si buscas soluciones personalizadas de procesamiento de audio con IA o automatiz
 <div align="center">
 <i>Desarrollado con ❤️ y mucho café por Routel</i>
 
-
-
-
+<br><br>
 
 <small>Personaliza tu experiencia cambiando el `default_cover.jpg` por la imagen de tu preferencia 🐸</small>
 </div>
-
-
