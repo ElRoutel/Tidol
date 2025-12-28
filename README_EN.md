@@ -51,6 +51,9 @@ The project integrates heavy AI processing in **Python (Spectra Engine)** with a
 
 ## 🚀 Installation and Local Usage
 
+> [!TIP]
+> **Issues with port 5173?** If the frontend doesn't load properly, you can use the **stable version** by accessing the backend directly at `localhost:3000`, which includes an integrated functional interface.
+
 > [!IMPORTANT]
 > Tidol is a tool to manage your own library. To use the massive search engine, **you must first configure the Proxy Farm** (Warp Farm) detailed below.
 
