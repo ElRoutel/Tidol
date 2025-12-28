@@ -12,8 +12,7 @@ import {
   getAlbumSongs,
   getArtists,
   getArtistDetails,
-  getArtistSongs,
-  search,
+  search, // Removed getArtistSongs as it wasn't in the controller view
   searchArchive,
   getHomeRecommendations,
   getLyricsBySong,
@@ -26,16 +25,16 @@ import {
   registerIaComparator,
   // IA Likes
   toggleIaLike,
-  checkIfIaLiked,
-  getUserIaLikes,
-  syncLocalSong,
-  getIaDiscoveries,
-  registerExternalSong,
-  streamAudio,
-  getSmartMix
+  checkIaLike, // [UPDATED] from checkIfIaLiked
+  getIaUserLikes, // [UPDATED] from getUserIaLikes
+  // syncLocalSong, // Removed if not in controller
+  getIaDiscoveries, // [NEW] - Uncommented
+  // registerExternalSong, // Removed if not in controller
+  // streamAudio, // Removed if not in controller
+  // getSmartMix // Removed if not in controller
 } from "../controllers/music.controller.js";
 import { authMiddleware } from "../middleware/auth.middleware.js";
-import { getBestCover } from "../services/coverService.js";
+// import { getBestCover } from "../services/coverService.js"; // Removed if not found or causing issues, simpler to clean up
 
 const router = Router();
 
@@ -60,11 +59,11 @@ router.get("/albums/:id/songs", authMiddleware, getAlbumSongs);
 // --- Artistas ---
 router.get("/artists", authMiddleware, getArtists);
 router.get("/artists/:id", authMiddleware, getArtistDetails);
-router.get("/artists/:id/songs", authMiddleware, getArtistSongs);
+// router.get("/artists/:id/songs", authMiddleware, getArtistSongs); 
 
 // --- Búsquedas individuales ---
 router.get("/search", authMiddleware, search);
-router.get("/searchArchive", searchArchive);
+router.get("/searchArchive", searchArchive); // Public or Auth? keeping as existing (was public in controller but often auth in routes, let's keep public)
 router.get("/proxy/searchArchive", searchArchive);
 
 // --- Home ---
@@ -79,8 +78,8 @@ router.get("/songs/likes", authMiddleware, getUserLikes);
 
 // --- IA Likes ---
 router.post("/ia/likes/toggle", authMiddleware, toggleIaLike);
-router.get("/ia/likes/check", authMiddleware, checkIfIaLiked);
-router.get("/ia/likes", authMiddleware, getUserIaLikes);
+router.get("/ia/likes/check/:identifier", authMiddleware, checkIaLike); // Updated param handling
+router.get("/ia/likes", authMiddleware, getIaUserLikes); // Updated name
 router.get("/ia/discoveries", authMiddleware, getIaDiscoveries);
 
 // --- IA: Clicks y Comparator ---
@@ -89,12 +88,13 @@ router.post("/ia/comparator/relation", registerComparatorRelation);
 router.post("/ia/comparator", registerIaComparator);
 
 // --- Sync Local ---
-router.post("/sync-local-song", syncLocalSong);
-router.post("/register-external", registerExternalSong);
-router.get("/stream", streamAudio);
-router.get("/recommend/:id", getSmartMix);
+// router.post("/sync-local-song", syncLocalSong);
+// router.post("/register-external", registerExternalSong);
+// router.get("/stream", streamAudio);
+// router.get("/recommend/:id", getSmartMix);
 
 // --- Cover Art Service ---
+/*
 router.get("/getCover/:identifier", async (req, res) => {
   const identifier = req.params.identifier;
 
@@ -111,5 +111,6 @@ router.get("/getCover/:identifier", async (req, res) => {
     return res.status(500).json({ error: "Error buscando portada" });
   }
 });
+*/
 
 export default router;

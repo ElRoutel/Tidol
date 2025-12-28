@@ -12,8 +12,6 @@ package-lock.json
 .DS_Store
 
 # --- BUILD / CACHE ---
-dist/
-build/
 .cache/
 .tmp/
 temp/
