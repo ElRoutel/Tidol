@@ -31,7 +31,7 @@ Este proyecto demuestra cómo integrar una arquitectura robusta que combina el p
 * ✅ **Análisis Musical Profundo:** Detección automática de BPM (tempo), tonalidad (Key) y generación visual de formas de onda (Waveforms) para cada track.
 * ✅ **Interfaz Reactiva y Moderna:** Dashboard intuitivo diseñado con Tailwind CSS y Framer Motion, con modo oscuro y visualización dinámica de la biblioteca musical.
 * ✅ **DJ Brain (Sistema de Recomendación):** Motor inteligente que sugiere mezclas basadas en compatibilidad armónica y de ritmo entre canciones.
-CORRE EN EL PUERTO 3000 ASEGURARSE QUE ESTA CORRIENDO SPECTRA
+
 ## 📸 Galería de la Aplicación
 
 | Reproductor (Fullscreen) | Visualización de Análisis de Audio |
@@ -109,6 +109,7 @@ Si prefieres ejecutar cada servicio por separado en tu máquina host.
     ```bash
     # En Windows
     .\Tidol.bat
+    CORRE EN EL PUERTO 3000 ASEGURARSE QUE ESTA CORRIENDO SPECTRA (LOCALHOST:3000)
     ```
 
 ## 🚜 Configuración de la Granja de Proxies (Warp Farm)
