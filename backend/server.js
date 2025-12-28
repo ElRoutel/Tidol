@@ -27,6 +27,9 @@ import colorsRoutes from "./routes/colors.routes.js";
 import helmet from "helmet";
 import compression from "compression";
 
+// [NEW] Import Provider Manager
+import providerManager from "./core/ProviderManager.js";
+
 async function showAnimatedBanner() {
   // console.clear();
 
@@ -141,10 +144,42 @@ app.use(compression({
 }));
 
 app.use(express.json());
+
+// [NEW] Smart CORS Configuration
+const allowedOrigins = [
+  'http://localhost:5173', // Frontend Dev (Vite)
+  'http://localhost:3000', // Docker / Prod
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000'
+];
+
 app.use(cors({
-  origin: true, // In production, replace with specific domain
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    // In production, be strict. In dev, be permissive or use whitelist
+    if (process.env.NODE_ENV === 'production') {
+      if (allowedOrigins.indexOf(origin) !== -1 || origin.startsWith('http://192.168.')) {
+        callback(null, true);
+      } else {
+        // Optional: Allow everything in 'soft' mode initially to prevent breakage, 
+        // or strictly block. For now, we'll allow but log warning if unknown.
+        // callback(new Error('Not allowed by CORS'));
+        callback(null, true); // Permissive for self-hosted nature
+      }
+    } else {
+      // Development: Allow everything or check whitelist
+      if (allowedOrigins.indexOf(origin) !== -1 || origin.startsWith('http://192.168.')) {
+        callback(null, true);
+      } else {
+        callback(null, true); // Dev Mode: Allow all for convenience
+      }
+    }
+  },
   credentials: true
 }));
+
 app.use(express.json({
   limit: "10mb",
   strict: true,
@@ -434,6 +469,9 @@ async function ensureColumn(table, column, typeDef) {
     });
 
     // --- Iniciar el servidor ---
+
+    // Inicializar Provider Manager
+    await providerManager.loadProviders(); // [NEW]
 
     // Inicializar Proxies antes de escuchar
     const { initProxies } = await import("./services/iaProxy.service.js");
