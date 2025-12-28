@@ -49,6 +49,9 @@ El proyecto integra el procesamiento pesado de IA en **Python (Spectra Engine)**
 * **Backend:** Node.js, Express.js, Better-SQLite3, Fluent-FFmpeg
 * **Motor de IA (Spectra):** Python, Faster-Whisper, Facebook Demucs, Librosa, PyTorch
 
+> [!TIP]
+> **¿Problemas con el puerto 5173?** Si el frontend no se carga correctamente, puedes usar la **versión estable** accediendo directamente al backend en `localhost:3000`, que incluye una interfaz funcional integrada.
+
 ## 🚀 Instalación y Uso Local
 
 > [!IMPORTANT]
