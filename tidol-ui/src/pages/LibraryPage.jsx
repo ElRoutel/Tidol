@@ -4,8 +4,7 @@ import { usePlayer } from "../context/PlayerContext";
 import { useLibrary } from "../hooks/useLibrary";
 import LibraryItem from "../components/LibraryItem";
 import SkeletonSongList from "../components/skeletons/SkeletonSongList";
-
-// import VirtualSongList from "../components/VirtualSongList"; // Disabled due to Vite error
+import VirtualSongList from "../components/VirtualSongList";
 import api from "../api/axiosConfig";
 import favImage from "./favImage.jpg";
 import "../styles/glass.css";
@@ -14,9 +13,6 @@ import "./Library.css";
 export default function LibraryPage() {
   const { currentView, setCurrentView, layout, setLayout, data, isLoading } = useLibrary();
   const { playSongList } = usePlayer();
-
-  console.log("LibraryPage Render:", { currentView, layout, dataLength: data?.length, isLoading });
-
 
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => {
@@ -52,6 +48,16 @@ export default function LibraryPage() {
       return `${count} canciones`;
     }
     return item.artista || item.artist || item.subtitle || "Desconocido";
+  };
+
+  // This handler is passed to both LibraryItem and VirtualSongList
+  // to unify click handling for both grid and list views.
+  const handleItemClick = (item, index) => {
+    if (currentView === "playlists") {
+      handlePlayPlaylist(item.id);
+    } else {
+      playSongList(data, index);
+    }
   };
 
   return (
@@ -101,18 +107,12 @@ export default function LibraryPage() {
         {isLoading && <SkeletonSongList count={12} />}
 
         {!isLoading && data.length > 0 && (
-          layout === 'list_DISABLED_DEBUG' ? (
+          layout === 'list' ? (
             <VirtualSongList
-              songs={data}
+              data={data}
               currentView={currentView}
-              layout={layout}
-              onPlay={(list, index) => {
-                if (currentView === 'playlists') {
-                  handlePlayPlaylist(list[index].id);
-                } else {
-                  playSongList(list, index);
-                }
-              }}
+              getSubtitle={getSubtitle}
+              onClick={handleItemClick}
             />
           ) : (
             data.map((item, i) => {
@@ -126,10 +126,7 @@ export default function LibraryPage() {
                   viewMode={layout}
                   item={item}
                   type={currentView === "playlists" ? "playlist" : "song"}
-                  onClick={() => {
-                    if (currentView === "playlists") handlePlayPlaylist(item.id);
-                    else playSongList(data, i);
-                  }}
+                  onClick={() => handleItemClick(item, i)}
                 />
               );
             })

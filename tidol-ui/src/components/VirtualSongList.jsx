@@ -1,82 +1,85 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FixedSizeList as List } from 'react-window';
-import { IoVolumeHighSharp, IoPauseSharp, IoPlaySharp } from 'react-icons/io5';
+import LibraryItem from './LibraryItem';
+import favImage from '../pages/favImage.jpg';
 
-const VirtualSongList = ({ songs, onPlay, height = 600, itemSize = 72, currentView, currentSong, isPlaying, handleContextMenu }) => {
+// The Row component is memoized and defined outside of VirtualSongList
+// to prevent it from being recreated on every render.
+const Row = React.memo(({ data, index, style }) => {
+  const { items, getSubtitle, onClick, currentView } = data;
+  const item = items[index];
 
-    /* Fila de canción renderizada por react-window */
-    const Row = ({ index, style }) => {
-        const song = songs[index];
-        const isCurrent = currentSong?.id === song.id;
-        const isPlayingSong = isCurrent && isPlaying;
+  // Prepare props for LibraryItem to ensure consistency
+  const title = item.titulo || item.title || item.nombre || "Sin título";
+  const subtitle = getSubtitle(item);
+  const image = item.portada || item.cover_url || favImage;
+  const type = currentView === "playlists" ? "playlist" : "song";
 
-        return (
-            <div
-                style={style}
-                className={`group flex items-center px-4 hover:bg-white/5 transition-colors rounded-lg mx-2 cursor-pointer ${isCurrent ? 'bg-white/10' : ''
-                    }`}
-                onClick={() => onPlay(song, index)}
-                onContextMenu={(e) => handleContextMenu(e, song)}
-            >
-                {/* # o Play Icon (W/ Hover Swap) */}
-                <div className="w-8 flex justify-center text-sm tabular-nums text-white/40 font-medium">
-                    <span className={`block group-hover:hidden ${isCurrent ? 'text-[#1db954]' : ''}`}>
-                        {isCurrent && isPlaying ? <IoVolumeHighSharp size={16} className="animate-pulse" /> : index + 1}
-                    </span>
-                    <button
-                        className="hidden group-hover:flex text-white hover:scale-110 transition-transform"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onPlay(song, index);
-                        }}
-                    >
-                        {isPlayingSong ? <IoPauseSharp size={16} /> : <IoPlaySharp size={16} />}
-                    </button>
-                </div>
+  return (
+    <div style={style} className="px-2">
+      <LibraryItem
+        title={title}
+        subtitle={subtitle}
+        image={image}
+        viewMode="list"
+        item={item}
+        type={type}
+        // The onClick handler is passed down from the parent component
+        onClick={() => onClick(item, index)}
+      />
+    </div>
+  );
+});
 
-                {/* Título y Artista */}
-                <div className="flex-1 min-w-0 pr-4 flex items-center gap-3">
-                    <img
-                        src={song.coverThumb || song.portada}
-                        className="w-10 h-10 rounded shadow-sm object-cover bg-white/5"
-                        loading="lazy"
-                        decoding="async"
-                        alt=""
-                    />
-                    <div className="flex flex-col min-w-0">
-                        <span className={`truncate text-[15px] font-medium leading-tight ${isCurrent ? 'text-[#1db954]' : 'text-white/90'
-                            }`}>
-                            {song.titulo}
-                        </span>
-                        <span className="truncate text-[13px] text-white/50 group-hover:text-white/70 transition-colors">
-                            {song.artista}
-                        </span>
-                    </div>
-                </div>
+const VirtualSongList = ({ data, getSubtitle, onClick, currentView, itemSize = 72 }) => {
+  const containerRef = useRef(null);
+  const [height, setHeight] = useState(0);
 
-                {/* Álbum (Desktop) */}
-                <div className="hidden md:block w-1/3 min-w-[150px] truncate text-sm text-white/50 group-hover:text-white/70 transition-colors px-2">
-                    {song.album}
-                </div>
+  // Set up a ResizeObserver to dynamically adjust the list height.
+  // This is crucial for a responsive layout and avoids hardcoded heights,
+  // which was the likely cause of the original implementation's failure.
+  useEffect(() => {
+    const resizeObserver = new ResizeObserver(entries => {
+      if (entries[0]) {
+        setHeight(entries[0].contentRect.height);
+      }
+    });
 
-                {/* Duración */}
-                <div className="w-16 text-right text-sm tabular-nums text-white/40 font-variant-numeric">
-                    {song.duracion}
-                </div>
-            </div>
-        );
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
+    return () => {
+      if (containerRef.current) {
+        resizeObserver.unobserve(containerRef.current);
+      }
     };
-    return (
+  }, []);
+
+  // itemData is used to pass props to the Row component without triggering re-renders
+  const itemData = {
+    items: data,
+    getSubtitle,
+    onClick,
+    currentView,
+  };
+
+  return (
+    <div ref={containerRef} style={{ height: '100%', width: '100%' }}>
+      {height > 0 && (
         <List
-            height={height}
-            itemCount={songs.length}
-            itemSize={itemSize}
-            width={'100%'}
-            overscanCount={5}
+          height={height}
+          itemCount={data.length}
+          itemSize={itemSize}
+          width="100%"
+          overscanCount={5}
+          itemData={itemData}
         >
-            {Row}
+          {Row}
         </List>
-    );
+      )}
+    </div>
+  );
 };
 
 export default VirtualSongList;
