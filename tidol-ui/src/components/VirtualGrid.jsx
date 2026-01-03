@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FixedSizeList as List } from 'react-window';
+import { FixedSizeGrid as Grid } from 'react-window';
 import LibraryItem from './LibraryItem';
 import favImage from '../assets/favImage.jpg';
 
-// The Row component is memoized and defined outside of VirtualSongList
-// to prevent it from being recreated on every render.
-const Row = React.memo(({ data, index, style }) => {
-  const { items, getSubtitle, onClick, currentView } = data;
+const Cell = React.memo(({ data, columnIndex, rowIndex, style }) => {
+  const { items, getSubtitle, onClick, currentView, columnCount } = data;
+  const index = rowIndex * columnCount + columnIndex;
   const item = items[index];
 
-  // Prepare props for LibraryItem to ensure consistency
+  if (!item) return null;
+
   const title = item.titulo || item.title || item.nombre || "Sin título";
   const subtitle = getSubtitle(item);
   const image = item.portada || item.cover_url || favImage;
@@ -21,27 +21,24 @@ const Row = React.memo(({ data, index, style }) => {
         title={title}
         subtitle={subtitle}
         image={image}
-        viewMode="list"
+        viewMode="grid"
         item={item}
         type={type}
-        // The onClick handler is passed down from the parent component
         onClick={() => onClick(item, index)}
       />
     </div>
   );
 });
 
-const VirtualSongList = ({ data, getSubtitle, onClick, currentView, itemSize = 72 }) => {
+const VirtualGrid = ({ data, getSubtitle, onClick, currentView, columnWidth = 180, rowHeight = 240 }) => {
   const containerRef = useRef(null);
-  const [height, setHeight] = useState(0);
+  const [size, setSize] = useState({ width: 0, height: 0 });
 
-  // Set up a ResizeObserver to dynamically adjust the list height.
-  // This is crucial for a responsive layout and avoids hardcoded heights,
-  // which was the likely cause of the original implementation's failure.
   useEffect(() => {
     const resizeObserver = new ResizeObserver(entries => {
       if (entries[0]) {
-        setHeight(entries[0].contentRect.height);
+        const { width, height } = entries[0].contentRect;
+        setSize({ width, height });
       }
     });
 
@@ -56,30 +53,35 @@ const VirtualSongList = ({ data, getSubtitle, onClick, currentView, itemSize = 7
     };
   }, []);
 
-  // itemData is used to pass props to the Row component without triggering re-renders
+  const columnCount = Math.max(1, Math.floor(size.width / columnWidth));
+  const rowCount = Math.ceil(data.length / columnCount);
+
   const itemData = {
     items: data,
     getSubtitle,
     onClick,
     currentView,
+    columnCount,
   };
 
   return (
     <div ref={containerRef} style={{ height: '100%', width: '100%' }}>
-      {height > 0 && (
-        <List
-          height={height}
-          itemCount={data.length}
-          itemSize={itemSize}
-          width="100%"
+      {size.width > 0 && size.height > 0 && (
+        <Grid
+          height={size.height}
+          width={size.width}
+          columnCount={columnCount}
+          columnWidth={columnWidth}
+          rowCount={rowCount}
+          rowHeight={rowHeight}
           overscanCount={5}
           itemData={itemData}
         >
-          {Row}
-        </List>
+          {Cell}
+        </Grid>
       )}
     </div>
   );
 };
 
-export default VirtualSongList;
+export default VirtualGrid;
