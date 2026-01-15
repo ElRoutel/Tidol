@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { FixedSizeList as List } from 'react-window';
 import LibraryItem from './LibraryItem';
-import favImage from '../pages/favImage.jpg';
+import favImage from '../assets/favImage.jpg';
 
 // The Row component is memoized and defined outside of VirtualSongList
 // to prevent it from being recreated on every render.
