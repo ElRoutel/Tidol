@@ -1,0 +1,3 @@
+## 2024-08-05 - Frontend Verification Blocked by Missing Backend
+**Learning:** The `tidol-ui` development server (`npm run dev`) only runs the frontend. Critical features like user login are proxied to a backend service (on port 3000) that is not started by default. The environment lacks the `docker-compose` command needed to run the backend, making it impossible to perform end-to-end verification for any feature behind an authentication wall.
+**Action:** Do not attempt to verify features requiring login via Playwright. Notify the user of this constraint and proceed with code submission, highlighting the verification gap.
