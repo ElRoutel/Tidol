@@ -5,6 +5,7 @@ import { useLibrary } from "../hooks/useLibrary";
 import LibraryItem from "../components/LibraryItem";
 import SkeletonSongList from "../components/skeletons/SkeletonSongList";
 import VirtualSongList from "../components/VirtualSongList";
+import VirtualGrid from "../components/VirtualGrid"; // Importar el nuevo componente
 import api from "../api/axiosConfig";
 import favImage from "./favImage.jpg";
 import "../styles/glass.css";
@@ -115,21 +116,11 @@ export default function LibraryPage() {
               onClick={handleItemClick}
             />
           ) : (
-            data.map((item, i) => {
-              const uniqueKey = item.id || item.identifier || `idx-${i}`;
-              return (
-                <LibraryItem
-                  key={uniqueKey}
-                  title={item.titulo || item.title || item.nombre || "Sin título"}
-                  subtitle={getSubtitle(item)}
-                  image={item.portada || item.cover_url || favImage}
-                  viewMode={layout}
-                  item={item}
-                  type={currentView === "playlists" ? "playlist" : "song"}
-                  onClick={() => handleItemClick(item, i)}
-                />
-              );
-            })
+            <VirtualGrid
+              data={data}
+              getSubtitle={getSubtitle}
+              onClick={handleItemClick}
+            />
           )
         )}
       </div>
