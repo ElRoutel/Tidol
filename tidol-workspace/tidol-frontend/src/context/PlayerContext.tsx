@@ -6,6 +6,8 @@ import { useMotionValue, MotionValue } from 'framer-motion';
 import api from '../api/axiosConfig';
 import { TidolAudioEngine } from '../engine/TidolAudioEngine';
 import { resolvePlayback } from '../engine/embedResolver';
+import { extractColorsFromUrl } from '../utils/extractColors';
+import { getCoverSrc } from '../utils/coverArt';
 import YouTubeEmbed, { YouTubeEmbedHandle } from '../components/embeds/YouTubeEmbed';
 import { UnifiedTrack, PlayerState } from '../types/music';
 import { useVoxAudio } from '../hooks/useVoxAudio';
@@ -309,23 +311,24 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         syncHistory();
 
         if (!currentTrack.extractedColors) {
-            const artworkUrl = currentTrack.artworkUrl || (currentTrack as any).portada
-                || currentTrack.attributes?.artwork?.url || '/default_cover.png';
+            // Extracción de colores 100% en el cliente (canvas) — sin carga en el
+            // backend. Usamos la portada mostrada; idealmente same-origin
+            // (/api/v1/covers/:mbid) para que el canvas no quede "tainted".
+            // Portada same-origin (/api/v1/covers/:mbid) → el canvas puede leer
+            // sus píxeles sin "tainting" y extraer la paleta en el cliente.
+            const artworkUrl = getCoverSrc(currentTrack, true);
 
-            if (artworkUrl && artworkUrl !== '/default_cover.png') {
-                api.post('/colors/extract', {
-                    imageUrl: artworkUrl,
-                    songId: currentTrack.id,
-                    source: currentTrack.sourceType === 'internet-archive' ? 'internet_archive' : 'local'
-                })
-                    .then((res: any) => {
-                        if (res.data?.colors) {
+            if (artworkUrl && !artworkUrl.includes('default-album')) {
+                const trackId = currentTrack.id;
+                extractColorsFromUrl(artworkUrl)
+                    .then((colors) => {
+                        if (colors) {
                             setCurrentTrack(prev =>
-                                prev?.id === currentTrack.id ? { ...prev, extractedColors: res.data.colors } : prev
+                                prev?.id === trackId ? { ...prev, extractedColors: colors } : prev
                             );
                         }
                     })
-                    .catch((err: any) => console.warn('[PlayerContext] Color extraction failed:', err));
+                    .catch(() => { /* canvas tainted / imagen no legible: sin colores */ });
             }
         }
     }, [currentTrack]);

@@ -12,6 +12,7 @@ import { LyricsView } from './LyricsView';
 import KaraokeView from './KaraokeView';
 import DynamicBackground from './DynamicBackground';
 import { motion, useTransform, useDragControls, AnimatePresence } from 'framer-motion';
+import { getCoverSrc } from '../utils/coverArt';
 import './FullScreenPlayer.css';
 
 export default function FullScreenPlayer({ isEmbedded = false }) {
@@ -226,10 +227,10 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                         <div className="flex flex-col items-start w-full max-w-[500px]">
                             <div className="w-full aspect-square relative shadow-[0_30px_60px_rgba(0,0,0,0.6)] transform transition-transform duration-500 hover:scale-[1.02]">
                                 <div className="absolute inset-0 opacity-40 blur-3xl -z-10" style={{ background: dominantColor }} />
-                                <img 
-                                    src={currentSong?.coverArtUrl || currentSong?.coverFull || currentSong?.portada || '/default-album.png'} 
-                                    alt={currentSong?.trackName || currentSong?.titulo} 
-                                    className="w-full h-full object-cover" 
+                                <img
+                                    src={getCoverSrc(currentSong, true)}
+                                    alt={currentSong?.trackName || currentSong?.titulo}
+                                    className="w-full h-full object-cover"
                                     onError={(e) => { e.currentTarget.src = '/default-album.png'; }}
                                 />
                             </div>
@@ -387,9 +388,9 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
     <div className="relative w-full aspect-square max-w-[400px] md:max-w-[400px] shadow-2xl">
         <div className="absolute inset-0 opacity-60 blur-2xl -z-10 transform scale-95 translate-y-6" style={{ background: dominantColor }} />
         
-        <img 
-            src={currentSong?.coverArtUrl || '/default-album.png'} 
-            alt={currentSong?.trackName} 
+        <img
+            src={getCoverSrc(currentSong, true)}
+            alt={currentSong?.trackName}
             className="w-full h-full object-cover rounded-xl shadow-lg"
             onError={(e) => { e.currentTarget.src = '/default-album.png'; }}
         />

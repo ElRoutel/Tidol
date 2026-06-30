@@ -2,7 +2,7 @@ import React from 'react';
 import { IoPlay } from 'react-icons/io5';
 import MiniVisualizer from '../MiniVisualizer';
 import { useContextMenu } from '../../context/ContextMenuContext';
-import { getOptimizedImageUrl } from '../../utils/imageUtils';
+import { getCoverSrc } from '../../utils/coverArt';
 
 // Helper function for robust data binding
 const getSubtitle = (item) => {
@@ -31,7 +31,6 @@ export default function ListenAgainCard({ item, onClick, onPlay, isActive, isPla
 
     // Data Mapping: Now relying on trackNormalization fields
     const title = item.title || 'Sin Título';
-    const rawImage = item.artworkUrl || item.coverUrl || item.cover_url || item.image || item.portada;
     const subtitle = item.artist || item.artista || item.artistName || 'Artista Desconocido';
 
     const handlePlayClick = (e) => {
@@ -55,10 +54,11 @@ export default function ListenAgainCard({ item, onClick, onPlay, isActive, isPla
             {/* Image Container */}
             <div className="relative aspect-square w-full overflow-hidden rounded-lg">
                 <img
-                    src={getOptimizedImageUrl(rawImage, 200)}
+                    src={getCoverSrc(item)}
                     alt={title}
                     loading="lazy"
                     decoding="async"
+                    onError={(e) => { e.currentTarget.src = '/default-album.png'; }}
                     className="w-full h-full object-cover transition-transform duration-300 group-hover/card:scale-105"
                 />
 

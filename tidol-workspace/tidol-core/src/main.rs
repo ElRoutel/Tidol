@@ -491,9 +491,11 @@ async fn get_lyrics_handler(
 
     let client = reqwest::Client::new();
     let lrclib_response = client.get(&lrclib_url).send().await;
+    let mut lrclib_answered = false;
 
     if let Ok(resp) = lrclib_response {
         if resp.status().is_success() {
+            lrclib_answered = true;
             if let Ok(mut results) = resp.json::<Vec<serde_json::Value>>().await {
                 if !results.is_empty() {
                     let first = results.remove(0);
@@ -547,10 +549,15 @@ async fn get_lyrics_handler(
         }
     }
 
-    let _ = sqlx::query("UPDATE track_links SET lyrics_status = 'not_found' WHERE mbid = ?")
-        .bind(&track_id)
-        .execute(&state.db)
-        .await;
+    // Solo cachear negativo si LRCLIB respondió correctamente pero sin letra.
+    // Un fallo transitorio (timeout/red/rate-limit) deja el estado en 'pending'
+    // para reintentar luego (antes cualquier fallo cacheaba un 404 permanente).
+    if lrclib_answered {
+        let _ = sqlx::query("UPDATE track_links SET lyrics_status = 'not_found' WHERE mbid = ?")
+            .bind(&track_id)
+            .execute(&state.db)
+            .await;
+    }
 
     Err((
         StatusCode::NOT_FOUND,

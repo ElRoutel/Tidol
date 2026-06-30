@@ -154,9 +154,17 @@ pub async fn extract_colors_handler(
     })
 }
 
+#[derive(Deserialize)]
+pub struct CoverQuery {
+    /// URL de respaldo (p.ej. miniatura de YouTube) a usar si CAA/MusicBrainz/iTunes
+    /// no devuelven portada. Se descarga y cachea para servirla same-origin.
+    pub fallback: Option<String>,
+}
+
 pub async fn get_cover_handler(
     State(state): State<AppState>,
     axum::extract::Path(mbid): axum::extract::Path<String>,
+    Query(q): Query<CoverQuery>,
 ) -> impl IntoResponse {
     let covers_dir = PathBuf::from("covers");
     if !covers_dir.exists() {
@@ -173,6 +181,65 @@ pub async fn get_cover_handler(
                 bytes,
             )
                 .into_response();
+        }
+    }
+
+    // Cliente con User-Agent (MusicBrainz lo exige) y seguimiento de redirecciones
+    // (Cover Art Archive redirige a archive.org).
+    let client = reqwest::Client::builder()
+        .user_agent("TidolMusic/0.2 (https://tidol.duckdns.org)")
+        .build()
+        .unwrap_or_default();
+
+    // ── 1. Cover Art Archive directo por mbid (si es release / release-group) ──
+    for kind in ["release", "release-group"] {
+        let caa = format!("https://coverartarchive.org/{}/{}/front-500", kind, mbid);
+        if let Ok(res) = client.get(&caa).send().await {
+            if res.status().is_success() {
+                if let Ok(bytes) = res.bytes().await {
+                    if bytes.len() > 100 {
+                        let _ = tokio::fs::write(&file_path, &bytes).await;
+                        return (
+                            StatusCode::OK,
+                            [(header::CONTENT_TYPE, "image/jpeg")],
+                            bytes.to_vec(),
+                        )
+                            .into_response();
+                    }
+                }
+            }
+        }
+    }
+
+    // ── 2. MusicBrainz: si el mbid es un recording, busca su release y prueba CAA ──
+    let mb_url = format!(
+        "https://musicbrainz.org/ws/2/recording/{}?inc=releases&fmt=json",
+        mbid
+    );
+    if let Ok(res) = client.get(&mb_url).send().await {
+        if let Ok(json) = res.json::<serde_json::Value>().await {
+            if let Some(releases) = json.get("releases").and_then(|r| r.as_array()) {
+                for rel in releases.iter().take(3) {
+                    if let Some(rid) = rel.get("id").and_then(|v| v.as_str()) {
+                        let caa = format!("https://coverartarchive.org/release/{}/front-500", rid);
+                        if let Ok(r2) = client.get(&caa).send().await {
+                            if r2.status().is_success() {
+                                if let Ok(bytes) = r2.bytes().await {
+                                    if bytes.len() > 100 {
+                                        let _ = tokio::fs::write(&file_path, &bytes).await;
+                                        return (
+                                            StatusCode::OK,
+                                            [(header::CONTENT_TYPE, "image/jpeg")],
+                                            bytes.to_vec(),
+                                        )
+                                            .into_response();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -205,6 +272,28 @@ pub async fn get_cover_handler(
                                         .into_response();
                                 }
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ── 4. URL de respaldo (miniatura de YouTube u otra) — descargar y cachear
+    //        para servir same-origin (permite extracción de color en el cliente) ──
+    if let Some(fallback) = q.fallback.as_deref() {
+        if fallback.starts_with("http") {
+            if let Ok(res) = client.get(fallback).send().await {
+                if res.status().is_success() {
+                    if let Ok(bytes) = res.bytes().await {
+                        if bytes.len() > 100 {
+                            let _ = tokio::fs::write(&file_path, &bytes).await;
+                            return (
+                                StatusCode::OK,
+                                [(header::CONTENT_TYPE, "image/jpeg")],
+                                bytes.to_vec(),
+                            )
+                                .into_response();
                         }
                     }
                 }
