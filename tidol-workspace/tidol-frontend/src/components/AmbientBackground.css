@@ -1,0 +1,129 @@
+/* ============================================
+   AURORA AMBIENT BACKGROUND - PREMIUM MESH GRADIENT
+   ============================================ */
+
+.ambient-background-wrapper {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+    background: #000000;
+    /* Deep black fallback */
+
+    /* GRACEFUL FALLBACK: Smooth transition when colors arrive */
+    transition: background 1s ease;
+}
+
+/* Scrim Layer for Typography Contrast */
+.ambient-scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom,
+            rgba(0, 0, 0, 0.4) 0%,
+            rgba(0, 0, 0, 0.2) 50%,
+            rgba(0, 0, 0, 0.6) 100%);
+    z-index: 1;
+    pointer-events: none;
+}
+
+.ambient-aurora {
+    position: absolute;
+    inset: 0;
+    isolation: isolate;
+}
+
+/* ============================================
+   AURORA ORBS - 3-LAYER GRADIENT SYSTEM
+   ============================================ */
+
+.aurora-orb {
+    position: absolute;
+    width: 60vw;
+    /* Bigger for dramatic effect */
+    height: 60vw;
+    border-radius: 50%;
+
+    /* Safer blur (80px instead of 120px) */
+    filter: blur(80px);
+
+    /* Premium color fusion - creates vibrant overlapping effect */
+    mix-blend-mode: screen;
+
+    /* GPU optimization */
+    will-change: transform;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+
+/* Layer 1: Primary (Top-Left) */
+.aurora-primary {
+    top: -20%;
+    left: -10%;
+    background: radial-gradient(circle,
+            var(--primary-color) 0%,
+            transparent 70%);
+    opacity: calc(var(--intensity) * 0.8);
+    /* Increased for visibility */
+}
+
+/* Layer 2: Secondary (Bottom-Right) */
+.aurora-secondary {
+    bottom: -20%;
+    right: -10%;
+    background: radial-gradient(circle,
+            var(--secondary-color) 0%,
+            transparent 70%);
+    opacity: calc(var(--intensity) * 0.9);
+    /* Increased for visibility */
+}
+
+/* Layer 3: Accent (Center) */
+.aurora-accent {
+    top: 40%;
+    left: 40%;
+    background: radial-gradient(circle,
+            var(--accent-color) 0%,
+            transparent 70%);
+    opacity: calc(var(--intensity) * 0.7);
+    /* Increased for visibility */
+}
+
+/* ============================================
+   PERFORMANCE OPTIMIZATIONS
+   ============================================ */
+
+/* Force GPU compositing for smooth animations */
+.aurora-orb::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateZ(0);
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+    .aurora-orb {
+        animation: none !important;
+    }
+}
+
+/* Mobile optimizations - smaller orbs but keep blur for testing */
+@media (max-width: 768px) {
+    .aurora-orb {
+        width: 600px;
+        height: 600px;
+        filter: blur(120px);
+        /* Keep same blur for visibility */
+    }
+}
+
+/* Very small screens - further reduce */
+@media (max-width: 480px) {
+    .aurora-orb {
+        width: 500px;
+        height: 500px;
+        filter: blur(100px);
+    }
+}

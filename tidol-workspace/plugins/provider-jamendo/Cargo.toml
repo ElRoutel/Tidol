@@ -1,0 +1,13 @@
+[package]
+name = "provider-jamendo"
+version = "0.1.0"
+edition = "2021"
+description = "Jamendo music provider plugin for Tidol Core (cdylib FFI)"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+reqwest = { version = "0.12", features = ["blocking", "json", "rustls-tls"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

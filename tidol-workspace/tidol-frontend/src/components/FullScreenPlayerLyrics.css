@@ -1,0 +1,14 @@
+/* Clean Lyrics Container Styles */
+.fsp-lyrics-container {
+  width: 100%;
+  height: 100%;
+  background: transparent !important;
+  /* Force transparent */
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+/* Scrollbar hidden but functional */
+.fsp-lyrics-container::-webkit-scrollbar {
+  display: none;
+}

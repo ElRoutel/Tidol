@@ -1,0 +1,6 @@
+FROM caddy:2.9-builder AS builder
+RUN GOTOOLCHAIN=auto xcaddy build \
+    --with github.com/caddy-dns/duckdns
+
+FROM caddy:2.9-alpine
+COPY --from=builder /usr/bin/caddy /usr/bin/caddy

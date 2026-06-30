@@ -1,0 +1,100 @@
+/* src/styles/animations.css */
+
+/* === ANIMACIONES === */
+@keyframes tidol-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes tidol-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes tidol-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes tidol-shimmer {
+
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+/* === CLASES DE ANIMACIÓN === */
+.tidol-fade-in {
+  animation: tidol-fade-in 0.5s ease-out forwards;
+}
+
+.tidol-slide-up {
+  animation: tidol-slide-up 0.6s ease-out forwards;
+}
+
+.tidol-scale-in {
+  animation: tidol-scale-in 0.4s ease-out forwards;
+}
+
+.tidol-shimmer {
+  animation: tidol-shimmer 2s ease-in-out infinite;
+}
+
+/* === SIMPLIFIED GLASS EFFECTS (NO BACKDROP-FILTER) === */
+.tidol-glass-player {
+  background: rgba(24, 24, 27, 0.95);
+  border-top: 1px solid rgba(63, 63, 70, 0.4);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.tidol-glass-nav {
+  background: rgba(24, 24, 27, 0.95);
+  border-top: 1px solid rgba(63, 63, 70, 0.4);
+}
+
+/* === SCROLL PERSONALIZADO === */
+.overflow-y-auto::-webkit-scrollbar {
+  width: 12px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb {
+  background: rgba(161, 161, 170, 0.3);
+  border-radius: 6px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: rgba(161, 161, 170, 0.5);
+  background-clip: content-box;
+}

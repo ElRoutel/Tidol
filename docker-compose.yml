@@ -1,0 +1,163 @@
+# =============================================================================
+# TidolCore — Docker Compose de Producción
+# Servicios: tidol-core (3 réplicas) + MariaDB + Redis + Caddy (LB)
+# =============================================================================
+name: tidolcore
+
+networks:
+  tidol-net:
+    driver: bridge
+
+volumes:
+  mariadb-data:
+  redis-data:
+  caddy-data:
+  caddy-config:
+  tidol-covers:
+  tidol-storage:
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Base de datos MariaDB
+  # ---------------------------------------------------------------------------
+  mariadb:
+    image: mariadb:11.4
+    container_name: tidol-mariadb
+    restart: unless-stopped
+    networks:
+      - tidol-net
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-rootpass123}
+      MARIADB_DATABASE: tidol
+      MARIADB_USER: tidol_admin
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-tidol36CY}
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Redis — Caché de metadatos y rate-limit distribuido
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7.4-alpine
+    container_name: tidol-redis
+    restart: unless-stopped
+    networks:
+      - tidol-net
+    command: redis-server --save 60 1 --loglevel warning --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Tidol Core — Backend Rust/Axum (escala horizontal)
+  # Usa "deploy.replicas" para lanzar múltiples instancias
+  # ---------------------------------------------------------------------------
+  tidol-core:
+    build:
+      context: ./tidol-workspace
+      dockerfile: tidol-core/Dockerfile
+      network: host
+      args:
+        - DATABASE_URL=mysql://tidol_admin:${MARIADB_PASSWORD:-tidol36CY}@127.0.0.1/tidol
+    image: tidolcore/backend:latest
+    restart: unless-stopped
+    networks:
+      - tidol-net
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Base de datos
+      DATABASE_URL: mysql://tidol_admin:${MARIADB_PASSWORD:-tidol36CY}@mariadb/tidol
+      DATABASE_MAX_CONNECTIONS: ${DATABASE_MAX_CONNECTIONS:-100}
+
+      # Servidor
+      PORT: 8080
+      APP_ENV: production
+      RUST_LOG: ${RUST_LOG:-info}
+
+      # Plugins
+      PLUGINS_DIR: /app/plugins
+
+      # Seguridad
+      JWT_SECRET: "${JWT_SECRET}"
+
+      # Proveedores externos oficiales (APIs legales — embeds / metadata)
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
+      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
+      SOUNDCLOUD_CLIENT_ID: ${SOUNDCLOUD_CLIENT_ID:-}
+
+      # Proxy pool para llamadas salientes a las APIs (comma-separated: socks5://host:port,http://host:port)
+      PROXY_POOL: ${PROXY_POOL:-}
+
+      # Redis
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - tidol-covers:/app/covers
+      - tidol-storage:/app/storage
+    deploy:
+      replicas: ${TIDOL_REPLICAS:-1}
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+    # Sin ports expuesto directamente: Caddy actúa como reverse proxy
+    expose:
+      - "8080"
+
+  # ---------------------------------------------------------------------------
+  # Tidol Frontend — SPA React servida por Nginx
+  # ---------------------------------------------------------------------------
+  tidol-frontend:
+    build:
+      context: ./tidol-workspace/tidol-frontend
+      dockerfile: Dockerfile
+    image: tidolcore/frontend:latest
+    container_name: tidol-frontend
+    restart: unless-stopped
+    networks:
+      - tidol-net
+    expose:
+      - "80"
+    depends_on:
+      - tidol-core
+
+  # ---------------------------------------------------------------------------
+  # Caddy — Reverse Proxy + Load Balancer + TLS automático
+  # ---------------------------------------------------------------------------
+  caddy:
+    image: caddy:2.9-alpine
+    container_name: tidol-caddy
+    restart: unless-stopped
+    networks:
+      - tidol-net
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3 (QUIC)
+    volumes:
+      - ./Caddyfile.prod:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - tidol-core
+      - tidol-frontend

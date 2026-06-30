@@ -1,0 +1,44 @@
+# Artefactos de compilación (el más pesado)
+target/
+
+# Modelos de IA — demasiado grandes para el contexto de build
+plugins/provider-ai/models/
+plugins/provider-ai/target/
+
+# Entornos virtuales Python
+venv/
+.venv/
+
+# Frontends (no se necesitan en el backend)
+tidol-frontend/node_modules/
+tidol-frontend/.svelte-kit/
+tidol-frontend/build/
+tidol-frontend/dist/
+tidol-tv-lite/node_modules/
+tidol-tv-lite/.svelte-kit/
+tidol-tv-lite/build/
+tidol-tv-lite/dist/
+tidol-tv-lite-backup/
+
+# Datos de usuario y almacenamiento local
+storage/
+tidol-core/covers/
+tidol-core/storage/
+
+# Archivos de desarrollo
+*.py
+*.sh
+bad_engine/
+test_yt/
+scratch/
+
+# Git
+.git/
+.gitignore
+
+# Cookies (montado por volumen, no necesario en build)
+*cookies*.txt
+
+# Logs y temporales
+*.log
+tmp/

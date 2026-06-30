@@ -1,0 +1,58 @@
+# =============================================================================
+# TidolCore — Caddyfile de Producción
+# Legal Embed Architecture — No audio streaming/proxying
+# =============================================================================
+
+{
+    email admin@tidol.example.com
+
+    servers {
+        protocols h1 h2 h3
+    }
+}
+
+tidol.duckdns.org {
+
+    log {
+        level  INFO
+        format json
+    }
+
+    # ------------------------------------------------------------------
+    # API Backend
+    # ------------------------------------------------------------------
+    handle /api/* {
+        reverse_proxy tidol-core:8080 {
+            lb_policy least_conn
+
+            transport http {
+                read_timeout                30s
+                write_timeout               30s
+                response_header_timeout     15s
+                dial_timeout                5s
+            }
+
+            header_up X-Real-IP        {remote_host}
+            header_up X-Forwarded-For  {remote_host}
+            header_up X-Forwarded-Proto https
+        }
+    }
+
+    # ------------------------------------------------------------------
+    # Frontend SPA
+    # ------------------------------------------------------------------
+    handle {
+        reverse_proxy tidol-frontend:80
+    }
+
+    encode gzip zstd
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+        X-Content-Type-Options    nosniff
+        X-Frame-Options           SAMEORIGIN
+        Referrer-Policy           strict-origin-when-cross-origin
+        -Server
+    }
+}

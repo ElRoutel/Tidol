@@ -1,0 +1,65 @@
+# ── Dependencias ──────────────────────────────────────────────
+node_modules/
+**/node_modules/
+
+# ── Artefactos de compilación ─────────────────────────────────
+target/
+**/target/
+dist/
+**/dist/
+build/
+**/build/
+*.so
+*.so.*
+*.rlib
+*.rs.bk
+
+# ── Modelos de IA / binarios pesados ──────────────────────────
+plugins/provider-ai/models/
+**/models/
+*.bin
+
+# ── Entornos / secretos ───────────────────────────────────────
+.env
+.env.local
+**/.env
+*.env.local
+*cookies*.txt
+client_secret_*.json
+*.apps.googleusercontent.com.json
+*.pem
+*.key
+
+# ── Media / audio pesado ──────────────────────────────────────
+*.mp3
+*.wav
+*.flac
+*.m4a
+*.ogg
+*.opus
+*.webm
+*.mp4
+*.mkv
+*.avi
+
+# ── Almacenamiento dinámico / covers / lyrics ─────────────────
+storage/
+**/storage/
+**/covers/
+*.lrc
+*.lrc.tmp
+
+# ── Python venv ───────────────────────────────────────────────
+venv/
+.venv/
+
+# ── OS ────────────────────────────────────────────────────────
+**/.DS_Store
+*.log
+
+# Patches (pueden contener código eliminado)
+*.patch
+
+# whisper.cpp vendorizado (repo embebido + ejemplos yt-dlp)
+**/whisper.cpp/
+plugins/provider-ai/third_party/

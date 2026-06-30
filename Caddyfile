@@ -1,0 +1,10 @@
+http://tidol.lan {
+	redir https://tidol.duckdns.org{uri}
+}
+
+tidol.duckdns.org {
+	tls {
+		dns duckdns 765a816e-31c6-40ae-b814-4facc626b40c
+	}
+	reverse_proxy 127.0.0.1:5173
+}

@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "tidol-core",
+    "plugins/provider-archive",
+    "plugins/provider-lyrics",
+    "plugins/provider-jamendo"
+]
+resolver = "2"

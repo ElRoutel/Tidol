@@ -1,0 +1,112 @@
+:root {
+  /* Variables ajustadas para mayor profundidad */
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  --glass-radius: 16px;
+  /* Más redondeado estilo Apple */
+}
+
+/* ============================================ 
+   GLASS CARD - FULLY TRANSPARENT
+   ============================================ */
+.glass-card {
+  /* TRANSPARENT - relies on GlobalBackground for depth */
+  background: transparent;
+
+  /* Subtle border for definition */
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--glass-radius);
+
+  /* Minimal shadow */
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+
+  /* Simple transitions */
+  transition: transform 0.3s ease, border-color 0.2s ease;
+  transform: translateZ(0);
+}
+
+.glass-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+
+
+/* ============================================ 
+   SHELF / CAROUSEL FADING 
+   ============================================ */
+.tidol-shelf-wrapper {
+  position: relative;
+  isolation: isolate;
+}
+
+.tidol-shelf-scroll {
+  /* Mask-image suavizado */
+  -webkit-mask-image: linear-gradient(to right,
+      transparent 0%,
+      black 24px,
+      black calc(100% - 24px),
+      transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0%, black 24px, black calc(100% - 24px), transparent 100%);
+
+  /* Scroll behavior */
+  overflow-x: auto;
+  overflow-y: hidden;
+  display: flex;
+  gap: 16px;
+  padding: 4px 24px;
+  /* Padding lateral para compensar la máscara */
+  scroll-behavior: smooth;
+}
+
+/* Ocultar scrollbar en el carrusel pero permitir scroll */
+.tidol-shelf-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.tidol-shelf-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Fallback para navegadores antiguos */
+@supports not (backdrop-filter: blur(10px)) {
+  .glass-card {
+    background: rgba(30, 30, 30, 0.9);
+  }
+}
+
+/* ============================================ 
+   CUSTOM SCROLLBARS (Desktop Only)
+   ============================================ */
+@media (min-width: 768px) {
+  .scrollbar-default::-webkit-scrollbar {
+    height: 8px;
+    background: transparent;
+  }
+
+  .scrollbar-default::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-default::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+  }
+
+  .scrollbar-default::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.4);
+  }
+}
+
+/* Hide scrollbar utility */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

@@ -1,0 +1,80 @@
+:root {
+    /* === COLORS === */
+    --color-primary: #1DB954;
+    --color-primary-hover: #1ED760;
+    --color-primary-dark: #169c46;
+
+    --color-bg-base: #0A0A0A;
+    --color-bg-elevated: #181818;
+    --color-bg-surface: #282828;
+
+    --color-text-base: #FFFFFF;
+    --color-text-secondary: #B3B3B3;
+    --color-text-tertiary: #808080;
+
+    /* === GLASS TOKENS === */
+    --glass-bg: rgba(255, 255, 255, 0.03);
+    --glass-bg-hover: rgba(255, 255, 255, 0.06);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-border-hover: rgba(255, 255, 255, 0.15);
+
+    --glass-blur-sm: 8px;
+    --glass-blur-md: 16px;
+    --glass-blur-lg: 24px;
+
+    /* === SPACING SCALE (4px base) === */
+    --space-1: 0.25rem;
+    /* 4px */
+    --space-2: 0.5rem;
+    /* 8px */
+    --space-3: 0.75rem;
+    /* 12px */
+    --space-4: 1rem;
+    /* 16px */
+    --space-5: 1.25rem;
+    /* 20px */
+    --space-6: 1.5rem;
+    /* 24px */
+    --space-8: 2rem;
+    /* 32px */
+    --space-10: 2.5rem;
+    /* 40px */
+    --space-12: 3rem;
+    /* 48px */
+    --space-16: 4rem;
+    /* 64px */
+
+    /* === TYPOGRAPHY === */
+    --font-sans: 'Montserrat', 'Inter', -apple-system, sans-serif;
+
+    /* === Z-INDEX === */
+    --z-negative: -1;
+    --z-elevated: 10;
+    --z-sticky: 50;
+    --z-overlay: 100;
+    --z-modal: 1000;
+    --z-toast: 2000;
+
+    /* === ANIMATION === */
+    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+    :root {
+        --glass-blur-md: 12px;
+        /* Reduce blur for performance on mobile */
+        --glass-blur-lg: 16px;
+    }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --transition-fast: 0ms;
+        --transition-normal: 0ms;
+        --transition-slow: 0ms;
+    }
+}

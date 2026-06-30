@@ -1,0 +1,109 @@
+/* FullScreenPlayer.css */
+
+.audio-bar {
+  display: block;
+  width: 3px;
+  height: 100%;
+  border-radius: 999px;
+  background: #1db954;
+  transform-origin: bottom;
+  animation: audioBars 1.1s ease-in-out infinite alternate;
+  will-change: transform, opacity;
+}
+
+.audio-bar-1 {
+  animation-delay: -0.2s;
+}
+
+.audio-bar-2 {
+  animation-delay: -0.45s;
+}
+
+.audio-bar-3 {
+  animation-delay: -0.7s;
+}
+
+.audio-bar-4 {
+  animation-delay: -0.95s;
+}
+
+@keyframes audioBars {
+  0% {
+    transform: scaleY(0.25);
+    opacity: 0.55;
+  }
+  25% {
+    transform: scaleY(0.95);
+    opacity: 1;
+  }
+  50% {
+    transform: scaleY(0.45);
+    opacity: 0.8;
+  }
+  75% {
+    transform: scaleY(0.75);
+    opacity: 0.95;
+  }
+  100% {
+    transform: scaleY(0.35);
+    opacity: 0.65;
+  }
+}
+
+
+.fsp-container {
+  overscroll-behavior-y: contain;
+}
+
+/* Marquee Animation */
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: marquee 7s linear infinite;
+}
+
+/* Pause on hover */
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+/* Mask for marquee fade effect */
+.mask-image-gradient {
+  mask-image: linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%);
+}
+
+/* Hide scrollbar but keep functionality */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Ajuste fino para Desktop */
+@media (min-width: 1024px) {
+  .animate-marquee {
+    animation: marquee 15s linear infinite; /* Un poco más lento en escritorio */
+  }
+}
+
+/* Glass effect for Desktop Bottom Bar */
+.desktop-glass-bar {
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}

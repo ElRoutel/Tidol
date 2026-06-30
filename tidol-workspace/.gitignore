@@ -1,0 +1,35 @@
+/target
+**/*.rs.bk
+.env
+tidol-core/.env
+plugins/provider-ai/build/
+**/.DS_Store
+/frontend
+*.bin
+*.so.*
+bad_engine/target/
+
+# Media, Audio and heavy binary files
+*.mp3
+*.wav
+*.flac
+*.m4a
+*.ogg
+*.opus
+*.webm
+*.mp4
+*.mkv
+*.avi
+
+# Dynamic metadata, covers, lyrics and storage
+tidol-core/covers/
+tidol-core/storage/
+storage/
+**/covers/
+**/storage/
+*.lrc
+*.lrc.tmp
+clear_cache.sh
+
+# Cookies (secrets)
+*cookies*.txt

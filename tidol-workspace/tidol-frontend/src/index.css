@@ -1,0 +1,116 @@
+/* Import Design Tokens (Premium UI System) */
+@import './styles/design-tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html,
+  body {
+    @apply m-0 p-0 w-full h-full overflow-x-hidden text-white;
+    background: var(--bg-base);
+    font-family: var(--font-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.3);
+  }
+}
+
+@layer components {
+
+  /* Liquid Distortion Effect */
+  .liquid-distortion {
+    filter: url(#liquid-distortion);
+  }
+
+  /* Utility for hiding scrollbar but keeping functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Smart Scrollbar (Visible on Hover) */
+  .hover-scrollbar {
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    transition: scrollbar-color 0.3s;
+  }
+
+  .hover-scrollbar:hover {
+    scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+  }
+
+  .hover-scrollbar::-webkit-scrollbar {
+    height: 8px;
+    background: transparent;
+  }
+
+  .hover-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .hover-scrollbar::-webkit-scrollbar-thumb {
+    background-color: transparent;
+    border-radius: 4px;
+  }
+
+  .hover-scrollbar:hover::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.3);
+  }
+}
+
+/* Layout Utilities */
+.tidol-main-content {
+  @apply w-full min-h-screen transition-all duration-300;
+  padding-top: 4rem;
+  /* h-16 for Header */
+}
+
+@media (min-width: 768px) {
+  .tidol-main-content {
+    padding-left: 16rem;
+    /* w-64 for Sidebar */
+  }
+}
+
+.tidol-main-content.no-padding {
+  padding-top: 0 !important;
+}
+
+.tidol-main-content.has-player {
+  padding-bottom: 6rem;
+  /* Space for PlayerBar */
+}

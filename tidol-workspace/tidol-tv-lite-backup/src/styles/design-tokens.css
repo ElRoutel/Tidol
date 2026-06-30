@@ -1,0 +1,202 @@
+/**
+ * TIDOL DESIGN SYSTEM
+ * Premium UI - Luxury Digital Aesthetic
+ * Based on Apple's design philosophy
+ */
+
+/* ============================================
+   TYPOGRAPHY
+   ============================================ */
+
+:root {
+    /* Font Family */
+    --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+    /* Font Weights */
+    --font-weight-regular: 400;
+    --font-weight-medium: 500;
+    --font-weight-bold: 700;
+
+    /* Letter Spacing (Tracking) */
+    --letter-spacing-tight: -0.03em;
+    /* Aggressive negative for headers */
+    --letter-spacing-normal: 0em;
+    --letter-spacing-wide: 0.02em;
+
+    /* Text Colors (White with opacity, never flat gray) */
+    --text-primary: rgba(255, 255, 255, 0.95);
+    --text-secondary: rgba(255, 255, 255, 0.6);
+    --text-tertiary: rgba(255, 255, 255, 0.4);
+    --text-disabled: rgba(255, 255, 255, 0.25);
+}
+
+/* ============================================
+   SPACING (8px Grid System)
+   ============================================ */
+
+:root {
+    --spacing-unit: 8px;
+    --spacing-xs: 4px;
+    /* 0.5x */
+    --spacing-sm: 8px;
+    /* 1x */
+    --spacing-md: 16px;
+    /* 2x */
+    --spacing-lg: 24px;
+    /* 3x */
+    --spacing-xl: 32px;
+    /* 4x */
+    --spacing-2xl: 48px;
+    /* 6x */
+    --spacing-3xl: 64px;
+    /* 8x */
+}
+
+/* ============================================
+   GEOMETRY (Squircles & Radius)
+   ============================================ */
+
+:root {
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+    --radius-full: 9999px;
+}
+
+/* ============================================
+   SHADOWS (Glow & Depth, NO hard black)
+   ============================================ */
+
+:root {
+    /* Glow shadows for active/primary elements */
+    --shadow-glow-primary: 0 20px 40px -10px rgba(29, 185, 84, 0.3);
+    --shadow-glow-active: 0 8px 24px -4px rgba(255, 255, 255, 0.15);
+
+    /* Soft depth shadows */
+    --shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.12);
+    --shadow-medium: 0 8px 24px rgba(0, 0, 0, 0.18);
+    --shadow-deep: 0 12px 32px rgba(0, 0, 0, 0.24);
+
+    /* Inset shadows for borders */
+    --shadow-inset-border: inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+}
+
+/* ============================================
+   COLORS
+   ============================================ */
+
+:root {
+    /* Brand */
+    --color-primary: #1db954;
+    --color-primary-hover: #1ed760;
+
+    /* Backgrounds */
+    --bg-base: #0a0a0a;
+    --bg-elevated: rgba(18, 18, 18, 0.75);
+    --bg-overlay: rgba(0, 0, 0, 0.3);
+
+    /* Borders (Light, not solid) */
+    --border-subtle: rgba(255, 255, 255, 0.05);
+    --border-light: rgba(255, 255, 255, 0.1);
+    --border-medium: rgba(255, 255, 255, 0.2);
+}
+
+/* ============================================
+   TRANSITIONS (Apple Easing)
+   CRITICAL: Applied to specific classes only, NOT universal selector
+   ============================================ */
+
+:root {
+    --ease-apple: cubic-bezier(0.25, 0.8, 0.25, 1);
+    --duration-fast: 0.2s;
+    --duration-normal: 0.3s;
+    --duration-slow: 0.5s;
+}
+
+/* Apply to interactive elements only (NO universal selector) */
+.card,
+.btn,
+.row,
+.song-row,
+.album-card,
+.nav-item,
+.menu-item,
+.player-control {
+    transition-timing-function: var(--ease-apple);
+}
+
+/* ============================================
+   Z-INDEX LAYERS
+   ============================================ */
+
+:root {
+    --z-base: 0;
+    --z-elevated: 10;
+    --z-sidebar: 20;
+    --z-header: 30;
+    --z-player: 100;
+    --z-modal: 1000;
+    --z-tooltip: 2000;
+}
+
+/* ============================================
+   TYPOGRAPHY UTILITIES
+   ============================================ */
+
+.text-h1 {
+    font-size: 48px;
+    font-weight: var(--font-weight-bold);
+    letter-spacing: var(--letter-spacing-tight);
+    color: var(--text-primary);
+}
+
+.text-h2 {
+    font-size: 32px;
+    font-weight: var(--font-weight-bold);
+    letter-spacing: var(--letter-spacing-tight);
+    color: var(--text-primary);
+}
+
+.text-h3 {
+    font-size: 24px;
+    font-weight: var(--font-weight-bold);
+    letter-spacing: var(--letter-spacing-tight);
+    color: var(--text-primary);
+}
+
+.text-body {
+    font-size: 15px;
+    font-weight: var(--font-weight-regular);
+    letter-spacing: var(--letter-spacing-normal);
+    color: var(--text-secondary);
+}
+
+.text-small {
+    font-size: 13px;
+    font-weight: var(--font-weight-regular);
+    letter-spacing: var(--letter-spacing-normal);
+    color: var(--text-tertiary);
+}
+
+/* ============================================
+   INTERACTIVE STATES
+   ============================================ */
+
+.interactive:hover {
+    filter: brightness(1.1);
+}
+
+.interactive:active {
+    transform: scale(0.98);
+}
+
+/* ============================================
+   GLASS EFFECT (Only for PlayerBar)
+   ============================================ */
+
+.crystal-glass {
+    background: var(--bg-elevated);
+    backdrop-filter: blur(25px) saturate(180%);
+    -webkit-backdrop-filter: blur(25px) saturate(180%);
+}
