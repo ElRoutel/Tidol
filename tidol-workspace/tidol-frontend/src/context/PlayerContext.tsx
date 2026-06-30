@@ -416,6 +416,19 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         try {
             const resolved = await resolvePlayback(track);
 
+            // Portada: si la pista no trae una válida, usa la miniatura resuelta
+            // (p.ej. la miniatura del vídeo de YouTube) para no mostrar el hueco vacío.
+            if (resolved.thumbnail) {
+                const cover = track.coverArtUrl || (track as any).portada || (track as any).artworkUrl || '';
+                if (!cover || cover.includes('default')) {
+                    setCurrentTrack(prev =>
+                        prev && (prev.id === track.id || prev.trackId === track.trackId)
+                            ? { ...prev, coverArtUrl: resolved.thumbnail }
+                            : prev
+                    );
+                }
+            }
+
             if (resolved.mode === 'youtube' && resolved.videoId) {
                 playbackModeRef.current = 'youtube';
                 engineRef.current.pause(); // silencia audio nativo previo

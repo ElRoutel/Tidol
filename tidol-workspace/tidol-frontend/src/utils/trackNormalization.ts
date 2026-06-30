@@ -12,6 +12,11 @@ export function normalizeTrack(song: any, source?: SourceType): UnifiedTrack {
         return song as UnifiedTrack;
     }
 
+    // Captura el nombre desde cualquier campo común. El campo `title` no se
+    // leía en las cadenas de abajo y provocaba "Unknown Track" (p.ej. en la
+    // sección Covers y Remixes, cuyos items usan { title: ... }).
+    song = { ...song, name: song.trackName || song.titulo || song.name || song.title };
+
     const sourceType: SourceType = source || (song.identifier ? 'internet-archive' : 'local');
 
     // Mapeo para Internet Archive

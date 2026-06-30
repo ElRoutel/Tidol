@@ -10,6 +10,8 @@ export interface ResolvedPlayback {
     videoId?: string;
     /** Direct legal audio URL (mode === 'archive': Internet Archive CC / blob / local) */
     audioUrl?: string;
+    /** Miniatura de la plataforma (se usa como portada si la pista no trae una). */
+    thumbnail?: string;
 }
 
 /**
@@ -84,7 +86,7 @@ export async function resolvePlayback(track: UnifiedTrack): Promise<ResolvedPlay
             const res = await api.get('/embed/search', { params: { q, limit: 5 } });
             const tracks: any[] = res.data?.tracks || [];
             const yt = tracks.find((t) => canonicalPlatform(t.platform) === 'youtube' && t.id);
-            if (yt) return { mode: 'youtube', videoId: yt.id };
+            if (yt) return { mode: 'youtube', videoId: yt.id, thumbnail: yt.thumbnail };
         } catch (err) {
             console.error('[embedResolver] Fallo al resolver embed:', err);
         }

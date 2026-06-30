@@ -57,6 +57,8 @@ export default function ListenAgainCard({ item, onClick, onPlay, isActive, isPla
                 <img
                     src={getOptimizedImageUrl(rawImage, 200)}
                     alt={title}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover transition-transform duration-300 group-hover/card:scale-105"
                 />
 
