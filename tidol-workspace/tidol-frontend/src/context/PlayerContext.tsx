@@ -1,6 +1,6 @@
 import {
     createContext, useContext, useState, useRef,
-    useEffect, useCallback, ReactNode
+    useEffect, useCallback, useMemo, ReactNode
 } from 'react';
 import { useMotionValue, MotionValue } from 'framer-motion';
 import api from '../api/axiosConfig';
@@ -52,55 +52,40 @@ interface PlayerContextType extends Omit<PlayerState, 'progress'> {
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 
+// ── Contexts segmentados para cortar re-renders globales ─────────────────────
+// El value monolítico de PlayerContext re-renderiza a TODOS sus consumidores en
+// cada cambio de estado. Estos tres contexts aíslan las suscripciones:
+//   · Actions  → identidad estable ⇒ sus consumidores NO re-renderizan por estado.
+//   · Progress → motion values (transitorios, 60fps sin re-render) + duration.
+//   · State    → cambia solo cuando cambia el estado que de verdad se muestra.
+const PlayerStateContext = createContext<any>(undefined);
+const PlayerActionsContext = createContext<any>(undefined);
+const PlayerProgressContext = createContext<any>(undefined);
+
 export const usePlayer = () => {
     const context = useContext(PlayerContext);
     if (!context) throw new Error('usePlayer debe usarse dentro de un PlayerProvider');
     return context;
 };
 
+// Cada hook lee SOLO su context segmentado (no el monolítico) para que sus
+// consumidores re-rendericen únicamente ante cambios de su propia porción.
 export const usePlayerState = () => {
-    const ctx = usePlayer();
-    return {
-        currentSong: ctx.currentTrack,
-        isPlaying: ctx.isPlaying,
-        volume: ctx.volume,
-        isMuted: ctx.isMuted,
-        isFullScreenOpen: ctx.isFullScreenOpen,
-        isDataSaving: ctx.isDataSaving,
-        voxMode: ctx.voxMode,
-        voxType: ctx.voxType,
-        originalQueue: ctx.originalQueue ?? ctx.queue,
-        currentIndex: ctx.currentIndex,
-        detectedQuality: null,
-        isVoxLoading: ctx.isLoading || ctx.spectraData?.voxLoading,
-        playbackDetails: { provider: 'unknown' }
-    };
+    const ctx = useContext(PlayerStateContext);
+    if (!ctx) throw new Error('usePlayerState debe usarse dentro de un PlayerProvider');
+    return ctx;
 };
 
 export const usePlayerActions = () => {
-    const ctx = usePlayer();
-    return {
-        togglePlayPause: ctx.togglePlayPause,
-        nextSong: ctx.nextSong,
-        previousSong: ctx.previousSong,
-        changeVolume: ctx.changeVolume,
-        toggleMute: ctx.toggleMute,
-        seek: ctx.seek,
-        toggleFullScreenPlayer: () => ctx.setIsFullScreenOpen(!ctx.isFullScreenOpen),
-        closeFullScreenPlayer: ctx.closeFullScreenPlayer,
-        toggleVox: ctx.toggleVox,
-        toggleVoxType: ctx.toggleVoxType,
-    };
+    const ctx = useContext(PlayerActionsContext);
+    if (!ctx) throw new Error('usePlayerActions debe usarse dentro de un PlayerProvider');
+    return ctx;
 };
 
 export const usePlayerProgress = () => {
-    const ctx = usePlayer();
-    // Return motion values for transient rendering without React state updates
-    return {
-        currentTimeMotion: ctx.currentTimeMotion,
-        progressMotion: ctx.progressMotion,
-        duration: ctx.duration
-    };
+    const ctx = useContext(PlayerProgressContext);
+    if (!ctx) throw new Error('usePlayerProgress debe usarse dentro de un PlayerProvider');
+    return ctx;
 };
 
 
@@ -256,11 +241,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         document.title = `${title} • ${artist} | Tidol`;
 
         if ('mediaSession' in navigator) {
-            const coverUrl = currentTrack.coverArtUrl
-                || (currentTrack as any).portada
-                || (currentTrack as any).coverUrl
-                || (currentTrack as any).artworkUrl
-                || '/default-album.png';
+            // Misma portada resuelta que ve la UI (fuente única de verdad).
+            const coverUrl = getCoverSrc(currentTrack, true) || '/default-album.png';
 
             navigator.mediaSession.metadata = new MediaMetadata({
                 title: currentTrack.trackName || (currentTrack as any).titulo || 'Unknown Track',
@@ -310,14 +292,21 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         };
         syncHistory();
 
+        // Congelar la portada canónica UNA sola vez por pista: fuente única de verdad
+        // que leen bar, fullscreen y MediaSession (garantiza que coincidan). Una vez
+        // fijada, getCoverSrc la devuelve tal cual sin recalcular ni cambiar de URL.
+        const artworkUrl = getCoverSrc(currentTrack, true);
+        if (!currentTrack.resolvedCover && artworkUrl && !artworkUrl.includes('default-album')) {
+            const rcId = currentTrack.id;
+            setCurrentTrack(prev =>
+                prev?.id === rcId ? { ...prev, resolvedCover: artworkUrl } : prev
+            );
+        }
+
         if (!currentTrack.extractedColors) {
             // Extracción de colores 100% en el cliente (canvas) — sin carga en el
-            // backend. Usamos la portada mostrada; idealmente same-origin
-            // (/api/v1/covers/:mbid) para que el canvas no quede "tainted".
-            // Portada same-origin (/api/v1/covers/:mbid) → el canvas puede leer
-            // sus píxeles sin "tainting" y extraer la paleta en el cliente.
-            const artworkUrl = getCoverSrc(currentTrack, true);
-
+            // backend. Usamos la MISMA portada resuelta (same-origin
+            // /api/v1/covers/:mbid) para que el canvas no quede "tainted".
             if (artworkUrl && !artworkUrl.includes('default-album')) {
                 const trackId = currentTrack.id;
                 extractColorsFromUrl(artworkUrl)
@@ -419,17 +408,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         try {
             const resolved = await resolvePlayback(track);
 
-            // Portada: si la pista no trae una válida, usa la miniatura resuelta
-            // (p.ej. la miniatura del vídeo de YouTube) para no mostrar el hueco vacío.
+            // Portada: si la pista no trae una válida, guardamos la miniatura resuelta
+            // (p.ej. la del vídeo de YouTube) en `ytThumbnail` — NO en coverArtUrl —
+            // para no alterar la URL de portada ya mostrada (evita el parpadeo/
+            // inconsistencia entre bar y fullscreen). getCoverSrc la usará solo como
+            // último `?fallback=`.
             if (resolved.thumbnail) {
-                const cover = track.coverArtUrl || (track as any).portada || (track as any).artworkUrl || '';
-                if (!cover || cover.includes('default')) {
-                    setCurrentTrack(prev =>
-                        prev && (prev.id === track.id || prev.trackId === track.trackId)
-                            ? { ...prev, coverArtUrl: resolved.thumbnail }
-                            : prev
-                    );
-                }
+                setCurrentTrack(prev =>
+                    prev && (prev.id === track.id || prev.trackId === track.trackId)
+                        ? { ...prev, ytThumbnail: resolved.thumbnail }
+                        : prev
+                );
             }
 
             if (resolved.mode === 'youtube' && resolved.videoId) {
@@ -616,6 +605,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const closeFullScreenPlayer = useCallback(() => setIsFullScreenOpen(false), []);
+    // Toggle estable (usa updater funcional) para el context de acciones.
+    const toggleFullScreenPlayer = useCallback(() => setIsFullScreenOpen(prev => !prev), []);
     const toggleVox = useCallback(() => setVoxMode(prev => !prev), []);
     const toggleVoxType = useCallback(() => {
         setVoxType(prev => prev === 'vocals' ? 'accompaniment' : 'vocals');
@@ -665,6 +656,50 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }, [likedSongs]);
 
 
+    // ── Valores segmentados (memoizados) ─────────────────────────
+    // Estado que se muestra: re-renderiza a los consumidores de usePlayerState
+    // solo cuando cambia alguno de estos campos.
+    const isVoxLoading = isLoading || spectraData?.voxLoading;
+    const stateValue = useMemo(() => ({
+        currentSong: currentTrack,
+        isPlaying,
+        volume,
+        isMuted,
+        isFullScreenOpen,
+        isDataSaving,
+        voxMode,
+        voxType,
+        originalQueue: queue,
+        currentIndex,
+        detectedQuality: null,
+        isVoxLoading,
+        playbackDetails: { provider: 'unknown' as const },
+    }), [currentTrack, isPlaying, volume, isMuted, isFullScreenOpen, isDataSaving,
+         voxMode, voxType, queue, currentIndex, isVoxLoading]);
+
+    // Acciones: todas son useCallback estables ⇒ identidad constante ⇒ los
+    // consumidores de usePlayerActions NO re-renderizan por cambios de estado.
+    const actionsValue = useMemo(() => ({
+        togglePlayPause,
+        nextSong,
+        previousSong,
+        changeVolume,
+        toggleMute,
+        seek,
+        toggleFullScreenPlayer,
+        closeFullScreenPlayer,
+        toggleVox,
+        toggleVoxType,
+    }), [togglePlayPause, nextSong, previousSong, changeVolume, toggleMute, seek,
+         toggleFullScreenPlayer, closeFullScreenPlayer, toggleVox, toggleVoxType]);
+
+    // Progreso: motion values estables (transitorios) + duration.
+    const progressValue = useMemo(() => ({
+        currentTimeMotion,
+        progressMotion,
+        duration,
+    }), [currentTimeMotion, progressMotion, duration]);
+
     // ── Provider value ───────────────────────────────────────────
     return (
         <PlayerContext.Provider value={{
@@ -682,6 +717,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             currentIndex,
             engine: engineRef.current
         }}>
+          <PlayerActionsContext.Provider value={actionsValue}>
+          <PlayerProgressContext.Provider value={progressValue}>
+          <PlayerStateContext.Provider value={stateValue}>
             {children}
 
             {/*
@@ -714,6 +752,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                     />
                 </div>
             )}
+          </PlayerStateContext.Provider>
+          </PlayerProgressContext.Provider>
+          </PlayerActionsContext.Provider>
         </PlayerContext.Provider>
     );
 }

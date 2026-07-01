@@ -70,6 +70,11 @@ export interface UnifiedTrack {
     /** URL de audio directo legal (preview 30s de Spotify / stream CC de Internet Archive). */
     previewUrl?: string;
 
+    /** Portada canónica ya resuelta y congelada (fuente única de verdad para la UI). */
+    resolvedCover?: string;
+    /** Miniatura resuelta (p.ej. de YouTube) usada solo como último fallback de portada. */
+    ytThumbnail?: string;
+
     /** Colores extraídos por Spectra */
     extractedColors?: {
         dominant: string;

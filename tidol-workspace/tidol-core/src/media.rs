@@ -216,11 +216,21 @@ pub async fn get_cover_handler(
     //    Compilation/Live/DJ-mix/Remix/etc.) y prueba CAA en orden. Además intenta
     //    la portada del release-group. Primer acierto gana y se cachea en disco.
     let mb_url = format!(
-        "https://musicbrainz.org/ws/2/recording/{}?inc=releases+release-groups&fmt=json",
+        "https://musicbrainz.org/ws/2/recording/{}?inc=releases+release-groups+artist-credits&fmt=json",
         mbid
     );
     if let Ok(res) = client.get(&mb_url).send().await {
         if let Ok(json) = res.json::<serde_json::Value>().await {
+            // Artista canónico de la grabación (para exigir coincidencia de release).
+            let rec_artist = json
+                .get("artist-credit")
+                .and_then(|c| c.as_array())
+                .and_then(|arr| arr.first())
+                .and_then(|c| c.get("name"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_lowercase();
+
             if let Some(releases) = json.get("releases").and_then(|r| r.as_array()) {
                 // Tipos secundarios a excluir (no queremos recopilatorios/directos/mixes).
                 const BAD_SECONDARY: [&str; 8] = [
@@ -290,6 +300,26 @@ pub async fn get_cover_handler(
                         "single" => score += 5,
                         "broadcast" | "other" => score -= 20,
                         _ => {}
+                    }
+
+                    // Coincidencia de artista: el release debe ser del mismo artista
+                    // que la grabación (evita recopilatorios/varios artistas ajenos).
+                    if !rec_artist.is_empty() {
+                        let rel_artist = rel
+                            .get("artist-credit")
+                            .and_then(|c| c.as_array())
+                            .and_then(|arr| arr.first())
+                            .and_then(|c| c.get("name"))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_lowercase();
+                        if !rel_artist.is_empty() {
+                            if rel_artist == rec_artist {
+                                score += 80;
+                            } else {
+                                score -= 60;
+                            }
+                        }
                     }
 
                     scored.push((score, date_of(rel), rel.clone()));
