@@ -93,7 +93,32 @@ impl MetadataOrchestrator {
 
         let mut enriched_tracks = Vec::new();
 
+        // Términos que delatan grabaciones no canónicas (megamix/karaoke/etc.)
+        const BAD_DISAMBIG: [&str; 9] = [
+            "megamix",
+            "dj-mix",
+            "dj mix",
+            "mashup",
+            "karaoke",
+            "tribute",
+            "made famous by",
+            "originally performed",
+            "instrumental",
+        ];
+
         for recording in mb_results.entities {
+            // Descartar grabaciones no canónicas según su disambiguation.
+            if let Some(disambig) = recording.disambiguation.as_ref() {
+                let d = disambig.to_lowercase();
+                if BAD_DISAMBIG.iter().any(|b| d.contains(b)) {
+                    continue;
+                }
+            }
+            // Descartar videos (versiones en vivo/clips) cuando MB lo marca.
+            if recording.video == Some(true) {
+                continue;
+            }
+
             let track_id = recording.id;
             let title = recording.title;
             let artist_name = recording

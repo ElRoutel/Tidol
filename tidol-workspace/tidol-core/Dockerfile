@@ -47,7 +47,13 @@ COPY --from=builder /workspace/target/release/libprovider_lyrics.so   /app/plugi
 # Non-root user
 RUN groupadd -g 10001 appgroup && \
     useradd -u 10001 -g appgroup -m -s /bin/bash appuser && \
+    mkdir -p /app/covers && \
     chown -R appuser:appgroup /app
+
+# El VOLUME hereda el propietario del directorio en la imagen; al declararlo
+# tras el chown, un volumen nuevo nace como appuser (uid 10001) y la caché de
+# portadas es escribible por el proceso no-root.
+VOLUME ["/app/covers"]
 
 USER appuser
 

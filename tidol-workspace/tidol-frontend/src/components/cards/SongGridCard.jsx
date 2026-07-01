@@ -2,6 +2,7 @@ import React, { useCallback } from 'react';
 import { usePlayer } from '../../context/PlayerContext';
 import { useContextMenu } from '../../context/ContextMenuContext';
 import { FaPlay, FaPause, FaEllipsisH } from 'react-icons/fa';
+import { getCoverSrc } from '../../utils/coverArt';
 import '../../styles/cards.css';
 
 /**
@@ -56,9 +57,10 @@ function SongGridCard({ song, onPlay }) {
     >
       <img
         className="song-grid-cover"
-        src={song.portada || '/default_cover.png'}
+        src={getCoverSrc(song, true)}
         alt={song.titulo}
         loading="lazy"
+        onError={(e) => { e.currentTarget.src = '/default-album.png'; }}
       />
 
       <div className="song-grid-info">

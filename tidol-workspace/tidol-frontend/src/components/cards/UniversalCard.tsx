@@ -7,6 +7,7 @@ import { IoPlaySharp } from 'react-icons/io5';
 import { FaEllipsisH } from 'react-icons/fa';
 import { UnifiedTrack } from '../../types/music';
 import api from '../../api/axiosConfig';
+import { getCoverSrc } from '../../utils/coverArt';
 
 interface UniversalCardProps {
     data: any; // Ideally this is already a UnifiedTrack or something Mappable
@@ -50,6 +51,15 @@ const UniversalCard: React.FC<UniversalCardProps> = ({
             durationInSeconds: data.duracion || data.duration || data.durationInSeconds || 0,
         };
     }, [data]);
+
+    // Para canciones usamos el backend (MusicBrainz como fuente de la verdad) para
+    // que la tarjeta coincida con el player. Álbumes/artistas mantienen su portada
+    // cruda (el backend de covers solo resuelve grabaciones/releases por mbid).
+    const coverSrc = useMemo(() => {
+        return type === 'song'
+            ? getCoverSrc(track, true)
+            : (track.coverArtUrl || '/default-artwork.png');
+    }, [type, track]);
 
     const isCurrent = useMemo(() => {
         return currentTrack?.trackId === track.trackId || currentTrack?.id === track.trackId;
@@ -109,7 +119,7 @@ const UniversalCard: React.FC<UniversalCardProps> = ({
             >
                 <div className={`relative aspect-square w-full ${type === 'artist' ? 'rounded-full' : 'rounded-xl'} overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-xl`}>
                     <img
-                        src={track.coverArtUrl || '/default-artwork.png'}
+                        src={coverSrc}
                         alt={track.trackName}
                         onError={(e) => {
                             e.currentTarget.onerror = null;
@@ -155,7 +165,7 @@ const UniversalCard: React.FC<UniversalCardProps> = ({
             onClick={handleClick}
         >
             <img
-                src={track.coverArtUrl || '/default-artwork.png'}
+                src={coverSrc}
                 alt={track.trackName}
                 onError={(e) => {
                     e.currentTarget.onerror = null;

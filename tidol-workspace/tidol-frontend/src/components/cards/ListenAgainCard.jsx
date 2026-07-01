@@ -54,7 +54,7 @@ export default function ListenAgainCard({ item, onClick, onPlay, isActive, isPla
             {/* Image Container */}
             <div className="relative aspect-square w-full overflow-hidden rounded-lg">
                 <img
-                    src={getCoverSrc(item)}
+                    src={getCoverSrc(item, true)}
                     alt={title}
                     loading="lazy"
                     decoding="async"

@@ -211,17 +211,121 @@ pub async fn get_cover_handler(
         }
     }
 
-    // ── 2. MusicBrainz: si el mbid es un recording, busca su release y prueba CAA ──
+    // ── 2. MusicBrainz: si el mbid es un recording, elige el release "canónico" ──
+    //    Puntúa los releases (Official + Album + fecha antigua, excluye
+    //    Compilation/Live/DJ-mix/Remix/etc.) y prueba CAA en orden. Además intenta
+    //    la portada del release-group. Primer acierto gana y se cachea en disco.
     let mb_url = format!(
-        "https://musicbrainz.org/ws/2/recording/{}?inc=releases&fmt=json",
+        "https://musicbrainz.org/ws/2/recording/{}?inc=releases+release-groups&fmt=json",
         mbid
     );
     if let Ok(res) = client.get(&mb_url).send().await {
         if let Ok(json) = res.json::<serde_json::Value>().await {
             if let Some(releases) = json.get("releases").and_then(|r| r.as_array()) {
-                for rel in releases.iter().take(3) {
+                // Tipos secundarios a excluir (no queremos recopilatorios/directos/mixes).
+                const BAD_SECONDARY: [&str; 8] = [
+                    "compilation",
+                    "live",
+                    "dj-mix",
+                    "mixtape/street",
+                    "remix",
+                    "soundtrack",
+                    "demo",
+                    "interview",
+                ];
+
+                let date_of = |rel: &serde_json::Value| -> String {
+                    let rel_date = rel.get("date").and_then(|v| v.as_str()).unwrap_or("");
+                    let rg_date = rel
+                        .get("release-group")
+                        .and_then(|rg| rg.get("first-release-date"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    // Preferimos la fecha con más información; para ordenar por más
+                    // antigua tratamos "" como muy futuro.
+                    let d = if !rel_date.is_empty() { rel_date } else { rg_date };
+                    if d.is_empty() {
+                        "9999".to_string()
+                    } else {
+                        d.to_string()
+                    }
+                };
+
+                let mut scored: Vec<(i32, String, serde_json::Value)> = Vec::new();
+                for rel in releases {
+                    let rg = rel.get("release-group");
+                    let primary = rg
+                        .and_then(|g| g.get("primary-type"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_lowercase();
+                    let secondary: Vec<String> = rg
+                        .and_then(|g| g.get("secondary-types"))
+                        .and_then(|v| v.as_array())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|s| s.as_str())
+                                .map(|s| s.to_lowercase())
+                                .collect()
+                        })
+                        .unwrap_or_default();
+
+                    // Excluir releases con tipos secundarios no deseados.
+                    if secondary.iter().any(|s| BAD_SECONDARY.contains(&s.as_str())) {
+                        continue;
+                    }
+
+                    let mut score = 0;
+                    let status = rel
+                        .get("status")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_lowercase();
+                    if status == "official" {
+                        score += 100;
+                    }
+                    match primary.as_str() {
+                        "album" => score += 50,
+                        "ep" => score += 20,
+                        "single" => score += 5,
+                        "broadcast" | "other" => score -= 20,
+                        _ => {}
+                    }
+
+                    scored.push((score, date_of(rel), rel.clone()));
+                }
+
+                // Orden: mayor score primero; a igualdad, fecha más antigua.
+                scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+
+                for (_score, _date, rel) in scored.iter().take(6) {
+                    // Intento por release directo.
                     if let Some(rid) = rel.get("id").and_then(|v| v.as_str()) {
                         let caa = format!("https://coverartarchive.org/release/{}/front-500", rid);
+                        if let Ok(r2) = client.get(&caa).send().await {
+                            if r2.status().is_success() {
+                                if let Ok(bytes) = r2.bytes().await {
+                                    if bytes.len() > 100 {
+                                        let _ = tokio::fs::write(&file_path, &bytes).await;
+                                        return (
+                                            StatusCode::OK,
+                                            [(header::CONTENT_TYPE, "image/jpeg")],
+                                            bytes.to_vec(),
+                                        )
+                                            .into_response();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // Intento por release-group (a veces solo el grupo tiene arte).
+                    if let Some(rgid) = rel
+                        .get("release-group")
+                        .and_then(|rg| rg.get("id"))
+                        .and_then(|v| v.as_str())
+                    {
+                        let caa =
+                            format!("https://coverartarchive.org/release-group/{}/front-500", rgid);
                         if let Ok(r2) = client.get(&caa).send().await {
                             if r2.status().is_success() {
                                 if let Ok(bytes) = r2.bytes().await {
@@ -263,7 +367,8 @@ pub async fn get_cover_handler(
                             let high_res = artwork.replace("100x100bb", "600x600bb");
                             if let Ok(img_res) = reqwest::get(&high_res).await {
                                 if let Ok(bytes) = img_res.bytes().await {
-                                    let _ = tokio::fs::write(&file_path, &bytes).await;
+                                    // No se cachea: iTunes es texto-fuzzy y puede
+                                    // equivocarse; dejamos que MB reintente y acierte.
                                     return (
                                         StatusCode::OK,
                                         [(header::CONTENT_TYPE, "image/jpeg")],
@@ -287,7 +392,7 @@ pub async fn get_cover_handler(
                 if res.status().is_success() {
                     if let Ok(bytes) = res.bytes().await {
                         if bytes.len() > 100 {
-                            let _ = tokio::fs::write(&file_path, &bytes).await;
+                            // No se cachea el fallback (miniatura YT): que MB reintente.
                             return (
                                 StatusCode::OK,
                                 [(header::CONTENT_TYPE, "image/jpeg")],

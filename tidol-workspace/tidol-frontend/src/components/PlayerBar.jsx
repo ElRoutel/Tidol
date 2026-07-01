@@ -24,6 +24,7 @@ import {
   IoFlash
 } from 'react-icons/io5';
 import { getOptimizedImageUrl } from '../utils/imageUtils';
+import { getCoverSrc } from '../utils/coverArt';
 
 
 // Componente memoizado para la portada
@@ -252,7 +253,7 @@ const PlayerBar = memo(function PlayerBar({ isSheetMode = false }) {
       {/* Left section */}
       <div className={`flex items-center gap-3 min-w-0 ${isSheetMode ? 'flex-1' : 'flex-1 md:flex-[0_0_30%]'}`}>
         <AlbumCover
-          src={getOptimizedImageUrl(currentSong.coverArtUrl || '/default-album.png', 100)}
+          src={getCoverSrc(currentSong, true)}
           alt={currentSong.trackName}
           onClick={toggleFullScreenPlayer}
           isSheetMode={isSheetMode}

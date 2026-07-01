@@ -2,7 +2,7 @@ import React from 'react';
 import { IoPlay } from 'react-icons/io5';
 import MiniVisualizer from '../MiniVisualizer';
 import { useContextMenu } from '../../context/ContextMenuContext';
-import { getOptimizedImageUrl } from '../../utils/imageUtils';
+import { getCoverSrc } from '../../utils/coverArt';
 
 export default function QuickSelectionCard({ item, onClick, isActive, isPlaying }) {
     const { openContextMenu } = useContextMenu();
@@ -15,7 +15,7 @@ export default function QuickSelectionCard({ item, onClick, isActive, isPlaying 
 
     const title = item.title || 'Sin Título';
     const artist = item.artist || item.artista || item.artistName || 'Artista Desconocido';
-    const artwork = item.artworkUrl || item.coverUrl || item.cover_url || item.image || item.portada;
+    const artwork = getCoverSrc(item, true);
 
     return (
         <div
@@ -42,8 +42,10 @@ export default function QuickSelectionCard({ item, onClick, isActive, isPlaying 
             {/* Image - Fixed width/height */}
             <div className="relative h-full aspect-square flex-shrink-0">
                 <img
-                    src={getOptimizedImageUrl(artwork, 100)}
+                    src={artwork}
                     alt={title}
+                    loading="lazy"
+                    onError={(e) => { e.currentTarget.src = '/default-album.png'; }}
                     className="w-full h-full object-cover"
                 />
                 {/* Active State (Visualizer) OR Hover State (Play Button) */}
