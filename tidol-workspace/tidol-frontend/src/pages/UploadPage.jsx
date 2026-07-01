@@ -90,7 +90,9 @@ export function UploadPage() {
     <section className="music-upload-container">
       <h2 className="music-upload-title">Subir Canciones/Álbumes</h2>
       
-      <form className="music-upload-form glass-card" onSubmit={handleSubmit}>
+      {/* noValidate: usamos la validación JS en español de handleSubmit en vez del
+          mensaje nativo del navegador ("Please select one or more files."). */}
+      <form className="music-upload-form glass-card" onSubmit={handleSubmit} noValidate>
         <input 
           type="file" 
           className="music-upload-input-file music-upload-songs-input"

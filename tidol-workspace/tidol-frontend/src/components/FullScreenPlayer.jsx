@@ -60,11 +60,14 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
     const [lyricsError, setLyricsError] = useState(false);
 
     useEffect(() => {
-        if (currentSong?.id) {
+        // El id canónico puede venir en `id` (álbum/normalizeTrackList) o solo en
+        // `trackId` (Home "Volver a escuchar"/normalizeToUnifiedTrack). Antes solo se
+        // usaba `id`, por lo que las canciones fuera del álbum no cargaban letras.
+        const mbid = currentSong?.id || currentSong?.trackId;
+        if (mbid) {
             setViewMode('cover');
             if (isFullScreenOpen) {
                 // Fetch Lyrics from API using Axios
-                const mbid = currentSong.id;
                 setLyricsLoading(true);
                 setLyricsError(false);
                 api.get(`/lyrics/${mbid}`)
@@ -99,7 +102,7 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                     });
             }
         }
-    }, [currentSong?.id, isFullScreenOpen]);
+    }, [currentSong?.id, currentSong?.trackId, isFullScreenOpen]);
 
     useEffect(() => {
         if (isEmbedded) {
@@ -275,7 +278,7 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                             <div className="flex flex-col min-w-0 mr-4">
                                 {/* Contenedor con máscara de desvanecimiento para Desktop */}
                                 <div className="w-full overflow-hidden" style={{ maskImage: 'linear-gradient(to right, black 80%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to right, black 80%, transparent 100%)' }}>
-                                    <div className={`flex w-max ${currentSong?.trackName?.length > 7 || currentSong?.titulo?.length > 7 ? 'animate-marquee' : ''}`}>
+                                    <div className={`flex w-max ${currentSong?.trackName?.length > 20 || currentSong?.titulo?.length > 20 ? 'animate-marquee' : ''}`}>
                                         <span className="text-white font-bold text-lg leading-tight tracking-tight whitespace-nowrap pr-10">
                                             {currentSong?.trackName || currentSong?.titulo || "Untitled"}
                                         </span>
@@ -371,12 +374,9 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
         className="group flex flex-col items-center justify-center w-20 h-16 transition-all active:scale-95 cursor-pointer gap-0"
     >
         {/* Flecha Superior */}
-        <div className="w-6 h-6 border-b-[6px] border-r-[6px] border-white/40 rotate-45 rounded-sm group-hover:border-white/80 transition-all duration-200 mb-1" />
+        <div className="w-6 h-6 border-b-[6px] border-r-[6px] border-white/40 rotate-45 rounded-sm group-hover:border-white/80 transition-all duration-200 mb-0" />
         
-        {/* Flecha Inferior */}
-        <div className="w-6 h-6 border-b-[6px] border-r-[6px] border-white/60 rotate-45 rounded-sm group-hover:border-white/90 transition-all duration-200 -mt-2" />                             <p className="text-[12px] font-[800] text-gray-400 leading-tight mt-1 opacity-30">
-              Click
-              </p>
+ 
               </button>
 </div>
                 {/* Portada del Álbum (Arte) */}
@@ -385,20 +385,20 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
        md:w-[400px] (tablet - tamaño fijo elegante)
        md:h-[400px] 
     */}
-    <div className="relative w-full aspect-square max-w-[400px] md:max-w-[400px] shadow-2xl">
+    <div className="relative w-full aspect-square max-w-[500px] md:max-w-[500px] mb-10 shadow-2xl">
         <div className="absolute inset-0 opacity-60 blur-2xl -z-10 transform scale-95 translate-y-6" style={{ background: dominantColor }} />
         
         <img
             src={getCoverSrc(currentSong, true)}
             alt={currentSong?.trackName}
-            className="w-full h-full object-cover rounded-xl shadow-lg"
+            className="w-full h-full object-cover"
             onError={(e) => { e.currentTarget.src = '/default-album.png'; }}
         />
     </div>
 </div>
 
                     {/* Metadatos (Títulos) y Acciones Primarias */}
-                    <div className="flex justify-between items-center mb-8 shrink-0 w-full relative z-20">
+                    <div className="flex justify-between items-center mb-8 shrink-0 w-full  relative z-20">
                         <div className="flex-1 min-w-0 pr-4 text-left overflow-hidden">
                             {/* Corrección del efecto fantasma (Marquee) */}
                             <div className="w-full overflow-hidden" style={{ maskImage: 'linear-gradient(to right, black 80%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to right, black 80%, transparent 100%)' }}>
@@ -490,26 +490,10 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                                 <IoText size={24} />
                             </button>  
 
-                            <button onClick={() => handleNavigation('album')} className="hover:text-white transition-colors active:scale-90 p-2"><IoDisc size={24} /></button>
-                            <div className="flex items-center gap-1 p-2 bg-white/5 rounded-full px-3">
-                              
-                              <button
-                                    onClick={handleToggleVox}
-                                    disabled={voxLoading}
-                                    className={`transition-all active:scale-90 ${voxLoading ? 'opacity-30 animate-pulse' : voxMode ? 'text-[#1db954]' : 'hover:text-white'}`}
-                                >
-                                    <IoMic size={20} />
-                                </button>
-                                <div className="w-[1px] h-4 bg-white/20 mx-1"></div>
-                                <button
-                                    onClick={handleToggleVoxType}
-                                    disabled={voxLoading}
-                                    className={`text-white/60 hover:text-white text-[12px] font-bold active:scale-90 transition-all ${voxLoading ? 'opacity-30' : voxType === 'vocals' ? 'text-white' : ''}`}
-                                >
-                                    {voxLoading ? '...' : voxType === 'vocals' ? 'V' : 'K'}
-                           
-                                </button>
-                            </div>
+
+                                <p className="w-full flex items-center justify-center px-4"> BETA </p>
+
+
                             <button onClick={() => setViewMode(viewMode === 'queue' ? 'cover' : 'queue')} className={`transition-colors active:scale-90 p-2 ${viewMode === 'queue' ? 'text-[#1db954]' : 'hover:text-white'}`}>
                                 <IoList size={24} />
                             </button>

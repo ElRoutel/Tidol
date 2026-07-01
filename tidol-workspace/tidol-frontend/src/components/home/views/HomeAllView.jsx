@@ -7,14 +7,23 @@ import Shelf from '../../Shelf';
 import QuickSelectionCard from '../../cards/QuickSelectionCard';
 import ListenAgainCard from '../../cards/ListenAgainCard';
 
-export const normalizeToUnifiedTrack = (rawTrack) => ({
-    trackId: rawTrack.mbid || rawTrack.track_id || rawTrack.id,
-    trackName: rawTrack.title || rawTrack.name || rawTrack.trackName || 'Desconocido',
-    artistName: rawTrack.artist || rawTrack.artista || rawTrack.artistName || 'Desconocido',
-    coverArtUrl: rawTrack.coverUrl || rawTrack.cover_url || rawTrack.artworkUrl || '/default-album.png',
-    sourceType: 'heavy_rotation',
-    raw: rawTrack 
-});
+// Caché en memoria de "Volver a escuchar" para no re-mostrar skeleton al volver a Home.
+let heavyRotationCache = null;
+
+export const normalizeToUnifiedTrack = (rawTrack) => {
+    const mbid = rawTrack.mbid || rawTrack.track_id || rawTrack.id;
+    return {
+        trackId: mbid,
+        // También exponemos `id`: varios consumidores (fetch de letras, isCurrentSong,
+        // MediaSession) lo leen y antes quedaba undefined para "Volver a escuchar".
+        id: mbid,
+        trackName: rawTrack.title || rawTrack.name || rawTrack.trackName || 'Desconocido',
+        artistName: rawTrack.artist || rawTrack.artista || rawTrack.artistName || 'Desconocido',
+        coverArtUrl: rawTrack.coverUrl || rawTrack.cover_url || rawTrack.artworkUrl || '/default-album.png',
+        sourceType: 'heavy_rotation',
+        raw: rawTrack
+    };
+};
 
 export default function HomeAllView({ data, onPlay }) {
     const { quickSelection, recommendations, albums, coversRemixes, iaDiscoveries } = data || {};
@@ -22,9 +31,10 @@ export default function HomeAllView({ data, onPlay }) {
     const { user } = useAuth();
     const navigate = useNavigate();
 
-    // Estado aislado para Volver a escuchar (Heavy Rotation)
-    const [heavyRotation, setHeavyRotation] = useState([]);
-    const [loadingRotation, setLoadingRotation] = useState(true);
+    // Estado aislado para Volver a escuchar (Heavy Rotation). Se hidrata desde caché
+    // para evitar el skeleton en navegaciones repetidas, y se revalida en segundo plano.
+    const [heavyRotation, setHeavyRotation] = useState(heavyRotationCache || []);
+    const [loadingRotation, setLoadingRotation] = useState(!heavyRotationCache);
 
     useEffect(() => {
         api.get('/tracks/listen-again')
@@ -42,6 +52,7 @@ export default function HomeAllView({ data, onPlay }) {
                     image: t.coverUrl || t.cover_url || '/default-album.png',
                     type: 'track'
                 }));
+                heavyRotationCache = mapped;
                 setHeavyRotation(mapped);
                 setLoadingRotation(false);
             })

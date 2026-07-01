@@ -17,6 +17,7 @@ interface PlaylistContextType {
     songToAdd: UnifiedTrack | null;
     fetchPlaylists: () => Promise<void>;
     createPlaylist: (nombre: string) => Promise<Playlist | false>;
+    renamePlaylist: (playlistId: number | string, nombre: string) => Promise<boolean>;
     addSongToPlaylist: (playlistId: number | string, song: UnifiedTrack) => Promise<boolean>;
     removeSongFromPlaylist: (playlistId: number | string, cancionId: string | number) => Promise<boolean>;
     deletePlaylist: (playlistId: number | string) => Promise<boolean>;
@@ -93,6 +94,27 @@ export function PlaylistProvider({ children }: { children: ReactNode }) {
             return tempPlaylist;
         } finally {
             setLoading(false);
+        }
+    }, []);
+
+    const renamePlaylist = useCallback(async (playlistId: number | string, nombre: string) => {
+        const nuevo = (nombre || '').trim();
+        if (!nuevo) return false;
+        const applyLocal = () => {
+            setPlaylists(prev => {
+                const updated = prev.map(p => p.id === playlistId ? { ...p, nombre: nuevo } : p);
+                localStorage.setItem('tidol_playlists', JSON.stringify(updated));
+                return updated;
+            });
+        };
+        try {
+            await api.patch(`/playlists/${playlistId}`, { nombre: nuevo });
+            applyLocal();
+            return true;
+        } catch (error) {
+            // Fallback local (playlists creadas offline / sin conexión).
+            applyLocal();
+            return true;
         }
     }, []);
 
@@ -177,7 +199,7 @@ export function PlaylistProvider({ children }: { children: ReactNode }) {
     return (
         <PlaylistContext.Provider value={{
             playlists, loading, isModalOpen, songToAdd,
-            fetchPlaylists, createPlaylist, addSongToPlaylist,
+            fetchPlaylists, createPlaylist, renamePlaylist, addSongToPlaylist,
             removeSongFromPlaylist, deletePlaylist,
             openAddToPlaylistModal, closeAddToPlaylistModal
         }}>

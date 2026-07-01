@@ -2,6 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../api/axiosConfig';
 import { normalizeTrackList } from '../utils/trackNormalization';
 
+// Caché en memoria de la Home por chip: evita el skeleton de 4-7s en navegaciones
+// repetidas. Se muestra al instante y se revalida en segundo plano (stale-while-revalidate).
+const homeCache = {};
+
 // Función para barajar un array (algoritmo de Fisher-Yates)
 const shuffleArray = (array) => {
     if (!Array.isArray(array)) return [];
@@ -28,7 +32,14 @@ export const useHome = () => {
     });
 
     const fetchHomeData = useCallback(async (chipId) => {
-        setIsLoading(true);
+        // Si hay caché para este chip, se muestra al instante (sin skeleton) y se
+        // revalida en segundo plano. Si no, mostramos el skeleton normal.
+        if (homeCache[chipId]) {
+            setData(homeCache[chipId]);
+            setIsLoading(false);
+        } else {
+            setIsLoading(true);
+        }
         try {
             // 1. Dashboard unificado (Historial, Artistas Top, Recomendaciones)
             const dashboardPromise = api.get('/home', { timeout: 8000 }).catch(() => ({ data: {} }));
@@ -79,16 +90,24 @@ export const useHome = () => {
                 type: 'artist'
             }));
 
-            const combinedQuick = [...quickSelData.slice(0, 6), ...recsData.slice(0, 6)];
+            let combinedQuick = [...quickSelData.slice(0, 6), ...recsData.slice(0, 6)];
+            // Garantizar que "Selección rápida" nunca quede vacía (desaparecía en "Todo"
+            // cuando recentlyPlayed y recommendations venían vacíos). Rellenamos con
+            // recomendaciones, historial o álbumes populares como fallback.
+            if (combinedQuick.length === 0) {
+                combinedQuick = [...recsData, ...historyData, ...albumsData].slice(0, 6);
+            }
 
-            setData({
+            const built = {
                 recentListenings: historyData.slice(0, 20),
                 quickSelection: shuffleArray(combinedQuick).slice(0, 6),
                 recommendations: recsData.slice(0, 15),
                 albums: albumsData.slice(0, 15),
                 coversRemixes: normalizeTrackList(topArtistsAsTracks, 'local').slice(0, 10),
                 iaDiscoveries: []
-            });
+            };
+            homeCache[chipId] = built;
+            setData(built);
 
         } catch (error) {
             console.error("Error fetching home data:", error);

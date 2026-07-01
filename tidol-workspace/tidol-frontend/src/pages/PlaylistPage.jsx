@@ -4,8 +4,9 @@ import api from '../api/axiosConfig';
 import { usePlayer } from '../context/PlayerContext';
 import { usePlaylist } from '../context/PlaylistContext';
 import UniversalCard from '../components/cards/UniversalCard';
-import { IoPlaySharp, IoShuffle, IoEllipsisHorizontal, IoTrashOutline, IoTimeOutline } from 'react-icons/io5';
+import { IoPlaySharp, IoShuffle, IoEllipsisHorizontal, IoTrashOutline, IoTimeOutline, IoPencilOutline } from 'react-icons/io5';
 import { normalizeTrackList } from '../utils/trackNormalization';
+import PlaylistNameModal from '../components/PlaylistNameModal';
 import '../styles/glass.css';
 import './ImmersiveLayout.css'; // Mantener estilos específicos de layout inmersivo si son necesarios
 
@@ -17,8 +18,16 @@ export default function PlaylistPage() {
     const [error, setError] = useState(null);
 
     const { playSongList, currentSong } = usePlayer();
-    const { removeSongFromPlaylist } = usePlaylist();
+    const { removeSongFromPlaylist, renamePlaylist } = usePlaylist();
     const [totalDuration, setTotalDuration] = useState(0);
+    const [showMenu, setShowMenu] = useState(false);
+    const [isRenameOpen, setIsRenameOpen] = useState(false);
+
+    const handleRename = async (nombre) => {
+        await renamePlaylist(id, nombre);
+        setPlaylist(prev => prev ? { ...prev, nombre } : prev);
+        setIsRenameOpen(false);
+    };
 
     useEffect(() => {
         const fetchPlaylist = async () => {
@@ -154,9 +163,28 @@ export default function PlaylistPage() {
                             <button className="w-10 h-10 rounded-full border border-white/20 hover:bg-white/10 flex items-center justify-center text-white transition-all">
                                 <IoShuffle size={20} />
                             </button>
-                            <button className="w-10 h-10 rounded-full border border-white/20 hover:bg-white/10 flex items-center justify-center text-white transition-all">
-                                <IoEllipsisHorizontal size={20} />
-                            </button>
+                            <div className="relative">
+                                <button
+                                    onClick={() => setShowMenu(v => !v)}
+                                    className="w-10 h-10 rounded-full border border-white/20 hover:bg-white/10 flex items-center justify-center text-white transition-all"
+                                    title="Más opciones"
+                                >
+                                    <IoEllipsisHorizontal size={20} />
+                                </button>
+                                {showMenu && (
+                                    <>
+                                        <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
+                                        <div className="absolute left-0 mt-2 w-48 z-20 rounded-xl bg-[#282828] border border-white/10 shadow-2xl py-1">
+                                            <button
+                                                onClick={() => { setShowMenu(false); setIsRenameOpen(true); }}
+                                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-white/10 transition-colors"
+                                            >
+                                                <IoPencilOutline size={18} /> Cambiar nombre
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -199,6 +227,15 @@ export default function PlaylistPage() {
                     )}
                 </div>
             </div>
+
+            <PlaylistNameModal
+                isOpen={isRenameOpen}
+                title="Cambiar nombre"
+                initialValue={playlist?.nombre || ''}
+                confirmLabel="Guardar"
+                onConfirm={handleRename}
+                onClose={() => setIsRenameOpen(false)}
+            />
         </div>
     );
 }

@@ -7,7 +7,7 @@ import api from '../api/axiosConfig';
 import { TidolAudioEngine } from '../engine/TidolAudioEngine';
 import { resolvePlayback } from '../engine/embedResolver';
 import { extractColorsFromUrl } from '../utils/extractColors';
-import { getCoverSrc } from '../utils/coverArt';
+import { getCoverSrc, getColorSourceSrc } from '../utils/coverArt';
 import YouTubeEmbed, { YouTubeEmbedHandle } from '../components/embeds/YouTubeEmbed';
 import { UnifiedTrack, PlayerState } from '../types/music';
 import { useVoxAudio } from '../hooks/useVoxAudio';
@@ -282,9 +282,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         }
 
         const syncHistory = async () => {
+            // El id canónico es trackId (types/music.ts); currentTrack.id puede venir
+            // undefined → body {} → 422. Enviamos el correcto, coaccionado a string.
+            const cancionId = (currentTrack as any).trackId ?? currentTrack.id;
+            if (cancionId == null) return;
             try {
                 await api.post('/history/add', {
-                    cancion_id: currentTrack.id
+                    cancion_id: String(cancionId)
                 });
             } catch (err) {
                 console.warn('⚠️ No se pudo sincronizar el historial:', err);
@@ -305,11 +309,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
         if (!currentTrack.extractedColors) {
             // Extracción de colores 100% en el cliente (canvas) — sin carga en el
-            // backend. Usamos la MISMA portada resuelta (same-origin
-            // /api/v1/covers/:mbid) para que el canvas no quede "tainted".
-            if (artworkUrl && !artworkUrl.includes('default-album')) {
+            // backend. Para el color usamos una URL SAME-ORIGIN (/api/v1/covers/:mbid)
+            // aunque la portada visible sea la real/remota: así el canvas no queda
+            // "tainted". Si no hay mbid y la real es remota, puede fallar → sin colores.
+            const colorUrl = getColorSourceSrc(currentTrack);
+            if (colorUrl && !colorUrl.includes('default-album')) {
                 const trackId = currentTrack.id;
-                extractColorsFromUrl(artworkUrl)
+                extractColorsFromUrl(colorUrl)
                     .then((colors) => {
                         if (colors) {
                             setCurrentTrack(prev =>

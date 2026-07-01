@@ -29,7 +29,25 @@ pub struct AddSongToPlaylistPayload {
 
 #[derive(Deserialize)]
 pub struct AddHistoryPayload {
-    pub cancion_id: String,
+    // Tolerante: el frontend puede enviar el id como string o como número. Aceptamos
+    // ambos (y ausencia) para no devolver un 422 opaco; validamos en el handler.
+    #[serde(default)]
+    pub cancion_id: Option<serde_json::Value>,
+}
+
+#[derive(Deserialize)]
+pub struct RenamePlaylistPayload {
+    pub nombre: String,
+}
+
+/// Convierte un id JSON (string o número) a String no vacío.
+fn json_id_to_string(v: &serde_json::Value) -> Option<String> {
+    let s = match v {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Number(n) => n.to_string(),
+        _ => return None,
+    };
+    if s.trim().is_empty() { None } else { Some(s) }
 }
 
 #[derive(Deserialize)]
@@ -116,6 +134,88 @@ pub async fn delete_playlist_handler(
     match result {
         Ok(res) if res.rows_affected() > 0 => (StatusCode::OK, "Eliminado").into_response(),
         _ => (StatusCode::NOT_FOUND, "No encontrado").into_response(),
+    }
+}
+
+/// GET /api/v1/playlists/:id — metadata de una playlist + sus canciones.
+/// (Antes esta ruta solo existía para DELETE → el GET del frontend recibía 405.)
+pub async fn get_playlist_handler(
+    State(state): State<AppState>,
+    Path(playlist_id): Path<String>,
+    axum::Extension(auth): axum::Extension<AuthContext>,
+) -> impl IntoResponse {
+    let playlist = sqlx::query!(
+        "SELECT id, name, created_at FROM playlists WHERE id = ? AND user_id = ?",
+        playlist_id,
+        auth.user_id
+    )
+    .fetch_optional(&state.db)
+    .await
+    .unwrap_or(None);
+
+    let playlist = match playlist {
+        Some(p) => p,
+        None => return (StatusCode::NOT_FOUND, "Playlist no encontrada").into_response(),
+    };
+
+    let rows = sqlx::query!(
+        "SELECT track_id, song_source, title, artist, cover_url, duration FROM playlist_songs WHERE playlist_id = ? ORDER BY added_at DESC",
+        playlist_id
+    )
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
+
+    let songs: Vec<serde_json::Value> = rows
+        .into_iter()
+        .map(|r| {
+            serde_json::json!({
+                "id": r.track_id,
+                "sourceType": r.song_source.unwrap_or_else(|| "local".to_string()),
+                "title": r.title,
+                "artist": r.artist,
+                "artworkUrl": r.cover_url,
+                "duration": r.duration
+            })
+        })
+        .collect();
+
+    Json(serde_json::json!({
+        "id": playlist.id,
+        "nombre": playlist.name,
+        "creada_en": playlist.created_at.map(|dt| dt.unix_timestamp()),
+        "songs": songs
+    }))
+    .into_response()
+}
+
+/// PATCH /api/v1/playlists/:id — renombra una playlist.
+pub async fn rename_playlist_handler(
+    State(state): State<AppState>,
+    Path(playlist_id): Path<String>,
+    axum::Extension(auth): axum::Extension<AuthContext>,
+    Json(payload): Json<RenamePlaylistPayload>,
+) -> impl IntoResponse {
+    let nombre = payload.nombre.trim().to_string();
+    if nombre.is_empty() {
+        return (StatusCode::BAD_REQUEST, "Nombre requerido").into_response();
+    }
+
+    let result = sqlx::query!(
+        "UPDATE playlists SET name = ? WHERE id = ? AND user_id = ?",
+        nombre,
+        playlist_id,
+        auth.user_id
+    )
+    .execute(&state.db)
+    .await;
+
+    match result {
+        Ok(res) if res.rows_affected() > 0 => {
+            Json(serde_json::json!({ "id": playlist_id, "nombre": nombre })).into_response()
+        }
+        Ok(_) => (StatusCode::NOT_FOUND, "No encontrada").into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Error DB: {}", e)).into_response(),
     }
 }
 
@@ -280,10 +380,15 @@ pub async fn add_history_handler(
     axum::Extension(auth): axum::Extension<AuthContext>,
     Json(payload): Json<AddHistoryPayload>,
 ) -> impl IntoResponse {
+    let track_id = match payload.cancion_id.as_ref().and_then(json_id_to_string) {
+        Some(s) => s,
+        None => return (StatusCode::BAD_REQUEST, "cancion_id requerido").into_response(),
+    };
+
     let _ = sqlx::query!(
         "INSERT INTO user_history (user_id, track_id) VALUES (?, ?)",
         auth.user_id,
-        payload.cancion_id
+        track_id
     )
     .execute(&state.db)
     .await;

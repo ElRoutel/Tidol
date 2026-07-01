@@ -2,13 +2,11 @@ import React, { useRef, useState, useEffect } from 'react';
 import { IoChevronBack, IoChevronForward } from 'react-icons/io5';
 import '../../styles/glass.css'; // Asegurar estilos base
 
+// Solo mostramos chips que realmente filtran contenido. El backend aún no soporta
+// filtrado por categoría (Podcasts/Relax/etc. devolvían música igual), así que se
+// ocultan hasta que exista contenido real, en vez de prometer algo que no funciona.
 const CHIPS = [
     { id: 'all', label: 'Todo' },
-    { id: 'podcasts', label: 'Podcasts' },
-    { id: 'relax', label: 'Relax' },
-    { id: 'workout', label: 'Entrenamiento' },
-    { id: 'party', label: 'Fiesta' },
-    { id: 'focus', label: 'Concentración' }
 ];
 
 export default function ChipsCarousel({ selectedChip, onSelectChip }) {

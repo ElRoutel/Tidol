@@ -1,47 +1,40 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api/axiosConfig';
 
 export const useLibrary = () => {
     const [currentView, setCurrentView] = useState('favorites');
     const [layout, setLayout] = useState('grid');
-    const [data, setData] = useState({
-        favorites: [],
-        iaLikes: [],
-        playlists: []
-    });
+    // Una sola lista que SIEMPRE corresponde a la pestaña activa. Antes se guardaba
+    // data por clave y se mostraba la caché de la pestaña anterior al cambiar (tabs
+    // desfasadas). Ahora se limpia al cambiar y solo se rellena si la vista sigue
+    // siendo la solicitada cuando resuelve el fetch (evita carreras entre pestañas).
+    const [items, setItems] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
+    const latestView = useRef(currentView);
 
     const fetchData = useCallback(async (view) => {
+        latestView.current = view;
         setIsLoading(true);
+        setItems([]); // no mostrar contenido de la pestaña anterior
+
+        let endpoint = '';
+        switch (view) {
+            case 'favorites': endpoint = '/music/songs/likes'; break;
+            case 'ia-likes': endpoint = '/music/ia/likes'; break;
+            case 'playlists': endpoint = '/playlists'; break;
+            default:
+                setIsLoading(false);
+                return;
+        }
+
         try {
-            let endpoint = '';
-            let key = '';
-
-            switch (view) {
-                case 'favorites':
-                    endpoint = '/music/songs/likes';
-                    key = 'favorites';
-                    break;
-                case 'ia-likes':
-                    endpoint = '/music/ia/likes';
-                    key = 'iaLikes';
-                    break;
-                case 'playlists':
-                    endpoint = '/playlists';
-                    key = 'playlists';
-                    break;
-                default:
-                    return;
-            }
-
-            // Evitar refetch si ya tenemos datos (opcional, por ahora refetch para frescura)
             const res = await api.get(endpoint);
-            setData(prev => ({ ...prev, [key]: res.data || [] }));
-
+            if (latestView.current === view) setItems(res.data || []);
         } catch (error) {
             console.error(`Error fetching library data for ${view}:`, error);
+            if (latestView.current === view) setItems([]);
         } finally {
-            setIsLoading(false);
+            if (latestView.current === view) setIsLoading(false);
         }
     }, []);
 
@@ -54,7 +47,7 @@ export const useLibrary = () => {
         setCurrentView,
         layout,
         setLayout,
-        data: data[currentView === 'favorites' ? 'favorites' : currentView === 'ia-likes' ? 'iaLikes' : 'playlists'],
+        data: items,
         isLoading,
         refresh: () => fetchData(currentView)
     };

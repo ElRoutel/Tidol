@@ -914,7 +914,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route(
             "/api/v1/playlists/:id",
-            delete(user_data::delete_playlist_handler),
+            get(user_data::get_playlist_handler)
+                .patch(user_data::rename_playlist_handler)
+                .delete(user_data::delete_playlist_handler),
         )
         .route(
             "/api/v1/playlists/:id/songs",

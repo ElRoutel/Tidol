@@ -1,6 +1,8 @@
 // src/components/Sidebar.jsx
+import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { usePlaylist } from '../context/PlaylistContext';
+import PlaylistNameModal from './PlaylistNameModal';
 
 // Iconos
 import {
@@ -59,15 +61,12 @@ function MainNav() {
 // ✅ Biblioteca del usuario
 function UserLibrary() {
   const { playlists, createPlaylist } = usePlaylist();
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
 
-  const handleCreatePlaylist = async () => {
-    const name = window.prompt("Nombre de la nueva playlist:");
-    if (name) {
-      await createPlaylist(name);
-    }
+  const handleConfirmCreate = async (name) => {
+    await createPlaylist(name);
+    setIsCreateOpen(false);
   };
-
-
 
   const linkClass = ({ isActive }) =>
     `flex items-center gap-4 px-6 py-3 transition-all duration-200 font-bold border-l-4 ${isActive
@@ -92,13 +91,21 @@ function UserLibrary() {
           Tus playlists
         </span>
         <button
-          onClick={handleCreatePlaylist}
+          onClick={() => setIsCreateOpen(true)}
           className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10"
           title="Crear nueva playlist"
         >
           <IoAdd size={20} />
         </button>
       </div>
+
+      <PlaylistNameModal
+        isOpen={isCreateOpen}
+        title="Nueva playlist"
+        confirmLabel="Crear"
+        onConfirm={handleConfirmCreate}
+        onClose={() => setIsCreateOpen(false)}
+      />
 
       {/* LISTA SCROLLABLE */}
       <div className="flex-1 overflow-y-auto custom-scrollbar px-2">
@@ -131,9 +138,10 @@ export default function Sidebar() {
     // CAMBIOS CLAVE:
     // 1. 'h-screen': Fuerza altura completa de la pantalla.
     // 2. 'w-64' (o el ancho que prefieras): Ancho fijo.
-    // 3. 'fixed left-0 top-16': Se queda pegado a la izquierda, debajo del header.
+    // 3. 'fixed left-0 top-0': Se queda pegado a la izquierda, debajo del header.
+    // NO MODIFICAR ESE TOP SE ROMPE LA INTERFAZ
     // 4. Fondo aplicado directamente aquí, sin bordes redondeados.
-    <aside className="hidden md:flex flex-col w-64 h-[calc(100vh-4rem)] fixed left-0 top-16 z-[50] bg-[#030303]">
+    <aside className="hidden md:flex flex-col w-64 h-[calc(100vh-4rem)] fixed left-0 top-0 z-[50] bg-[#030303]">
 
       {/* Efecto de fondo sutil (opcional, si quieres que no sea negro plano) */}
       <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />

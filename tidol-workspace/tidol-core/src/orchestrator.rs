@@ -512,27 +512,14 @@ impl MetadataOrchestrator {
     }
 
     async fn fetch_apple_artwork(&self, title: &str, artist: &str) -> String {
-        let term = format!("{} {}", title, artist);
-        let url = format!(
-            "https://itunes.apple.com/search?term={}&media=music&limit=3",
-            urlencoding::encode(&term)
-        );
-        let fallback_url = "https://via.placeholder.com/500?text=No+Cover".to_string();
-
-        if let Ok(res) = self.http_client.get(&url).send().await {
-            if let Ok(json) = res.json::<ItunesSearchResponse>().await {
-                for track in json.results {
-                    if let Some(result_artist) = &track.artistName {
-                        if is_valid_match(artist, result_artist) {
-                            if let Some(artwork_100) = track.artworkUrl100 {
-                                return artwork_100.replace("100x100bb.jpg", "1000x1000bb.jpg");
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        fallback_url
+        // Reutiliza la resolución por CANCIÓN (entity=song) para NO agarrar portadas de
+        // playlists/compilaciones (bug: "CLASSY 101" mostraba la playlist "Today's Hits").
+        // Antes usaba `media=music` sin entity (devuelve playlists/álbumes) y, al fallar,
+        // guardaba `https://via.placeholder.com/...` (dominio muerto → imágenes rotas).
+        // Ahora devuelve "" al fallar; el frontend cae a la portada por defecto.
+        self.fetch_apple_music_cover(artist, title)
+            .await
+            .unwrap_or_default()
     }
 
     pub async fn fetch_apple_music_cover(&self, artist: &str, title: &str) -> Option<String> {
@@ -614,7 +601,14 @@ impl MetadataOrchestrator {
             let cover_url: Option<String> = row.get("cover_url");
 
             if title != "Unknown" && !title.is_empty() {
-                if cover_url.is_none() {
+                // Re-resolver no solo cuando falta, también cuando la portada guardada es
+                // inválida (vacía o el viejo placeholder muerto o una playlist de iTunes):
+                // así las portadas malas se auto-reparan al reproducir la pista.
+                let needs_cover = match cover_url.as_deref() {
+                    None => true,
+                    Some(c) => c.is_empty() || c.contains("via.placeholder") || c.contains("placeholder"),
+                };
+                if needs_cover {
                     if let Some(new_cover) = self.fetch_apple_music_cover(&artist, &title).await {
                         let _ = sqlx::query("UPDATE track_links SET cover_url = ? WHERE mbid = ?")
                             .bind(&new_cover)

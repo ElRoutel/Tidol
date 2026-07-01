@@ -100,9 +100,21 @@ export const useSearch = () => {
                 );
 
                 // Mapeamos los resultados del archivo (usando camelCase: archiveResults)
-                const archiveTracks = (data.archiveResults || []).map((t: any) =>
+                const archiveTracksRaw = (data.archiveResults || []).map((t: any) =>
                     mapToUnifiedTrack(t, 'musicbrainz')
                 );
+
+                // Filtro de relevancia: "Providers" mostraba ruido (artistas
+                // desconocidos con una canción homónima + placeholders de rana). Solo
+                // conservamos resultados cuyo título o artista contenga algún término
+                // de la búsqueda.
+                const tokens = query.toLowerCase().split(/\s+/).filter(t => t.length > 1);
+                const isRelevant = (t: UnifiedTrack) => {
+                    if (tokens.length === 0) return true;
+                    const hay = `${t.title || t.attributes?.name || ''} ${t.artist || t.attributes?.artistName || ''}`.toLowerCase();
+                    return tokens.some(tok => hay.includes(tok));
+                };
+                const archiveTracks = archiveTracksRaw.filter(isRelevant);
 
                 setResults({
                     canciones: localTracks,
