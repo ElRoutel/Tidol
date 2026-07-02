@@ -13,61 +13,46 @@ export default function QuickSelectionCard({ item, onClick, isActive, isPlaying 
         openContextMenu(e, 'song', item);
     };
 
-    const title = item.title || 'Sin Título';
-    const artist = item.artist || item.artista || item.artistName || 'Artista Desconocido';
+    const title = item.title || 'Sin título';
+    const artist = item.artist || item.artista || item.artistName || 'Artista desconocido';
     const artwork = getCoverSrc(item, true);
 
     return (
         <div
             onClick={onClick}
             onContextMenu={handleContextMenu}
-            className="group/card flex items-center rounded-lg overflow-hidden cursor-pointer transition-all duration-300 ease-apple pr-4 h-20 relative"
-            style={{
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.05)',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)'
-            }}
-            onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.02)';
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-                e.currentTarget.style.border = '1px solid rgba(255, 255, 255, 0.15)';
-            }}
-            onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
-                e.currentTarget.style.border = '1px solid rgba(255, 255, 255, 0.05)';
-            }}
+            className="group/card flex items-center h-20 pr-4 rounded-xl overflow-hidden cursor-pointer
+                       bg-white/[0.04] border border-white/[0.06]
+                       hover:bg-white/[0.09] hover:border-white/[0.14] hover:scale-[1.015]
+                       active:scale-[0.99] transition-all duration-300"
         >
-            {/* Image - Fixed width/height */}
+            {/* Portada */}
             <div className="relative h-full aspect-square flex-shrink-0">
                 <img
                     src={artwork}
                     alt={title}
                     loading="lazy"
+                    decoding="async"
                     onError={(e) => { e.currentTarget.src = '/default-album.png'; }}
                     className="w-full h-full object-cover"
                 />
-                {/* Active State (Visualizer) OR Hover State (Play Button) */}
                 {isActive ? (
                     <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                         <MiniVisualizer isPlaying={isPlaying} />
                     </div>
                 ) : (
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/card:opacity-100 transition-opacity flex items-center justify-center">
-                        <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center shadow-lg">
+                        <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-lg">
                             <IoPlay className="text-black ml-0.5" size={18} />
                         </div>
                     </div>
                 )}
             </div>
 
-            {/* Text Info - Flex grow */}
+            {/* Texto */}
             <div className="flex flex-col justify-center ml-4 min-w-0 flex-1">
                 <h3 className="text-white font-semibold text-sm md:text-base truncate leading-tight">{title}</h3>
-                <p className="text-[#aaa] text-xs md:text-sm truncate mt-0.5">
-                    {artist}
-                </p>
+                <p className="text-white/50 text-xs md:text-sm truncate mt-0.5">{artist}</p>
             </div>
         </div>
     );

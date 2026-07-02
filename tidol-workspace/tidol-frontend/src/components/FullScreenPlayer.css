@@ -107,3 +107,113 @@
   -webkit-backdrop-filter: blur(20px);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
+
+/* ============================================================
+   Apple-style player (mockup reproductorestiloapple)
+   ============================================================ */
+
+/* Orbes de color ambientales que derivan lentamente tras la portada */
+@keyframes fsp-drift1 {
+  0%   { transform: translate(-4%, -2%) scale(1); }
+  100% { transform: translate(10%, 8%) scale(1.15); }
+}
+@keyframes fsp-drift2 {
+  0%   { transform: translate(6%, 4%) scale(1.1); }
+  100% { transform: translate(-6%, -8%) scale(1); }
+}
+.fsp-orb {
+  position: absolute;
+  border-radius: 50%;
+  will-change: transform;
+  pointer-events: none;
+  transition: background 1.2s ease;
+}
+.fsp-orb-1 { animation: fsp-drift1 18s ease-in-out infinite alternate; }
+.fsp-orb-2 { animation: fsp-drift2 22s ease-in-out infinite alternate; }
+
+/* Ecualizador de la fila "sonando ahora" en la cola */
+@keyframes fsp-eqbar {
+  0%, 100% { transform: scaleY(0.25); }
+  50%      { transform: scaleY(1); }
+}
+.fsp-eq {
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  transform-origin: bottom;
+  animation: fsp-eqbar 0.9s ease-in-out infinite;
+}
+.fsp-eq:nth-child(2) { animation-delay: 0.3s; }
+.fsp-eq:nth-child(3) { animation-delay: 0.15s; }
+.fsp-eq:nth-child(4) { animation-delay: 0.45s; }
+.fsp-eq--paused { animation-play-state: paused; }
+
+/* Popover de opciones */
+@keyframes fsp-fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fsp-fade-up { animation: fsp-fade-up 0.18s ease; }
+
+@keyframes fsp-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.fsp-fade-in { animation: fsp-fade-in 0.3s ease; }
+
+/* Sliders del player: pista propia dibujada aparte, thumb blanco pequeño */
+.fsp-range {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  margin: 0;
+  cursor: pointer;
+}
+.fsp-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  border: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.fsp-range::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  border: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+/* El thumb solo aparece durante el arrastre: fuera de él su posición no se
+   actualiza a 60fps (la barra visual sí, vía motion values). */
+.fsp-range:active::-webkit-slider-thumb,
+.fsp-range:focus-visible::-webkit-slider-thumb { opacity: 1; }
+.fsp-range:active::-moz-range-thumb,
+.fsp-range:focus-visible::-moz-range-thumb { opacity: 1; }
+
+/* Portada que "respira": escala completa reproduciendo, se encoge en pausa */
+.fsp-art {
+  transition: transform 0.55s cubic-bezier(0.2, 0.9, 0.25, 1);
+  will-change: transform;
+}
+
+/* Gloss + textura de la portada */
+.fsp-art-gloss {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 90% at 25% 12%, rgba(255, 255, 255, 0.22), transparent 55%);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fsp-orb-1, .fsp-orb-2, .fsp-eq { animation: none; }
+  .fsp-art { transition: none; }
+  .animate-marquee { animation: none; }
+}

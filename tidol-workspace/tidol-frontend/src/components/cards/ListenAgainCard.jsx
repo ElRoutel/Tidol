@@ -52,7 +52,7 @@ export default function ListenAgainCard({ item, onClick, onPlay, isActive, isPla
             className="group/card flex flex-col gap-3 w-[160px] md:w-[200px] cursor-pointer flex-shrink-0 transition-all duration-200"
         >
             {/* Image Container */}
-            <div className="relative aspect-square w-full overflow-hidden rounded-lg">
+            <div className="relative aspect-square w-full overflow-hidden rounded-xl ring-1 ring-white/[0.08] shadow-[0_8px_24px_-8px_rgba(0,0,0,.5)] group-hover/card:shadow-[0_16px_36px_-8px_rgba(0,0,0,.6)] transition-shadow duration-300">
                 <img
                     src={getCoverSrc(item, true)}
                     alt={title}
@@ -64,15 +64,15 @@ export default function ListenAgainCard({ item, onClick, onPlay, isActive, isPla
 
                 {/* Active State (Visualizer) OR Hover State (Play Button) */}
                 {isActive ? (
-                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-lg">
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                         <MiniVisualizer isPlaying={isPlaying} />
                     </div>
                 ) : onPlay ? (
                     <div
                         onClick={handlePlayClick}
-                        className="absolute inset-0 bg-black/40 opacity-0 group-hover/card:opacity-100 transition-all duration-200 flex items-center justify-center rounded-lg hover:bg-black/50"
+                        className="absolute inset-0 bg-black/40 opacity-0 group-hover/card:opacity-100 transition-all duration-200 flex items-center justify-center hover:bg-black/50"
                     >
-                        <div className="w-12 h-12 md:w-14 md:h-14 bg-primary rounded-full flex items-center justify-center shadow-lg transform transition-transform group-hover/card:scale-110">
+                        <div className="w-12 h-12 md:w-14 md:h-14 bg-white rounded-full flex items-center justify-center shadow-lg transform transition-transform group-hover/card:scale-110">
                             <IoPlay className="text-black ml-0.5" size={24} />
                         </div>
                     </div>
@@ -82,11 +82,11 @@ export default function ListenAgainCard({ item, onClick, onPlay, isActive, isPla
             {/* Text Info */}
             <div className="flex flex-col">
                 <h3 className="text-white font-semibold text-sm md:text-base truncate leading-tight">{title}</h3>
-                <p className="text-[#aaa] text-xs md:text-sm truncate mt-1">
+                <p className="text-white/50 text-xs md:text-sm truncate mt-1">
                     {subtitle}
                     {item.play_count > 0 && (
                         <span className="ml-2 text-[10px] bg-white/10 px-1.5 py-0.5 rounded-full">
-                            {item.play_count} plays
+                            {item.play_count} reproducciones
                         </span>
                     )}
                 </p>

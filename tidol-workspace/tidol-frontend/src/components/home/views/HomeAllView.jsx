@@ -86,8 +86,8 @@ export default function HomeAllView({ data, onPlay }) {
             {quickSelection && quickSelection.length > 0 && (
                 <section className="px-4 md:px-0 mt-8">
                     <div className="mb-6 px-4 md:px-0">
-                        <span className="text-white/40 text-xs font-bold uppercase tracking-wider mb-2 block font-mono">
-                            PARA EMPEZAR
+                        <span className="text-white/40 text-[11px] font-bold uppercase tracking-[1.4px] mb-1.5 block">
+                            Para empezar
                         </span>
                         <h2 className="text-white text-2xl md:text-3xl font-bold tracking-tight">Selección rápida</h2>
                     </div>

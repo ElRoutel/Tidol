@@ -1,31 +1,95 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
-import { usePlayerState, usePlayerActions, usePlayerProgress, usePlayer } from '../context/PlayerContext';
+import { usePlayerState, usePlayerProgress, usePlayer } from '../context/PlayerContext';
 import {
     IoChevronDown, IoPlaySharp, IoPauseSharp, IoPlaySkipBackSharp,
-    IoPlaySkipForwardSharp, IoEllipsisHorizontal, IoVolumeHigh,
-    IoShuffle, IoRepeat, IoText, IoList, IoDisc, IoMic, IoPersonSharp
+    IoPlaySkipForwardSharp, IoEllipsisHorizontal, IoVolumeHigh, IoVolumeLow,
+    IoText, IoList, IoDisc, IoPersonSharp, IoHeart, IoHeartOutline
 } from 'react-icons/io5';
-import LikeButton from './LikeButton';
-import { LyricsView } from './LyricsView';
 import KaraokeView from './KaraokeView';
-import DynamicBackground from './DynamicBackground';
-import { motion, useTransform, useDragControls, AnimatePresence } from 'framer-motion';
+import { motion, useTransform, AnimatePresence } from 'framer-motion';
 import { getCoverSrc } from '../utils/coverArt';
 import './FullScreenPlayer.css';
 
+// Acento por pista: versión aclarada del color dominante de la portada.
+// El chrome de la app es acromático; solo la música lo colorea.
+const lighten = (hex, amt = 0.5) => {
+    if (!hex || !/^#([0-9a-fA-F]{6})$/.test(hex)) return '#cfcfda';
+    const n = parseInt(hex.slice(1), 16);
+    const mix = (c) => Math.round(c + (255 - c) * amt);
+    return `rgb(${mix((n >> 16) & 255)}, ${mix((n >> 8) & 255)}, ${mix(n & 255)})`;
+};
+
+const formatTime = (time) => {
+    if (!time || isNaN(time) || time < 0) return '0:00';
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+};
+
+const trackDuration = (s) =>
+    s?.durationInSeconds || s?.duracion || s?.duration || 0;
+
+// Barras de ecualizador de la fila "sonando ahora" (color de acento por pista).
+function EqBars({ accent, paused }) {
+    return (
+        <div className="flex items-end gap-[2.5px] h-4 shrink-0" aria-label="Reproduciendo ahora">
+            {[0, 1, 2, 3].map(i => (
+                <span key={i} className={`fsp-eq ${paused ? 'fsp-eq--paused' : ''}`} style={{ background: accent }} />
+            ))}
+        </div>
+    );
+}
+
+// Fila de la cola (compartida móvil/desktop).
+function QueueRow({ song, isCurrent, isPlaying, accent, onPlay }) {
+    return (
+        <button
+            onClick={onPlay}
+            className={`flex items-center gap-3.5 w-full p-2.5 rounded-xl text-left transition-colors ${isCurrent ? 'bg-white/[0.08]' : 'hover:bg-white/[0.05] active:bg-white/[0.08]'}`}
+        >
+            <div className="w-11 h-11 rounded-lg overflow-hidden shrink-0 relative bg-white/5">
+                <img
+                    src={getCoverSrc(song, true)}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    onError={(e) => { e.currentTarget.src = '/default-album.png'; }}
+                    className="w-full h-full object-cover"
+                />
+                <div className="fsp-art-gloss" />
+            </div>
+            <div className="min-w-0 flex-1">
+                <div className="text-[15px] font-semibold truncate" style={{ color: isCurrent ? accent : '#fff' }}>
+                    {song.trackName || song.titulo || song.title || 'Sin título'}
+                </div>
+                <div className="text-[13px] text-white/50 truncate">
+                    {song.artistName || song.artista || song.artist || ''}
+                </div>
+            </div>
+            {isCurrent ? (
+                <EqBars accent={accent} paused={!isPlaying} />
+            ) : (
+                trackDuration(song) > 0 && (
+                    <span className="text-xs text-white/35 shrink-0" style={{ fontFeatureSettings: "'tnum'" }}>
+                        {formatTime(trackDuration(song))}
+                    </span>
+                )
+            )}
+        </button>
+    );
+}
+
 export default function FullScreenPlayer({ isEmbedded = false }) {
-    const { currentSong, isPlaying, isFullScreenOpen, volume, isShuffle, repeatMode, voxMode, voxType, originalQueue, currentIndex, isVoxLoading: contextVoxLoading } = usePlayerState();
+    const { currentSong, isPlaying, isFullScreenOpen, volume, originalQueue, currentIndex } = usePlayerState();
 
     const {
         togglePlayPause, nextSong, previousSong,
-        seek, changeVolume, toggleShuffle, toggleRepeat,
-        closeFullScreenPlayer, toggleLike, isSongLiked, toggleVox, toggleVoxType, playAt
+        seek, changeVolume,
+        closeFullScreenPlayer, toggleLike, isSongLiked, playAt
     } = usePlayer();
 
-    // Extraído correctamente de las acciones
-    const { toggleFullScreenPlayer } = usePlayerActions();
     const { currentTimeMotion, progressMotion, duration } = usePlayerProgress();
 
     const [viewMode, setViewMode] = useState('cover'); // 'cover' | 'lyrics' | 'queue'
@@ -34,17 +98,13 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
     const [localProgress, setLocalProgress] = useState(0);
     const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
     const [mounted, setMounted] = useState(false);
-    const [voxLoading, setVoxLoading] = useState(false);
     const navigate = useNavigate();
 
-    // Físicas de arrastre nivel Senior: Detecta movimiento intencional o rápido
+    // Físicas de arrastre: desliza hacia abajo para cerrar, hacia arriba abre la cola.
     const handleDragEnd = (event, info) => {
-        // Si desliza hacia abajo más de 80px o con velocidad
         if (info.offset.y > 80 || info.velocity.y > 300) {
             closeFullScreenPlayer();
-        }
-        // Si desliza hacia arriba, abre la cola
-        else if (info.offset.y < -80 && viewMode === 'cover') {
+        } else if (info.offset.y < -80 && viewMode === 'cover') {
             setViewMode('queue');
         }
     };
@@ -65,13 +125,11 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
         // pisar a la correcta.
         let cancelled = false;
         // El id canónico puede venir en `id` (álbum/normalizeTrackList) o solo en
-        // `trackId` (Home "Volver a escuchar"/normalizeToUnifiedTrack). Antes solo se
-        // usaba `id`, por lo que las canciones fuera del álbum no cargaban letras.
+        // `trackId` (Home "Volver a escuchar"/normalizeToUnifiedTrack).
         const mbid = currentSong?.id || currentSong?.trackId;
         if (mbid) {
             setViewMode('cover');
             if (isFullScreenOpen) {
-                // Fetch Lyrics from API using Axios
                 setLyricsLoading(true);
                 setLyricsError(false);
                 api.get(`/lyrics/${mbid}`)
@@ -79,26 +137,18 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                         if (cancelled) return;
                         const data = res.data;
                         if (data && data.type && data.lines) {
-                            console.log(`[Debug] Payload de letras recibido: type="${data.type}", lines=${Array.isArray(data.lines) ? data.lines.length : '?'} items`);
-                            setLyricsData(data); // Pass the whole payload { type, lines }
+                            setLyricsData(data);
                         } else {
-                            console.log("[Debug] Payload de letras vacío o malformado");
                             setLyricsData(null);
                         }
                     })
                     .catch(error => {
                         if (cancelled) return;
-                        if (error.response && error.response.status === 404) {
-                            // Es normal, la letra aún no existe o está procesándose
-                            console.log("[Debug] Letras no encontradas (404) — caché negativo o pending");
-                            setLyricsData(null);
-                        } else if (error.response && error.response.status === 401) {
-                            // Sin autorización, probablemente sesión expirada o sin login
-                            console.warn("[FullScreenPlayer] No autorizado para obtener letras (401).");
+                        if (error.response && (error.response.status === 404 || error.response.status === 401)) {
+                            // 404: la letra no existe o está procesándose. 401: sesión expirada.
                             setLyricsData(null);
                         } else {
-                            // Un error real (500, red caída, etc.)
-                            console.error("[FullScreenPlayer] Error real en letras:", error.message);
+                            console.error('[FullScreenPlayer] Error real en letras:', error.message);
                             setLyricsError(true);
                             setLyricsData(null);
                         }
@@ -114,24 +164,16 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
     useEffect(() => {
         if (isEmbedded) {
             setMounted(isFullScreenOpen);
-            if (!isFullScreenOpen) {
-                setViewMode('cover');
-            }
+            if (!isFullScreenOpen) setViewMode('cover');
         } else {
             setMounted(true);
         }
     }, [isEmbedded, isFullScreenOpen]);
 
-    // Colores por defecto más oscuros para mayor elegancia
-    const dominantColor = currentSong?.extractedColors?.dominant || '#344966';
-    const secondaryColor = currentSong?.extractedColors?.secondary || '#0a0a0a';
-
-    const formatTime = (time) => {
-        if (!time || isNaN(time)) return '00:00';
-        const minutes = Math.floor(time / 60);
-        const seconds = Math.floor(time % 60);
-        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-    };
+    // Duotono por pista + acento derivado.
+    const dominantColor = currentSong?.extractedColors?.dominant || '#3b3b4f';
+    const secondaryColor = currentSong?.extractedColors?.secondary || '#101014';
+    const accent = lighten(dominantColor, 0.5);
 
     const formattedTime = useTransform(currentTimeMotion, t => formatTime(t));
     const formattedRemaining = useTransform(currentTimeMotion, t => `-${formatTime(duration - t)}`);
@@ -139,11 +181,14 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
 
     const displayTimeText = isScrubbing ? formatTime(localProgress) : formattedTime;
     const displayRemainingText = isScrubbing ? `-${formatTime(duration - localProgress)}` : formattedRemaining;
-    const displayWidth = isScrubbing ? `${(localProgress / duration) * 100}%` : progressPercent;
+    const displayWidth = isScrubbing ? `${duration > 0 ? (localProgress / duration) * 100 : 0}%` : progressPercent;
 
-    const currentProgress = isScrubbing ? localProgress : (currentTimeMotion.get() || 0);
+    const songTitle = currentSong?.trackName || currentSong?.titulo || currentSong?.title || 'Sin título';
+    const songArtist = currentSong?.artistName || currentSong?.artista || currentSong?.artist || 'Artista desconocido';
+    const songAlbum = currentSong?.albumName || currentSong?.album || null;
+    const longTitle = songTitle.length > (isDesktop ? 26 : 17);
+
     const isLiked = currentSong ? isSongLiked(currentSong.id) : false;
-
     const handleLikeToggle = () => {
         if (currentSong) toggleLike(currentSong.id || currentSong.identifier, currentSong);
     };
@@ -152,16 +197,16 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
     const canDrag = !isDesktop && viewMode === 'cover';
 
     const dragProps = isEmbedded ? {} : {
-        drag: canDrag ? "y" : false,
+        drag: canDrag ? 'y' : false,
         dragConstraints: { top: 0, bottom: 0 },
-        dragElastic: { top: 0.025, bottom: 0.8 }, // Rebote natural
+        dragElastic: { top: 0.025, bottom: 0.8 },
         onDragEnd: handleDragEnd
     };
 
     const handleNavigation = (type) => {
         if (!currentSong) return;
         setShowOptions(false);
-        const query = type === 'artist' ? (currentSong.artistName || currentSong.artista || currentSong.artist) : currentSong.album;
+        const query = type === 'artist' ? songArtist : currentSong.album;
         const isIA = currentSong.source === 'internet_archive' || !!currentSong.identifier;
 
         if (isIA) {
@@ -171,449 +216,464 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
         } else if (type === 'album' && currentSong.albumId) {
             navigate(`/album/${currentSong.albumId}`);
         } else {
-            navigate(`/search?q=${encodeURIComponent(query)}`);
+            navigate(`/search?q=${encodeURIComponent(query || songArtist)}`);
         }
         closeFullScreenPlayer();
-    };
-
-    // Vox toggle with loading state logic
-    const handleToggleVox = (e) => {
-        e?.stopPropagation?.();
-        e?.preventDefault?.();
-        // Guard: don't fire if already processing or loading
-        if (voxLoading || contextVoxLoading) {
-            console.log('[FullScreenPlayer] handleToggleVox BLOCKED (already loading)');
-            return;
-        }
-        console.log('[FullScreenPlayer] handleToggleVox clicked!');
-        console.log('[FullScreenPlayer] currentSong:', currentSong ? {
-            id: currentSong.trackId || currentSong.id,
-            trackName: currentSong.trackName || currentSong.titulo,
-            archivo: currentSong.archivo,
-            playbackUrl: currentSong.playbackUrl,
-            sourceType: currentSong.sourceType,
-        } : 'NULL');
-        setVoxLoading(true);
-        toggleVox();
-        setTimeout(() => setVoxLoading(false), 600);
-    };
-
-    const handleToggleVoxType = (e) => {
-        e?.stopPropagation?.();
-        e?.preventDefault?.();
-        if (voxLoading) return;
-        setVoxLoading(true);
-        toggleVoxType();
-        setTimeout(() => setVoxLoading(false), 600);
     };
 
     if (!isFullScreenOpen && isEmbedded && !mounted) return null;
     if (!isFullScreenOpen && !isEmbedded) return null;
 
+    // ── piezas compartidas ──────────────────────────────────────────────────
+
+    const scrubberProps = {
+        type: 'range', min: 0, max: duration || 100, step: 0.01,
+        value: isScrubbing ? localProgress : (currentTimeMotion.get() || 0),
+        onPointerDown: () => { setLocalProgress(currentTimeMotion.get() || 0); setIsScrubbing(true); },
+        onChange: (e) => setLocalProgress(parseFloat(e.target.value)),
+        onPointerUp: (e) => { seek(parseFloat(e.target.value)); setIsScrubbing(false); },
+        'aria-label': 'Posición de la canción',
+    };
+
+    const HeartIcon = isLiked ? IoHeart : IoHeartOutline;
+
+    const queuePanel = (
+        <div className="flex flex-col gap-0.5">
+            {originalQueue && originalQueue.length > 0 ? (
+                originalQueue.map((s, idx) => (
+                    <QueueRow
+                        key={s.id || s.trackId || idx}
+                        song={s}
+                        isCurrent={idx === currentIndex}
+                        isPlaying={isPlaying}
+                        accent={accent}
+                        onPlay={() => { playAt(idx); setViewMode('cover'); }}
+                    />
+                ))
+            ) : (
+                <div className="flex flex-col items-center justify-center py-24 text-center">
+                    <p className="text-white/45 text-[15px]">La cola está vacía</p>
+                    <p className="text-white/30 text-[13px] mt-1">Reproduce algo desde Inicio o Buscar</p>
+                </div>
+            )}
+        </div>
+    );
+
+    const lyricsPanel = lyricsLoading ? (
+        <div className="flex items-center justify-center h-full w-full text-white/50 text-[15px]">Cargando letra…</div>
+    ) : lyricsError ? (
+        <div className="flex flex-col items-center justify-center h-full w-full text-center">
+            <p className="text-white/50 text-[15px]">La letra no está disponible ahora</p>
+            <p className="text-white/30 text-[13px] mt-1">Vuelve a intentarlo en un momento</p>
+        </div>
+    ) : (
+        <KaraokeView lyricsPayload={lyricsData} accent={accent} />
+    );
+
+    const optionsMenu = (
+        <AnimatePresence>
+            {showOptions && (
+                <>
+                    <motion.div
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="absolute inset-0 z-[199]"
+                        onClick={() => setShowOptions(false)}
+                    />
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                        transition={{ duration: 0.15, ease: 'easeOut' }}
+                        className="absolute bottom-28 right-6 z-[200] w-[232px] rounded-2xl p-1.5 border border-white/10 shadow-[0_24px_50px_rgba(0,0,0,.5)]"
+                        style={{ background: 'rgba(28,28,30,.86)', backdropFilter: 'blur(30px)', WebkitBackdropFilter: 'blur(30px)' }}
+                    >
+                        <button onClick={() => handleNavigation('artist')} className="flex items-center gap-3.5 w-full px-3.5 py-3 rounded-xl text-white text-[15px] font-medium hover:bg-white/10 active:bg-white/15 transition-colors">
+                            <IoPersonSharp className="text-white/50" size={18} /> Ir al artista
+                        </button>
+                        <button onClick={() => handleNavigation('album')} className="flex items-center gap-3.5 w-full px-3.5 py-3 rounded-xl text-white text-[15px] font-medium hover:bg-white/10 active:bg-white/15 transition-colors">
+                            <IoDisc className="text-white/50" size={18} /> Ir al álbum
+                        </button>
+                        <div className="h-px bg-white/10 my-1 mx-2" />
+                        <button onClick={() => setShowOptions(false)} className="flex items-center justify-center w-full px-3.5 py-3 rounded-xl text-red-400 text-[15px] font-semibold hover:bg-white/5 transition-colors">
+                            Cerrar
+                        </button>
+                    </motion.div>
+                </>
+            )}
+        </AnimatePresence>
+    );
+
     return (
         <ContainerTag
             {...dragProps}
-            className={`fixed inset-0 z-[99999] flex flex-col overflow-hidden animate-slide-up bg-[#050505] font-sans select-none ${isEmbedded ? 'pointer-events-auto' : ''}`}
+            className={`fsp-container fixed inset-0 z-[99999] flex flex-col overflow-hidden animate-slide-up bg-[#050505] font-sans select-none ${isEmbedded ? 'pointer-events-auto' : ''}`}
         >
-            {/* yo no le pedi a cluade este emoji pero lo voy a dejar 🌌 Background Premium (CSS Radial Gradient for Apple Music Style) */}
-            <div 
-                className="absolute inset-0 z-0 opacity-80" 
-                style={{ 
-                    background: `radial-gradient(120% 120% at 20% 20%, ${dominantColor} 0%, transparent 60%), radial-gradient(120% 120% at 80% 80%, ${secondaryColor} 0%, #050505 80%)`,
-                    backgroundColor: '#050505'
-                }} 
+            {/* Fondo: orbes de color que derivan + oscurecimiento hacia los controles */}
+            <div className="absolute inset-0 z-0 bg-[#050505]" />
+            <div
+                className="fsp-orb fsp-orb-1"
+                style={{
+                    top: '-12%', left: '-14%', width: isDesktop ? '55%' : '78%', height: isDesktop ? '80%' : '58%',
+                    filter: `blur(${isDesktop ? 90 : 70}px)`, opacity: 0.8, background: dominantColor
+                }}
             />
-            {/* Oscurecimiento sutil hacia los controles para mejor contraste del texto */}
-            <div className="absolute inset-0 z-0 pointer-events-none" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0) 50%, rgba(0,0,0,0.85) 100%)' }} />
+            <div
+                className="fsp-orb fsp-orb-2"
+                style={{
+                    bottom: isDesktop ? '-15%' : '2%', right: '-16%', width: isDesktop ? '60%' : '82%', height: isDesktop ? '85%' : '62%',
+                    filter: `blur(${isDesktop ? 100 : 78}px)`, opacity: 0.75, background: secondaryColor
+                }}
+            />
+            <div
+                className="absolute inset-0 z-0 pointer-events-none"
+                style={{
+                    background: isDesktop
+                        ? 'linear-gradient(to bottom, rgba(5,5,5,0) 55%, rgba(5,5,5,.88) 100%)'
+                        : 'linear-gradient(to bottom, rgba(5,5,5,.35) 0%, rgba(5,5,5,0) 22%, rgba(5,5,5,0) 55%, rgba(5,5,5,.82) 100%)'
+                }}
+            />
 
             {isDesktop ? (
-                // ================= DESKTOP LAYOUT (>1024px) =================
-                <div className="relative z-10 w-full h-full grid grid-cols-[40%_60%]">
+                // ═══════════════ DESKTOP (≥1024px) ═══════════════
+                <div className="relative z-10 w-full h-full grid grid-cols-[44%_56%]">
+                    {/* Izquierda: portada + identidad */}
                     <div className="h-full flex flex-col items-center justify-center relative px-[4vw]">
-                        <button onClick={closeFullScreenPlayer} className="absolute top-8 left-8 p-3 bg-white/10 rounded-full hover:bg-white/20 transition-all active:scale-90">
-                            <IoChevronDown size={24} className="text-white" />
+                        <button
+                            onClick={closeFullScreenPlayer}
+                            className="absolute top-8 left-8 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all active:scale-90"
+                            aria-label="Cerrar reproductor"
+                        >
+                            <IoChevronDown size={24} />
                         </button>
 
-                        <div className="flex flex-col items-start w-full max-w-[500px]">
-                            <div className="w-full aspect-square relative shadow-[0_30px_60px_rgba(0,0,0,0.6)] transform transition-transform duration-500 hover:scale-[1.02]">
-                                <div className="absolute inset-0 opacity-40 blur-3xl -z-10" style={{ background: dominantColor }} />
+                        <div
+                            className="fsp-art w-full max-w-[420px] aspect-square"
+                            style={{ transform: isPlaying ? 'scale(1)' : 'scale(0.86)' }}
+                        >
+                            <div className="relative w-full h-full rounded-[18px] overflow-hidden shadow-[0_40px_80px_-20px_rgba(0,0,0,.7)]">
                                 <img
                                     src={getCoverSrc(currentSong, true)}
-                                    alt={currentSong?.trackName || currentSong?.titulo}
+                                    alt={songTitle}
                                     className="w-full h-full object-cover"
                                     onError={(e) => { e.currentTarget.src = '/default-album.png'; }}
                                 />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="h-full overflow-y-auto no-scrollbar pt-[15vh] pb-[150px] px-[4vw]">
-                        {viewMode === 'queue' ? (
-                            <div className="w-full max-w-2xl mx-auto">
-                                <div className="flex items-center justify-between mb-6">
-                                    <h2 className="text-3xl font-bold text-white tracking-tight">Cola de Reproducción</h2>
-                                    <button onClick={() => setViewMode('cover')} className="text-white/50 hover:text-white text-sm font-medium">Cerrar</button>
-                                </div>
-                                <div className="space-y-3">
-                                    {originalQueue?.map((s, idx) => (
-                                        <div key={s.id || idx} className={`flex items-center justify-between p-3 rounded-xl transition-colors ${idx === currentIndex ? 'bg-white/10 shadow-lg' : 'hover:bg-white/5'}`}>
-                                            <div className="flex items-center gap-4 min-w-0">
-                                                <button onClick={() => { playAt(idx); setViewMode('cover'); }} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 active:scale-95 transition-all shrink-0">
-                                                    <IoPlaySharp size={18} />
-                                                </button>
-                                                <div className="min-w-0">
-                                                    <div className="font-semibold text-white truncate text-[15px]">{s.trackName || s.titulo || s.title || 'Untitled'}</div>
-                                                    <div className="text-[13px] text-white/50 truncate">{s.artistName || s.artista || s.artist || ''}</div>
-                                                </div>
-                                            </div>
-                                            <div className="text-xs text-white/40 font-mono ml-4">{(s.durationInSeconds || s.duracion) ? new Date(((s.durationInSeconds || s.duracion) || 0) * 1000).toISOString().substr(14, 5) : ''}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        ) : lyricsLoading ? (
-                            <div className="flex items-center justify-center h-full w-full text-white/50">Cargando letras sincronizadas...</div>
-                        ) : lyricsError ? (
-                            <div className="flex items-center justify-center h-full w-full text-white/50">Letras no disponibles aún</div>
-                        ) : (
-                            <KaraokeView lyricsPayload={lyricsData} />
-                        )}
-                    </div>
-
-                    <div className="fixed bottom-0 left-0 w-full h-[auto] z-50 flex items-center justify-between px-11 bg-gradient-to-t from-black/80 to-transparent backdrop-blur-md">
-                        <div className="flex items-center gap-6 w-[30%]">
-                            <div className="flex flex-col min-w-0 mr-4">
-                                {/* Contenedor con máscara de desvanecimiento para Desktop */}
-                                <div className="w-full overflow-hidden" style={{ maskImage: 'linear-gradient(to right, black 80%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to right, black 80%, transparent 100%)' }}>
-                                    <div className={`flex w-max ${currentSong?.trackName?.length > 20 || currentSong?.titulo?.length > 20 ? 'animate-marquee' : ''}`}>
-                                        <span className="text-white font-bold text-lg leading-tight tracking-tight whitespace-nowrap pr-10">
-                                            {currentSong?.trackName || currentSong?.titulo || "Untitled"}
-                                        </span>
-                                        {(currentSong?.trackName?.length > 20 || currentSong?.titulo?.length > 20) && (
-                                            <span className="text-white font-bold text-lg leading-tight tracking-tight whitespace-nowrap pr-10">
-                                                {currentSong?.trackName || currentSong?.titulo || "Untitled"}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                                <span className="text-white/60 font-medium text-sm truncate">
-                                    {currentSong?.artistName || currentSong?.artista || "Unknown Artist"}
-                                </span>
-                            </div>
-                            <LikeButton song={currentSong} isLiked={isLiked} onLikeToggle={handleLikeToggle} isArchive={currentSong?.source === 'internet_archive' || !!currentSong?.identifier} />
-                            <div className="text-sm text-white/50 font-mono font-medium tracking-wide whitespace-nowrap">
-                                <motion.span>{displayTimeText}</motion.span> <span className="mx-1 opacity-50">/</span> {formatTime(duration)}
+                                <div className="fsp-art-gloss" />
                             </div>
                         </div>
 
-                        <div className="flex flex-col items-center justify-center flex-1 max-w-[600px] gap-3">
-                            <div className="flex items-center gap-10">
-              { /*  <button onClick={toggleShuffle} className={`transition-all active:scale-90 ${isShuffle ? 'text-[#1db954]' : 'text-white/50 hover:text-white'}`}><IoShuffle size={22} /></button> */} 
-                                <button onClick={previousSong} className="text-white hover:text-white/80 active:scale-90 transition-transform"><IoPlaySkipBackSharp size={32} /></button>
-                                <button onClick={togglePlayPause} className="w-14 h-14 bg-white rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-transform text-black shadow-lg">
-                                    {isPlaying ? <IoPauseSharp size={28} /> : <IoPlaySharp size={28} className="ml-1" />}
+                        <div className="w-full max-w-[420px] mt-8">
+                            <div className="text-[28px] font-bold tracking-[-.4px] text-white truncate">{songTitle}</div>
+                            <button
+                                onClick={() => handleNavigation('artist')}
+                                className="text-[20px] font-normal mt-0.5 truncate max-w-full hover:underline"
+                                style={{ color: accent }}
+                            >
+                                {songArtist}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Derecha: tabs Letra / Cola */}
+                    <div className="h-full flex flex-col min-h-0">
+                        <div className="flex gap-2 pt-8 pr-12 pl-2 flex-none">
+                            {[['lyrics', 'Letra'], ['queue', 'Cola']].map(([mode, label]) => {
+                                const active = mode === 'queue' ? viewMode === 'queue' : viewMode !== 'queue';
+                                return (
+                                    <button
+                                        key={mode}
+                                        onClick={() => setViewMode(mode === 'queue' ? (viewMode === 'queue' ? 'cover' : 'queue') : 'cover')}
+                                        className={`px-[18px] py-[7px] rounded-full text-[15px] font-semibold transition-colors ${active ? 'bg-white/[0.14] text-white' : 'text-white/45 hover:text-white/70'}`}
+                                    >
+                                        {label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <div className="no-scrollbar flex-1 overflow-y-auto pt-6 pr-12 pl-2 pb-40 min-h-0">
+                            {viewMode === 'queue' ? queuePanel : lyricsPanel}
+                        </div>
+                    </div>
+
+                    {/* Barra de control inferior */}
+                    <div
+                        className="absolute bottom-0 left-0 right-0 z-50 h-28 grid grid-cols-[1fr_auto_1fr] items-center px-12"
+                        style={{
+                            background: 'linear-gradient(to top, rgba(5,5,5,.9), rgba(5,5,5,0))',
+                            backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)'
+                        }}
+                    >
+                        {/* Izquierda: identidad compacta + corazón */}
+                        <div className="flex items-center gap-4 min-w-0">
+                            <div className="min-w-0 max-w-[230px]">
+                                <div className="text-base font-bold text-white truncate">{songTitle}</div>
+                                <div className="text-sm text-white/55 truncate">{songArtist}</div>
+                            </div>
+                            <button
+                                onClick={handleLikeToggle}
+                                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all active:scale-90 shrink-0"
+                                style={{ color: isLiked ? accent : '#fff' }}
+                                aria-label={isLiked ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+                            >
+                                <HeartIcon size={18} />
+                            </button>
+                        </div>
+
+                        {/* Centro: transporte + progreso */}
+                        <div className="flex flex-col items-center gap-2 w-[560px]">
+                            <div className="flex items-center gap-9 text-white">
+                                <button onClick={previousSong} className="hover:text-white/80 active:scale-90 transition-transform" aria-label="Anterior">
+                                    <IoPlaySkipBackSharp size={28} />
                                 </button>
-                                <button onClick={nextSong} className="text-white hover:text-white/80 active:scale-90 transition-transform"><IoPlaySkipForwardSharp size={32} /></button>
-                                
-
-
-                               {/* <button onClick={toggleRepeat} className={`transition-all relative active:scale-90 ${repeatMode !== 'off' ? 'text-[#1db954]' : 'text-white/50 hover:text-white'}`}>
-                                    <IoRepeat size={22} />
-                                   {repeatMode === 'one' && <span className="absolute -top-1 -right-1 text-[9px] font-bold bg-[#1db954] text-black rounded-full w-3.5 h-3.5 flex items-center justify-center">1</span>}
-                                </button> */}
+                                <button
+                                    onClick={togglePlayPause}
+                                    className="w-[52px] h-[52px] rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-transform shadow-lg"
+                                    aria-label={isPlaying ? 'Pausar' : 'Reproducir'}
+                                >
+                                    {isPlaying ? <IoPauseSharp size={26} /> : <IoPlaySharp size={26} className="ml-0.5" />}
+                                </button>
+                                <button onClick={nextSong} className="hover:text-white/80 active:scale-90 transition-transform" aria-label="Siguiente">
+                                    <IoPlaySkipForwardSharp size={28} />
+                                </button>
                             </div>
-
-
-
-
-                            <div className="w-full flex items-center gap-4 group">
-                                <motion.span className="text-xs text-white/40 w-10 text-right font-mono">{displayTimeText}</motion.span>
-                                <div className="relative flex-1 h-1.5 bg-white/20 rounded-full cursor-pointer group-hover:h-2 transition-all">
-                                    <motion.div className="absolute h-full bg-white rounded-full" style={{ width: displayWidth, willChange: 'width' }} />
-                                    {/* seek() solo al soltar: hacerlo en cada onChange durante el
-                                        arrastre machacaba el motor (y el IFrame de YouTube) con
-                                        decenas de seeks por segundo. */}
-                                    <input type="range" min="0" max={duration || 100} step="0.01"
-                                        value={isScrubbing ? localProgress : (currentTimeMotion.get() || 0)}
-                                        onPointerDown={() => { setLocalProgress(currentTimeMotion.get() || 0); setIsScrubbing(true); }}
-                                        onChange={(e) => setLocalProgress(parseFloat(e.target.value))}
-                                        onPointerUp={(e) => { seek(parseFloat(e.target.value)); setIsScrubbing(false); }}
-                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                            <div className="flex items-center gap-3 w-full group">
+                                <motion.span className="text-xs text-white/45 w-10 text-right" style={{ fontFeatureSettings: "'tnum'" }}>
+                                    {displayTimeText}
+                                </motion.span>
+                                <div className="relative flex-1 h-3 flex items-center">
+                                    <div className="absolute left-0 right-0 h-[5px] rounded-[3px] bg-white/20 overflow-hidden">
+                                        <motion.div className="h-full rounded-[3px] bg-white/85" style={{ width: displayWidth, willChange: 'width' }} />
+                                    </div>
+                                    <input {...scrubberProps} className="fsp-range absolute inset-0 w-full h-full" />
                                 </div>
-                                <span className="text-xs text-white/40 w-10 font-mono">{formatTime(duration)}</span>
+                                <span className="text-xs text-white/45 w-10" style={{ fontFeatureSettings: "'tnum'" }}>{formatTime(duration)}</span>
                             </div>
                         </div>
 
-                        <div className="flex items-center justify-end gap-6 w-[25%]">
-                            <div className="flex items-center gap-3">
-                 
-                                                           </div>
-                            <button onClick={() => setViewMode(viewMode === 'queue' ? 'cover' : 'queue')} className={`text-white/60 hover:text-white transition-colors active:scale-90 ${viewMode === 'queue' ? 'text-[#1db954]' : ''}`}><IoList size={24} /></button>
-                            <div className="flex items-center gap-3 w-32 group">
-                                <IoVolumeHigh size={20} className="text-white/60" />
-                                <div className="h-1.5 flex-1 bg-white/20 rounded-full cursor-pointer relative transition-all group-hover:h-2">
-                                    <div className="absolute h-full bg-white rounded-full" style={{ width: `${volume * 100}%` }} />
-                                    <input type="range" min="0" max="1" step="0.01" value={volume} onChange={(e) => changeVolume(parseFloat(e.target.value))} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                        {/* Derecha: cola + volumen */}
+                        <div className="flex items-center justify-end gap-5">
+                            <button
+                                onClick={() => setViewMode(viewMode === 'queue' ? 'cover' : 'queue')}
+                                className="transition-colors active:scale-90"
+                                style={{ color: viewMode === 'queue' ? accent : 'rgba(255,255,255,.55)' }}
+                                aria-label="Cola de reproducción"
+                            >
+                                <IoList size={24} />
+                            </button>
+                            <div className="flex items-center gap-2.5 w-[130px] text-white/60">
+                                <IoVolumeHigh size={18} />
+                                <div className="relative flex-1 h-3 flex items-center">
+                                    <div className="absolute left-0 right-0 h-[5px] rounded-[3px] bg-white/20 overflow-hidden">
+                                        <div className="h-full rounded-[3px] bg-white/75" style={{ width: `${volume * 100}%` }} />
+                                    </div>
+                                    <input
+                                        type="range" min="0" max="1" step="0.01" value={volume}
+                                        onChange={(e) => changeVolume(parseFloat(e.target.value))}
+                                        className="fsp-range absolute inset-0 w-full h-full"
+                                        aria-label="Volumen"
+                                    />
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
             ) : (
+                // ═══════════════ MOBILE (<1024px) ═══════════════
+                <div className="relative z-10 flex flex-col h-full w-full px-[26px] pt-safe-top">
 
+                    {/* Grabber + contexto */}
+                    <div className="flex flex-col items-center gap-3 pt-4 flex-none">
+                        <button
+                            onClick={closeFullScreenPlayer}
+                            className="w-10 h-6 flex items-center justify-center"
+                            aria-label="Cerrar reproductor"
+                        >
+                            <span className="w-[38px] h-[5px] rounded-[3px] bg-white/35" />
+                        </button>
+                        <div className="uppercase text-[11px] tracking-[1.4px] font-semibold text-white/55">
+                            Reproduciendo{songAlbum ? ` · ${songAlbum}` : ''}
+                        </div>
+                    </div>
 
-                // ================= MOBILE LAYOUT (<1024px) - NIVEL SENIOR ================= por lo menos eso lo dice cluade
-                
-                <div
-                    className="relative z-10 flex flex-col h-full w-full mx-auto px-6 pt-10 pb-6"
-                >
+                    {/* Portada que respira */}
+                    <div className="flex-1 flex items-center justify-center min-h-0 py-4">
+                        <div
+                            className="fsp-art w-full max-w-[340px] aspect-square"
+                            style={{ transform: isPlaying ? 'scale(1)' : 'scale(0.84)' }}
+                        >
+                            <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-[0_28px_60px_-12px_rgba(0,0,0,.6)]">
+                                <img
+                                    src={getCoverSrc(currentSong, true)}
+                                    alt={songTitle}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => { e.currentTarget.src = '/default-album.png'; }}
+                                />
+                                <div className="fsp-art-gloss" />
+                            </div>
+                        </div>
+                    </div>
 
-
-                    {/* Header (Cerrar) */}
-<div className="flex items-center justify-center mb-8 shrink-0 relative z-50">
-    <button
-        onClick={closeFullScreenPlayer}
-        className="group flex flex-col items-center justify-center w-20 h-16 transition-all active:scale-95 cursor-pointer gap-0"
-    >
-        {/* Flecha Superior */}
-        <div className="w-6 h-6 border-b-[6px] border-r-[6px] border-white/40 rotate-45 rounded-sm group-hover:border-white/80 transition-all duration-200 mb-0" />
-        
- 
-              </button>
-</div>
-                {/* Portada del Álbum (Arte) */}
-<div className="w-full flex justify-center items-center mb-10 mt-0 shrink-0 relative px-6">
-    {/* w-full (móvil) 
-       md:w-[400px] (tablet - tamaño fijo elegante)
-       md:h-[400px] 
-    */}
-    <div className="relative w-full aspect-square max-w-[500px] md:max-w-[500px] mb-10 shadow-2xl">
-        <div className="absolute inset-0 opacity-60 blur-2xl -z-10 transform scale-95 translate-y-6" style={{ background: dominantColor }} />
-        
-        <img
-            src={getCoverSrc(currentSong, true)}
-            alt={currentSong?.trackName}
-            className="w-full h-full object-cover"
-            onError={(e) => { e.currentTarget.src = '/default-album.png'; }}
-        />
-    </div>
-</div>
-
-                    {/* Metadatos (Títulos) y Acciones Primarias */}
-                    <div className="flex justify-between items-center mb-8 shrink-0 w-full  relative z-20">
-                        <div className="flex-1 min-w-0 pr-4 text-left overflow-hidden">
-                            {/* Corrección del efecto fantasma (Marquee) */}
-                            <div className="w-full overflow-hidden" style={{ maskImage: 'linear-gradient(to right, black 80%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to right, black 80%, transparent 100%)' }}>
-                                <div className={`flex w-max font-[800] ${currentSong?.trackName?.length > 17 || currentSong?.titulo?.length > 17 ? 'animate-marquee' : ''}`}>
-                                    
-          {/* Titulo duplicado para el efecto de scroll infinito */}
-
-              <h1 className="text-[24px] font-[800] text-white leading-tight tracking-tight whitespace-nowrap pr-10 shrink-0">
-                                        {currentSong?.trackName || currentSong?.titulo || "Unknown Title"}
-                                    </h1>
-                                    {(currentSong?.trackName?.length > 17 || currentSong?.titulo?.length > 17) && (
-                                        <h1 className="text-[26px] font-[800] text-white leading-tight tracking-tight whitespace-nowrap pr-10 shrink-0">
-                                            {currentSong?.trackName || currentSong?.titulo || "Unknown Title"}
-                                        </h1>
+                    {/* Título + acciones */}
+                    <div className="flex items-center justify-between gap-3.5 flex-none">
+                        <div className="min-w-0 flex-1">
+                            <div
+                                className="overflow-hidden"
+                                style={{ maskImage: 'linear-gradient(to right, #000 86%, transparent)', WebkitMaskImage: 'linear-gradient(to right, #000 86%, transparent)' }}
+                            >
+                                <div className={`flex w-max ${longTitle ? 'animate-marquee' : ''}`}>
+                                    <span className="text-[23px] font-bold tracking-[-.3px] text-white whitespace-nowrap pr-11">{songTitle}</span>
+                                    {longTitle && (
+                                        <span className="text-[23px] font-bold tracking-[-.3px] text-white whitespace-nowrap pr-11">{songTitle}</span>
                                     )}
                                 </div>
                             </div>
-                            <h2 className="text-[18px] font-[400] text-white/60 mt-0.5 truncate tracking-wide">
-                                {currentSong?.artistName || currentSong?.artista || "Unknown Artist"}
-                            </h2>
+                            <button
+                                onClick={() => handleNavigation('artist')}
+                                className="block text-[18px] font-normal mt-px truncate max-w-full"
+                                style={{ color: accent }}
+                            >
+                                {songArtist}
+                            </button>
                         </div>
-
-                        <div className="flex items-center gap-4 shrink-0">
-                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 backdrop-blur-md text-white/80 active:scale-90 transition-transform">
-                                <LikeButton song={currentSong} isLiked={isLiked} onLikeToggle={handleLikeToggle} iconSize={20} isArchive={currentSong?.source === 'internet_archive' || !!currentSong?.identifier} />
-                            </div>
+                        <div className="flex items-center gap-2.5 shrink-0">
+                            <button
+                                onClick={handleLikeToggle}
+                                className="w-[38px] h-[38px] rounded-full bg-white/10 flex items-center justify-center transition-all active:scale-90"
+                                style={{ color: isLiked ? accent : '#fff' }}
+                                aria-label={isLiked ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+                            >
+                                <HeartIcon size={20} />
+                            </button>
                             <button
                                 onClick={() => setShowOptions(!showOptions)}
-                                className={`flex items-center justify-center w-10 h-10 rounded-full bg-white/5 backdrop-blur-md text-white/80 active:scale-90 transition-all ${showOptions ? 'bg-white/20 text-white' : ''}`}
+                                className={`w-[38px] h-[38px] rounded-full flex items-center justify-center text-white transition-all active:scale-90 ${showOptions ? 'bg-white/25' : 'bg-white/10'}`}
+                                aria-label="Más opciones"
                             >
-                                <IoEllipsisHorizontal size={22} />
+                                <IoEllipsisHorizontal size={20} />
                             </button>
                         </div>
                     </div>
 
-                    {/* Barra de Progreso (Scrubber) - ¡SOLUCIÓN DE ARRASTRE AQUÍ! */}
-                    <div
-                        className="mb-8 w-full group shrink-0 relative z-20"
-                        onPointerDown={(e) => e.stopPropagation()} // Aísla el toque para que no mueva la pantalla
-                    >
-                        <div className="relative w-full h-8 flex items-center cursor-pointer">
-                            <input type="range" min="0" max={duration || 100} step="0.01"
-                                value={isScrubbing ? localProgress : (currentTimeMotion.get() || 0)}
-                                onPointerDown={() => { setLocalProgress(currentTimeMotion.get() || 0); setIsScrubbing(true); }}
-                                onChange={(e) => setLocalProgress(parseFloat(e.target.value))}
-                                onPointerUp={(e) => { seek(parseFloat(e.target.value)); setIsScrubbing(false); }}
-                                className="absolute z-20 opacity-0 w-full h-full cursor-pointer" />
-                            <div className="absolute w-full h-[4px] bg-white/20 rounded-full overflow-hidden pointer-events-none">
-                                <motion.div className="h-full bg-white rounded-full" style={{ width: displayWidth, willChange: 'width' }} />
+                    {/* Progreso */}
+                    <div className="flex-none pt-5 group" onPointerDown={(e) => e.stopPropagation()}>
+                        <div className="relative h-3.5 flex items-center">
+                            <div className="absolute left-0 right-0 h-[5px] rounded-[3px] bg-white/[0.22] overflow-hidden">
+                                <motion.div className="h-full rounded-[3px] bg-white/85" style={{ width: displayWidth, willChange: 'width' }} />
                             </div>
-
-                           { /* {/* PLAYER BAR y el circuluto*/}
-                           
-                           <motion.div className=" shadow-md pointer-events-none transition-transform duration-100" style={{ left: displayWidth, transform: 'translateX(-50%)', willChange: 'left' }} />
-                       
-                       </div>  
-
-
-                        <div className="flex justify-between text-[12px] font-medium text-white/50 font-mono -mt-1 tracking-widest opacity-80">
+                            <input {...scrubberProps} className="fsp-range absolute inset-0 w-full h-full z-10" />
+                        </div>
+                        <div className="flex justify-between mt-1.5 text-xs font-medium text-white/50" style={{ fontFeatureSettings: "'tnum'" }}>
                             <motion.span>{displayTimeText}</motion.span>
                             <motion.span>{displayRemainingText}</motion.span>
                         </div>
                     </div>
 
-                    {/* Controles de Reproducción Principales */}
-                    <div className="mt-0 flex flex-col items-center w-full pb-2 relative z-20">
-                        <div className="flex items-center justify-between gap-2 mb-0 w-[90%] max-w-[320px]">
-                          
-                         {/* <button onClick={toggleShuffle} className={`transition-all active:scale-90 p-2 ${isShuffle ? 'text-[#1db954]' : 'text-white/50 hover:text-white'}`}>
-                                <IoShuffle size={26} />
-                            </button> REFACTORIZAR  PARA DAR UN ESTILO PREMIUM*/}
-
-                            <button onClick={previousSong} className="text-white hover:text-white/80 active:scale-75 transition-all p-2"><IoPlaySkipBackSharp size={40} /></button>
-                            <button onClick={togglePlayPause} className="w-[72px] h-[72px] rounded-full bg-white flex items-center justify-center shadow-lg active:scale-90 transition-all text-black">
-
-                                {isPlaying ? <IoPauseSharp size={34} /> : <IoPlaySharp size={34} className="ml-1.5" />}
-                            </button>
-                            <button onClick={nextSong} className="text-white hover:text-white/80 active:scale-75 transition-all p-2"><IoPlaySkipForwardSharp size={40} /></button>
-                           
-
-                         {/*  <button onClick={toggleRepeat} className={`transition-all relative active:scale-90 p-2 ${repeatMode !== 'off' ? 'text-[#1db954]' : 'text-white/50 hover:text-white'}`}>
-                                <IoRepeat size={26} />
-                                {repeatMode === 'one' && <span className="absolute top-1 right-1 text-[9px] font-bold bg-[#1db954] text-black rounded-full w-3.5 h-3.5 flex items-center justify-center">1</span>}
-                           
-                           </button> IMPLEMENTARLOS ABAJO DE LA PLAYER BAR SIGUIENDO PROPORCIONES CORRECTAMENTE PARA EL HUMANO*/}
-                        
-
-                        </div>
-
-                        {/* Controles Secundarios (Barra Inferior) */}
-                        
-                        <div className="w-full flex items-center justify-between px-4  mt-3 text-white/50">
-                            <button onClick={() => setViewMode(viewMode === 'lyrics' ? 'cover' : 'lyrics')} className={`transition-colors active:scale-90 p-2 ${viewMode === 'lyrics' ? 'text-[#1db954]' : 'hover:text-white'}`}>
-                                <IoText size={24} />
-                            </button>  
-
-
-                                <p className="w-full flex items-center justify-center px-4"> </p>
-
-
-                            <button onClick={() => setViewMode(viewMode === 'queue' ? 'cover' : 'queue')} className={`transition-colors active:scale-90 p-2 ${viewMode === 'queue' ? 'text-[#1db954]' : 'hover:text-white'}`}>
-                                <IoList size={24} />
-                            </button>
-                        </div>
+                    {/* Transporte */}
+                    <div className="flex-none flex items-center justify-center gap-11 pt-2 text-white">
+                        <button onClick={previousSong} className="p-1.5 active:scale-75 transition-transform" aria-label="Anterior">
+                            <IoPlaySkipBackSharp size={38} />
+                        </button>
+                        <button
+                            onClick={togglePlayPause}
+                            className="w-14 h-14 flex items-center justify-center active:scale-90 transition-transform"
+                            aria-label={isPlaying ? 'Pausar' : 'Reproducir'}
+                        >
+                            {isPlaying ? <IoPauseSharp size={52} /> : <IoPlaySharp size={52} className="ml-1" />}
+                        </button>
+                        <button onClick={nextSong} className="p-1.5 active:scale-75 transition-transform" aria-label="Siguiente">
+                            <IoPlaySkipForwardSharp size={38} />
+                        </button>
                     </div>
 
+                    {/* Volumen */}
+                    <div className="flex-none flex items-center gap-3 pt-4 text-white/60 group" onPointerDown={(e) => e.stopPropagation()}>
+                        <IoVolumeLow size={16} />
+                        <div className="relative flex-1 h-3.5 flex items-center">
+                            <div className="absolute left-0 right-0 h-[5px] rounded-[3px] bg-white/[0.22] overflow-hidden">
+                                <div className="h-full rounded-[3px] bg-white/75" style={{ width: `${volume * 100}%` }} />
+                            </div>
+                            <input
+                                type="range" min="0" max="1" step="0.01" value={volume}
+                                onChange={(e) => changeVolume(parseFloat(e.target.value))}
+                                className="fsp-range absolute inset-0 w-full h-full"
+                                aria-label="Volumen"
+                            />
+                        </div>
+                        <IoVolumeHigh size={20} />
+                    </div>
 
+                    {/* Barra inferior: Letra / Cola */}
+                    <div className="flex-none flex items-center justify-between px-8 pt-5 pb-8">
+                        <button
+                            onClick={() => setViewMode(viewMode === 'lyrics' ? 'cover' : 'lyrics')}
+                            className="p-1.5 transition-colors active:scale-90"
+                            style={{ color: viewMode === 'lyrics' ? accent : 'rgba(255,255,255,.55)' }}
+                            aria-label="Letra"
+                        >
+                            <IoText size={24} />
+                        </button>
+                        <button
+                            onClick={() => setViewMode(viewMode === 'queue' ? 'cover' : 'queue')}
+                            className="p-1.5 transition-colors active:scale-90"
+                            style={{ color: viewMode === 'queue' ? accent : 'rgba(255,255,255,.55)' }}
+                            aria-label="Cola de reproducción"
+                        >
+                            <IoList size={24} />
+                        </button>
+                    </div>
 
-
-
-                    {/* Modales Overlay (Lyrics/Queue) */}
+                    {/* Overlay: LETRA */}
                     {viewMode === 'lyrics' && (
-                        <div className="absolute inset-0 z-50 bg-[#050505]/95 backdrop-blur-3xl animate-fade-in pt-16 px-6 touch-auto" onPointerDown={(e) => e.stopPropagation()}>
-                            <button onClick={() => setViewMode('cover')} className="absolute top-6 right-6 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white active:scale-90 z-[60]">
-                                <IoChevronDown size={24} />
-                            </button>
-                            <h2 className="absolute top-8 left-6 text-2xl font-bold text-white z-[60]">Letras</h2>
-                            <div className="h-full w-full overflow-y-auto no-scrollbar pt-10">
-                                {lyricsLoading ? (
-                                    <div className="flex items-center justify-center h-full w-full text-white/50">Cargando letras sincronizadas...</div>
-                                ) : lyricsError ? (
-                                    <div className="flex items-center justify-center h-full w-full text-white/50">Letras no disponibles aún</div>
-                                ) : (
-                                    <KaraokeView lyricsPayload={lyricsData} />
-                                )}
+                        <div
+                            className="fsp-fade-in absolute inset-0 z-50 flex flex-col"
+                            style={{ background: 'rgba(5,5,5,.55)', backdropFilter: 'blur(30px)', WebkitBackdropFilter: 'blur(30px)' }}
+                            onPointerDown={(e) => e.stopPropagation()}
+                        >
+                            <div className="absolute inset-0 opacity-50 pointer-events-none" style={{ background: `linear-gradient(160deg, ${dominantColor}, ${secondaryColor})` }} />
+                            <div className="relative z-10 flex items-center justify-between px-[26px] pt-16 pb-2 flex-none">
+                                <span className="text-[22px] font-bold text-white">Letra</span>
+                                <button
+                                    onClick={() => setViewMode('cover')}
+                                    className="w-[38px] h-[38px] rounded-full bg-white/15 text-white flex items-center justify-center active:scale-90 transition-transform"
+                                    aria-label="Volver a la portada"
+                                >
+                                    <IoChevronDown size={22} />
+                                </button>
+                            </div>
+                            <div className="relative z-10 flex-1 overflow-hidden px-2">
+                                {lyricsPanel}
                             </div>
                         </div>
                     )}
 
+                    {/* Overlay: COLA */}
                     {viewMode === 'queue' && (
-                        <div className="absolute inset-0 z-50 bg-[#050505]/95 backdrop-blur-3xl animate-fade-in pt-16 px-6 touch-auto" onPointerDown={(e) => e.stopPropagation()}>
-                            <button onClick={() => setViewMode('cover')} className="absolute top-6 right-6 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white active:scale-90 z-[60]">
-                                <IoChevronDown size={24} />
-                            </button>
-                            <h2 className="absolute top-8 left-6 text-2xl font-bold text-white tracking-tight z-[60]">Cola</h2>
-                            <div className="h-full w-full overflow-y-auto no-scrollbar text-white/60 pt-4">
-                                {originalQueue && originalQueue.length > 0 ? (
-                                    <div className="py-2 space-y-3.1">
-                                        {originalQueue.map((s, idx) => (
-                                            <div key={s.id || idx} className={`flex items-center justify-between p-3 rounded-xl transition-all ${idx === currentIndex ? 'bg-white/10' : 'bg-transparent'}`}>
-                                             <div className="flex items-center gap-3 min-w-0">
-  {idx === currentIndex && isPlaying ? (
-    <div
-      className="flex items-end justify-center gap-[3px] w-5 h-5 shrink-0"
-      aria-label="Reproduciendo ahora"
-    >
-      <span className="audio-bar audio-bar-1" />
-      <span className="audio-bar audio-bar-2" />
-      <span className="audio-bar audio-bar-3" />
-      <span className="audio-bar audio-bar-4" />
-    </div>
-  ) : (
-    <button
-      onClick={() => { playAt(idx); setViewMode('cover'); }}
-      className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 active:scale-90 shrink-0 transition-all"
-    >
-      <IoPlaySharp size={13} />
-    </button>
-  )}
-
-                                                    <div className="min-w-0">
-                                                        <div className={`font-semibold truncate text-[16px] ${idx === currentIndex ? 'text-[#1db954]' : 'text-white'}`}>{s.trackName || s.titulo || s.title || 'Como diste con esto?'}</div>
-                                                        <div className="text-[14px] text-white/50 truncate">{s.artistName || s.artista || s.artist || ''}</div>
-                                                    </div>
-                                                </div>
-                                                <div className="text-xs text-white/30 font-mono ml-2 shrink-0">{(s.durationInSeconds || s.duracion) ? new Date(((s.durationInSeconds || s.duracion) || 0) * 1000).toISOString().substr(14, 5) : ''}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                        <p className="text-white/40">La cola está vacía</p>
-                                    </div>
-                                )}
+                        <div
+                            className="fsp-fade-in absolute inset-0 z-50 flex flex-col"
+                            style={{ background: 'rgba(8,8,8,.72)', backdropFilter: 'blur(34px)', WebkitBackdropFilter: 'blur(34px)' }}
+                            onPointerDown={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex items-end justify-between px-[26px] pt-16 pb-3.5 flex-none">
+                                <div>
+                                    <div className="uppercase text-[11px] tracking-[1.4px] font-semibold text-white/50">A continuación</div>
+                                    <div className="text-[22px] font-bold text-white mt-0.5">Cola</div>
+                                </div>
+                                <button
+                                    onClick={() => setViewMode('cover')}
+                                    className="w-[38px] h-[38px] rounded-full bg-white/[0.14] text-white flex items-center justify-center active:scale-90 transition-transform"
+                                    aria-label="Volver a la portada"
+                                >
+                                    <IoChevronDown size={22} />
+                                </button>
+                            </div>
+                            <div className="no-scrollbar flex-1 overflow-y-auto px-[18px] pb-8">
+                                {queuePanel}
                             </div>
                         </div>
                     )}
                 </div>
             )}
 
-            {/* Options Menu Overlay — z-[200] to float above lyrics/queue modals */}
-            <AnimatePresence>
-                {showOptions && (
-                    <>
-                        {/* Backdrop to close on outside tap */}
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="absolute inset-0 z-[199]"
-                            onClick={() => setShowOptions(false)}
-                        />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                            transition={{ duration: 0.15, ease: "easeOut" }}
-                            className="absolute bottom-24 right-6 z-[200] bg-[#1a1a1a]/95 border border-white/10 rounded-2xl p-2 w-[220px] shadow-[0_20px_40px_rgba(0,0,0,0.5)] backdrop-blur-2xl"
-                        >
-                            <button onClick={() => handleNavigation('artist')} className="flex items-center gap-3 w-full p-3 hover:bg-white/10 active:bg-white/20 rounded-xl transition-colors text-white/90 text-[16px] font-medium">
-                                <IoPersonSharp className="text-white/40" /> Ir al Artista
-                            </button>
-                            <button onClick={() => handleNavigation('album')} className="flex items-center gap-3 w-full p-3 hover:bg-white/10 active:bg-white/20 rounded-xl transition-colors text-white/90 text-[16px] font-medium">
-                                <IoDisc className="text-white/40" /> Ir al Álbum
-                            </button>
-                            <div className="h-[1px] bg-white/10 my-1" />
-                            <button onClick={() => setShowOptions(false)} className="flex items-center justify-center w-full p-3 text-red-400 font-semibold text-[16px] hover:bg-white/5 active:bg-white/10 rounded-xl transition-colors">
-                                Cerrar
-                            </button>
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
+            {optionsMenu}
         </ContainerTag>
     );
 }

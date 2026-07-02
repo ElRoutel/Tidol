@@ -1,90 +1,61 @@
 import { useState, useEffect } from 'react';
-// Usamos react-icons para mantener consistencia con el resto de tu app
-import { IoSearch, IoReload } from 'react-icons/io5'; 
+import { IoSearch, IoReload } from 'react-icons/io5';
 
 export default function SearchInput({ onSearch, loading, initialValue = '' }) {
-  // Inicializamos con el valor que viene de la URL
   const [query, setQuery] = useState(initialValue);
   const [isFocused, setIsFocused] = useState(false);
 
-  // ESTO ES LO NUEVO E IMPORTANTE:
-  // Sincroniza el input si cambia la URL o seleccionas algo del historial
+  // Sincroniza el input si cambia la URL o se selecciona algo del historial.
   useEffect(() => {
     setQuery(initialValue);
   }, [initialValue]);
 
   const handleSubmit = (e) => {
-    // Evitamos submit si es enter pero no hay query nueva
-    // Opcional: puedes permitirlo si quieres refrescar
     if (e.key === 'Enter') {
-        if (query.trim()) {
-            onSearch(query);
-        }
-        // Quitamos el foco para cerrar teclado en móviles
-        e.target.blur();
+      if (query.trim()) {
+        onSearch(query);
+      }
+      // Cierra el teclado en móviles.
+      e.target.blur();
     }
   };
 
   return (
     <div className="w-full">
-      <div className="relative">
-        <div 
-          className={`
-            relative flex items-center
-            bg-gradient-to-br from-[#1a1a1a] to-black /* Ajustado a tu paleta dark */
-            border border-white/10
-            rounded-full
-            shadow-lg hover:shadow-xl
-            transition-all duration-300 ease-out
-            ${isFocused ? 'ring-1 ring-green-500 scale-[1.01] border-green-500/50' : ''}
-            ${loading ? 'opacity-80' : ''}
-          `}
-        >
-          {/* Icono de búsqueda */}
-          <div className="absolute left-4 flex items-center pointer-events-none">
-            <IoSearch 
-              className={`
-                transition-all duration-300
-                ${isFocused ? 'text-green-500' : 'text-gray-400'}
-              `}
-              size={20}
-            />
-          </div>
-
-          {/* Input */}
-          <input 
-            type="text" 
-            placeholder="¿Qué quieres escuchar?"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleSubmit} // Simplificado
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            disabled={loading}
-            className="
-              w-full
-              bg-transparent
-              text-white
-              placeholder-gray-500
-              text-base
-              font-medium
-              py-3 pl-12 pr-12 /* Ajustado padding para iconos */
-              outline-none
-              transition-all duration-300
-              disabled:cursor-not-allowed
-            "
+      <div
+        className={`
+          relative flex items-center rounded-full
+          bg-white/[0.06] border transition-all duration-300 ease-out
+          ${isFocused
+            ? 'border-white/40 bg-white/[0.09] shadow-[0_0_0_4px_rgba(255,255,255,0.06)]'
+            : 'border-white/10 hover:border-white/20'}
+          ${loading ? 'opacity-80' : ''}
+        `}
+      >
+        <div className="absolute left-4 flex items-center pointer-events-none">
+          <IoSearch
+            className={`transition-colors duration-300 ${isFocused ? 'text-white' : 'text-white/40'}`}
+            size={20}
           />
-
-          {/* Indicador de carga */}
-          {loading && (
-            <div className="absolute right-4 flex items-center">
-              <IoReload 
-                className="text-green-500 animate-spin" 
-                size={20}
-              />
-            </div>
-          )}
         </div>
+
+        <input
+          type="text"
+          placeholder="Canciones, artistas o álbumes"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={handleSubmit}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          disabled={loading}
+          className="w-full bg-transparent text-white placeholder-white/35 text-base font-medium py-3.5 pl-12 pr-12 outline-none disabled:cursor-not-allowed"
+        />
+
+        {loading && (
+          <div className="absolute right-4 flex items-center">
+            <IoReload className="text-white/70 animate-spin" size={20} />
+          </div>
+        )}
       </div>
     </div>
   );
