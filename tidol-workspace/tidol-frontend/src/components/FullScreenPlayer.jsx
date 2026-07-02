@@ -346,8 +346,8 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                         </button>
 
                         <div
-                            className="fsp-art w-full max-w-[420px] aspect-square"
-                            style={{ transform: isPlaying ? 'scale(1)' : 'scale(0.86)' }}
+                            className="fsp-art aspect-square"
+                            style={{ width: 'min(32vw, 560px)', transform: isPlaying ? 'scale(1)' : 'scale(0.86)' }}
                         >
                             <div className="relative w-full h-full rounded-[18px] overflow-hidden shadow-[0_40px_80px_-20px_rgba(0,0,0,.7)]">
                                 <img
@@ -360,14 +360,24 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                             </div>
                         </div>
 
-                        <div className="w-full max-w-[420px] mt-8">
-                            <div className="text-[28px] font-bold tracking-[-.4px] text-white truncate">{songTitle}</div>
+                        <div className="mt-7 flex items-center gap-4" style={{ width: 'min(32vw, 560px)' }}>
+                            <div className="min-w-0 flex-1">
+                                <div className="text-[26px] font-bold tracking-[-.4px] text-white truncate">{songTitle}</div>
+                                <button
+                                    onClick={() => handleNavigation('artist')}
+                                    className="block text-[19px] font-normal mt-0.5 truncate max-w-full hover:underline"
+                                    style={{ color: accent }}
+                                >
+                                    {songArtist}
+                                </button>
+                            </div>
                             <button
-                                onClick={() => handleNavigation('artist')}
-                                className="text-[20px] font-normal mt-0.5 truncate max-w-full hover:underline"
-                                style={{ color: accent }}
+                                onClick={handleLikeToggle}
+                                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all active:scale-90 shrink-0"
+                                style={{ color: isLiked ? accent : '#fff' }}
+                                aria-label={isLiked ? 'Quitar de favoritos' : 'Añadir a favoritos'}
                             >
-                                {songArtist}
+                                <HeartIcon size={19} />
                             </button>
                         </div>
                     </div>
@@ -401,21 +411,9 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                             backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)'
                         }}
                     >
-                        {/* Izquierda: identidad compacta + corazón */}
-                        <div className="flex items-center gap-4 min-w-0">
-                            <div className="min-w-0 max-w-[230px]">
-                                <div className="text-base font-bold text-white truncate">{songTitle}</div>
-                                <div className="text-sm text-white/55 truncate">{songArtist}</div>
-                            </div>
-                            <button
-                                onClick={handleLikeToggle}
-                                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all active:scale-90 shrink-0"
-                                style={{ color: isLiked ? accent : '#fff' }}
-                                aria-label={isLiked ? 'Quitar de favoritos' : 'Añadir a favoritos'}
-                            >
-                                <HeartIcon size={18} />
-                            </button>
-                        </div>
+                        {/* Izquierda: vacío a propósito (la identidad vive bajo la portada;
+                            mantiene la cuadrícula 1fr-auto-1fr centrando el transporte) */}
+                        <div />
 
                         {/* Centro: transporte + progreso */}
                         <div className="flex flex-col items-center gap-2 w-[560px]">
@@ -508,8 +506,9 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                         </div>
                     </div>
 
-                    {/* Espaciador flexible: el arte queda arriba, los controles abajo */}
-                    <div className="flex-1 min-h-4" />
+                    {/* Espaciadores 3:2: el hueco mayor queda entre arte y título,
+                        pero los controles suben respecto al borde inferior */}
+                    <div className="flex-[3] min-h-4" />
 
                     {/* Título + acciones */}
                     <div className="flex items-center justify-between gap-3.5 flex-none">
@@ -608,7 +607,7 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                     </div>
 
                     {/* Barra inferior: Letra / Cola */}
-                    <div className="flex-none flex items-center justify-between px-8 pt-5 pb-8">
+                    <div className="flex-none flex items-center justify-between px-8 pt-5 pb-3">
                         <button
                             onClick={() => setViewMode(viewMode === 'lyrics' ? 'cover' : 'lyrics')}
                             className="p-1.5 transition-colors active:scale-90"
@@ -626,6 +625,9 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                             <IoList size={24} />
                         </button>
                     </div>
+
+                    {/* Espaciador inferior: levanta el bloque de controles */}
+                    <div className="flex-[2] min-h-3 max-h-16" />
 
                     {/* Overlay: LETRA */}
                     {viewMode === 'lyrics' && (

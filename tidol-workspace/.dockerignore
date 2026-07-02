@@ -9,15 +9,11 @@ plugins/provider-ai/target/
 venv/
 .venv/
 
-# Frontends (no se necesitan en el backend)
-tidol-frontend/node_modules/
-tidol-frontend/.svelte-kit/
-tidol-frontend/build/
-tidol-frontend/dist/
-tidol-tv-lite/node_modules/
-tidol-tv-lite/.svelte-kit/
-tidol-tv-lite/build/
-tidol-tv-lite/dist/
+# Frontends (no se necesitan en el backend): excluirlos COMPLETOS evita que un
+# cambio de UI invalide la capa COPY del backend y dispare un rebuild de cargo
+# de ~8 min en cada deploy. El frontend tiene su propio contexto de build.
+tidol-frontend/
+tidol-tv-lite/
 tidol-tv-lite-backup/
 
 # Datos de usuario y almacenamiento local
