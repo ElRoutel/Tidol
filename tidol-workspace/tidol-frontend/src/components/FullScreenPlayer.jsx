@@ -185,7 +185,6 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
 
     const songTitle = currentSong?.trackName || currentSong?.titulo || currentSong?.title || 'Sin título';
     const songArtist = currentSong?.artistName || currentSong?.artista || currentSong?.artist || 'Artista desconocido';
-    const songAlbum = currentSong?.albumName || currentSong?.album || null;
     const longTitle = songTitle.length > (isDesktop ? 26 : 17);
 
     const isLiked = currentSong ? isSongLiked(currentSong.id) : false;
@@ -480,24 +479,21 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                 // ═══════════════ MOBILE (<1024px) ═══════════════
                 <div className="relative z-10 flex flex-col h-full w-full px-[26px] pt-safe-top">
 
-                    {/* Grabber + contexto */}
-                    <div className="flex flex-col items-center gap-3 pt-4 flex-none">
+                    {/* Grabber */}
+                    <div className="flex justify-center pt-3 pb-2 flex-none">
                         <button
                             onClick={closeFullScreenPlayer}
-                            className="w-10 h-6 flex items-center justify-center"
+                            className="w-12 h-6 flex items-center justify-center"
                             aria-label="Cerrar reproductor"
                         >
                             <span className="w-[38px] h-[5px] rounded-[3px] bg-white/35" />
                         </button>
-                        <div className="uppercase text-[11px] tracking-[1.4px] font-semibold text-white/55">
-                            Reproduciendo{songAlbum ? ` · ${songAlbum}` : ''}
-                        </div>
                     </div>
 
-                    {/* Portada que respira */}
-                    <div className="flex-1 flex items-center justify-center min-h-0 py-4">
+                    {/* Portada que respira — arriba, pegada al grabber (estilo Apple Music) */}
+                    <div className="flex-none flex justify-center pt-2">
                         <div
-                            className="fsp-art w-full max-w-[340px] aspect-square"
+                            className="fsp-art w-full max-w-[400px] aspect-square"
                             style={{ transform: isPlaying ? 'scale(1)' : 'scale(0.84)' }}
                         >
                             <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-[0_28px_60px_-12px_rgba(0,0,0,.6)]">
@@ -512,12 +508,22 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                         </div>
                     </div>
 
+                    {/* Espaciador flexible: el arte queda arriba, los controles abajo */}
+                    <div className="flex-1 min-h-4" />
+
                     {/* Título + acciones */}
                     <div className="flex items-center justify-between gap-3.5 flex-none">
                         <div className="min-w-0 flex-1">
                             <div
                                 className="overflow-hidden"
-                                style={{ maskImage: 'linear-gradient(to right, #000 86%, transparent)', WebkitMaskImage: 'linear-gradient(to right, #000 86%, transparent)' }}
+                                style={(() => {
+                                    // Con marquee activo se desvanecen ambos bordes (el duplicado
+                                    // entra por la izquierda); estático, solo el derecho.
+                                    const mask = longTitle
+                                        ? 'linear-gradient(to right, transparent 0, #000 5%, #000 86%, transparent)'
+                                        : 'linear-gradient(to right, #000 86%, transparent)';
+                                    return { maskImage: mask, WebkitMaskImage: mask };
+                                })()}
                             >
                                 <div className={`flex w-max ${longTitle ? 'animate-marquee' : ''}`}>
                                     <span className="text-[23px] font-bold tracking-[-.3px] text-white whitespace-nowrap pr-11">{songTitle}</span>

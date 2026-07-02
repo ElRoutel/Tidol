@@ -133,6 +133,24 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const progressRef = useRef(0); // Stable ref for drift detection (avoids interval churn)
     const volumeRef = useRef(1); // Stable ref for volume restoration
 
+    // ── Reproducción en segundo plano ────────────────────────────
+    // "Intención" del usuario: distingue una pausa pedida por él de una pausa
+    // impuesta por el navegador móvil al ocultar la pestaña / bloquear pantalla
+    // (los navegadores pausan el <video> del IFrame de YouTube en background).
+    const intendedPlayingRef = useRef(false);
+    const bgResumeAttemptsRef = useRef(0);
+    const lastPosStateRef = useRef(0);
+
+    // Alimenta la posición a los controles del sistema (lockscreen/notificación).
+    const updatePositionState = useCallback((position: number, dur: number) => {
+        if (!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState) return;
+        try {
+            if (dur > 0 && position >= 0 && position <= dur) {
+                navigator.mediaSession.setPositionState({ duration: dur, position, playbackRate: 1 });
+            }
+        } catch { /* valores transitorios fuera de rango durante cambios de pista */ }
+    }, []);
+
     const updateSpectraData = useCallback((data: any) => {
         setSpectraData((prev: any) => ({ ...prev, ...data }));
     }, []);
@@ -269,11 +287,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             });
 
             navigator.mediaSession.setActionHandler('play', () => {
+                intendedPlayingRef.current = true;
                 if (playbackModeRef.current === 'youtube') ytRef.current?.play();
                 else engineRef.current?.resume();
                 setIsPlaying(true);
             });
             navigator.mediaSession.setActionHandler('pause', () => {
+                intendedPlayingRef.current = false;
                 if (playbackModeRef.current === 'youtube') ytRef.current?.pause();
                 else engineRef.current?.pause();
                 setIsPlaying(false);
@@ -286,9 +306,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                 if (details.seekTime == null) return;
                 if (playbackModeRef.current === 'youtube') ytRef.current?.seek(details.seekTime);
                 else engineRef.current?.seek(details.seekTime);
+                updatePositionState(details.seekTime, durationRef.current);
             });
 
             navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+            updatePositionState(progressRef.current, durationRef.current);
         }
 
         const syncHistory = async () => {
@@ -344,6 +366,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }, [currentTrack]);
 
 
+    // Estado de reproducción siempre sincronizado con los controles del sistema
+    // (antes solo se fijaba al cambiar de pista, y el lockscreen quedaba desfasado).
+    useEffect(() => {
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+        }
+    }, [isPlaying]);
+
     // ── Engine event listeners ───────────────────────────────────
     useEffect(() => {
         const engine = engineRef.current;
@@ -362,6 +392,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                     setDuration(d);
                 }
                 progressMotion.set((currentTime / d) * 100);
+
+                // Posición para el lockscreen (throttled: cada ~5s basta).
+                if (Date.now() - lastPosStateRef.current > 5000) {
+                    lastPosStateRef.current = Date.now();
+                    updatePositionState(currentTime, d);
+                }
             }
         };
         const handleStateChange = (e: any) => {
@@ -405,8 +441,30 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
     const handleYtStateChange = useCallback((s: 'playing' | 'paused' | 'ended' | 'buffering') => {
         if (playbackModeRef.current !== 'youtube') return;
-        if (s === 'playing') { setIsPlaying(true); setIsLoading(false); }
-        else if (s === 'paused') { setIsPlaying(false); }
+        if (s === 'playing') {
+            setIsPlaying(true);
+            setIsLoading(false);
+            bgResumeAttemptsRef.current = 0;
+        }
+        else if (s === 'paused') {
+            setIsPlaying(false);
+            // Reproducción en segundo plano: el navegador móvil pausa el <video>
+            // del IFrame al ocultar la página. Si el usuario NO pidió pausar,
+            // reanudamos de inmediato (la pestaña sigue "audible" y no se
+            // congela). Límite de intentos para no pelear con una pausa real.
+            if (
+                intendedPlayingRef.current &&
+                document.hidden &&
+                bgResumeAttemptsRef.current < 10
+            ) {
+                bgResumeAttemptsRef.current += 1;
+                setTimeout(() => {
+                    if (intendedPlayingRef.current && playbackModeRef.current === 'youtube' && document.hidden) {
+                        ytRef.current?.play();
+                    }
+                }, 200);
+            }
+        }
         else if (s === 'buffering') { setIsLoading(true); }
         else if (s === 'ended') {
             if (repeatModeRef.current === 'one') {
@@ -425,8 +483,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         if (dur) {
             if (Math.abs(durationRef.current - dur) > 0.1) { durationRef.current = dur; setDuration(dur); }
             progressMotion.set((currentTime / dur) * 100);
+
+            if (Date.now() - lastPosStateRef.current > 5000) {
+                lastPosStateRef.current = Date.now();
+                updatePositionState(currentTime, dur);
+            }
         }
-    }, [currentTimeMotion, progressMotion]);
+    }, [currentTimeMotion, progressMotion, updatePositionState]);
 
     const handleYtError = useCallback((err: any) => {
         console.error('[PlayerContext] YouTube embed error:', err);
@@ -441,6 +504,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     // Resuelve la pista a una fuente legal y arranca la reproducción correcta.
     const startPlayback = useCallback(async (track: UnifiedTrack) => {
         const seq = ++playbackSeqRef.current;
+        intendedPlayingRef.current = true;
+        bgResumeAttemptsRef.current = 0;
         setCurrentTrack(track);
         setIsLoading(true);
         setIsPlaying(false);
@@ -489,15 +554,32 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         } catch (err) {
             if (seq !== playbackSeqRef.current) return;
             console.error('[PlayerContext] startPlayback:', err);
+            intendedPlayingRef.current = false;
             setIsLoading(false);
             setIsPlaying(false);
         }
     }, [currentTimeMotion, progressMotion]);
 
+    // Al volver a primer plano: si el navegador nos dejó pausados contra la
+    // intención del usuario, reanudar. También cubre navegadores que congelan
+    // los timers en background (el reintento diferido nunca llegó a correr).
+    useEffect(() => {
+        const onVisibilityChange = () => {
+            if (document.hidden) return;
+            if (intendedPlayingRef.current && playbackModeRef.current === 'youtube') {
+                bgResumeAttemptsRef.current = 0;
+                ytRef.current?.play();
+            }
+        };
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+    }, []);
+
 
     // ── Actions ──────────────────────────────────────────────────
 
     const togglePlayPause = useCallback(() => {
+        intendedPlayingRef.current = !isPlaying;
         if (playbackModeRef.current === 'youtube') {
             if (isPlaying) ytRef.current?.pause();
             else ytRef.current?.play();
@@ -613,11 +695,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                 stopStems();
                 startPlayback(normalizedNewTracks[0]);
             } else {
+                intendedPlayingRef.current = false;
                 engineRef.current.pause();
                 setIsPlaying(false);
             }
         } catch (error) {
             console.error("Fallo al obtener la Radio Infinita:", error);
+            intendedPlayingRef.current = false;
             engineRef.current.pause();
             setIsPlaying(false);
         }
