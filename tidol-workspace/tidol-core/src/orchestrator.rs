@@ -72,17 +72,36 @@ impl MetadataOrchestrator {
         limit: u32,
         offset: u32,
     ) -> Result<SearchResponse, Box<dyn std::error::Error + Send + Sync>> {
-        let mut mb_query = Recording::search(query.to_string());
-        mb_query.limit(limit as u8).offset(offset as u16);
+        // Llamada DIRECTA a la API JSON de MusicBrainz con nuestro cliente
+        // (timeout 8s). musicbrainz_rs serializa TODO el proceso por un
+        // rate-limiter global de 1 req/s: con radio/hydrate encolando decenas
+        // de peticiones, cada búsqueda esperaba minutos y el spinner del
+        // frontend nunca terminaba. La búsqueda es interactiva: no puede
+        // compartir cola con trabajos de fondo.
+        let rec_url = format!(
+            "https://musicbrainz.org/ws/2/recording?query={}&fmt=json&limit={}&offset={}",
+            urlencoding::encode(query),
+            limit,
+            offset
+        );
+        let artist_url = format!(
+            "https://musicbrainz.org/ws/2/artist?query={}&fmt=json&limit=3",
+            urlencoding::encode(query)
+        );
 
-        let mut artist_query = Artist::search(query.to_string());
-        artist_query.limit(3);
+        let (rec_res, artist_res) = tokio::join!(
+            self.http_client
+                .get(&rec_url)
+                .header("User-Agent", "TidolCore/1.0 (contact@tidol.duckdns.org)")
+                .send(),
+            self.http_client
+                .get(&artist_url)
+                .header("User-Agent", "TidolCore/1.0 (contact@tidol.duckdns.org)")
+                .send()
+        );
 
-        // Ejecutamos ambas en paralelo si es posible, o secuencial.
-        let (mb_results_res, artist_results_res) =
-            tokio::join!(mb_query.execute_async(), artist_query.execute_async());
-
-        let mb_results = mb_results_res?;
+        let rec_json: serde_json::Value = rec_res?.json().await?;
+        let total_count = rec_json["count"].as_u64().unwrap_or(0) as u32;
 
         // Términos que delatan grabaciones no canónicas (megamix/karaoke/etc.)
         const BAD_DISAMBIG: [&str; 9] = [
@@ -97,64 +116,76 @@ impl MetadataOrchestrator {
             "instrumental",
         ];
 
-        // Filtrado primero, portadas después y EN PARALELO: antes se hacían hasta
-        // 20 llamadas HTTP secuenciales a iTunes por búsqueda (waterfall de varios
-        // segundos, o cuelgue total con iTunes bloqueado desde el VPS).
-        let filtered: Vec<_> = mb_results
-            .entities
-            .into_iter()
-            .filter(|recording| {
-                if let Some(disambig) = recording.disambiguation.as_ref() {
-                    let d = disambig.to_lowercase();
-                    if BAD_DISAMBIG.iter().any(|b| d.contains(b)) {
-                        return false;
-                    }
+        // Sin enriquecimiento inline de portadas: la búsqueda antes disparaba
+        // ~20 llamadas a iTunes por request. Ahora cada pista apunta al endpoint
+        // propio /api/v1/covers/:mbid (lazy, cacheado en disco, mismo origen) y
+        // la búsqueda responde en el tiempo de MusicBrainz (~1s).
+        let enriched_tracks: Vec<TrackResponse> = rec_json["recordings"]
+            .as_array()
+            .map(|arr| arr.as_slice())
+            .unwrap_or_default()
+            .iter()
+            .filter(|rec| {
+                let d = rec["disambiguation"].as_str().unwrap_or("").to_lowercase();
+                if !d.is_empty() && BAD_DISAMBIG.iter().any(|b| d.contains(b)) {
+                    return false;
                 }
                 // Descartar videos (versiones en vivo/clips) cuando MB lo marca.
-                recording.video != Some(true)
+                rec["video"].as_bool() != Some(true)
+            })
+            .filter_map(|rec| {
+                let track_id = rec["id"].as_str()?.to_string();
+                let title = rec["title"].as_str().unwrap_or("Sin título").to_string();
+                let artist_name = rec["artist-credit"]
+                    .as_array()
+                    .and_then(|c| c.first())
+                    .and_then(|c| c["name"].as_str())
+                    .unwrap_or("Artista Desconocido")
+                    .to_string();
+                let duration_ms = rec["length"].as_i64().unwrap_or(0);
+
+                Some(TrackResponse {
+                    cover_url: Some(format!("/api/v1/covers/{}", track_id)),
+                    track_id,
+                    title,
+                    artist: artist_name,
+                    source: "musicbrainz".to_string(),
+                    duration: Some((duration_ms / 1000) as i32),
+                    has_lyrics: false,
+                })
             })
             .collect();
 
-        let track_futures = filtered.into_iter().map(|recording| async move {
-            let track_id = recording.id;
-            let title = recording.title;
-            let artist_name = recording
-                .artist_credit
-                .as_ref()
-                .and_then(|c| c.first())
-                .map(|c| c.name.clone())
-                .unwrap_or_else(|| "Artista Desconocido".to_string());
-            let duration_ms = recording.length.unwrap_or(0);
+        // Artistas (máx. 3): la portada de artista sí usa iTunes, en paralelo y
+        // acotada por el timeout del cliente.
+        let artist_entries: Vec<(String, String)> = match artist_res {
+            Ok(res) => res
+                .json::<serde_json::Value>()
+                .await
+                .ok()
+                .and_then(|j| {
+                    j["artists"].as_array().map(|arr| {
+                        arr.iter()
+                            .filter_map(|a| {
+                                Some((a["id"].as_str()?.to_string(), a["name"].as_str()?.to_string()))
+                            })
+                            .take(3)
+                            .collect()
+                    })
+                })
+                .unwrap_or_default(),
+            Err(_) => Vec::new(),
+        };
 
-            let apple_cover = self.fetch_apple_artwork(&title, &artist_name).await;
-
-            TrackResponse {
-                track_id,
-                title,
-                artist: artist_name,
-                cover_url: Some(apple_cover),
-                source: "musicbrainz".to_string(),
-                duration: Some((duration_ms / 1000) as i32),
-                has_lyrics: false,
-            }
-        });
-
-        let artist_entities = artist_results_res
-            .map(|r| r.entities)
-            .unwrap_or_default();
-        let artist_futures = artist_entities.into_iter().map(|artist| async move {
-            let cover_url = self.fetch_apple_artwork(&artist.name, &artist.name).await;
+        let artist_futures = artist_entries.into_iter().map(|(mbid, name)| async move {
+            let cover_url = self.fetch_apple_artwork(&name, &name).await;
             crate::models::ArtistSearchResponse {
-                mbid: artist.id,
-                name: artist.name,
+                mbid,
+                name,
                 cover_url: Some(cover_url),
             }
         });
-
-        let (enriched_tracks, searched_artists) = tokio::join!(
-            futures::future::join_all(track_futures),
-            futures::future::join_all(artist_futures)
-        );
+        let searched_artists = futures::future::join_all(artist_futures).await;
 
         let safe_limit = limit.max(1);
         Ok(SearchResponse {
@@ -165,8 +196,8 @@ impl MetadataOrchestrator {
             artists: searched_artists,
             pagination: PaginationMeta {
                 current_page: (offset / safe_limit) + 1,
-                has_next_page: mb_results.count as u32 > (offset + limit),
-                total_results: Some(mb_results.count as u32),
+                has_next_page: total_count > (offset + limit),
+                total_results: Some(total_count),
             },
         })
     }
@@ -645,13 +676,17 @@ impl MetadataOrchestrator {
             }
         }
 
-        // 2. Discovery: obtener de MusicBrainz y buscar
-        let recording = Recording::fetch()
-            .id(mbid)
-            .with_artists()
-            .execute_async()
-            .await
-            .map_err(|e| format!("MusicBrainz lookup failed: {}", e))?;
+        // 2. Discovery: obtener de MusicBrainz y buscar.
+        // Timeout explícito: musicbrainz_rs encola TODAS las peticiones del
+        // proceso a 1 req/s; si la cola está saturada preferimos fallar esta
+        // resolución de fondo a retener el handler minutos.
+        let recording = tokio::time::timeout(
+            std::time::Duration::from_secs(15),
+            Recording::fetch().id(mbid).with_artists().execute_async(),
+        )
+        .await
+        .map_err(|_| "MusicBrainz lookup timed out (cola saturada)".to_string())?
+        .map_err(|e| format!("MusicBrainz lookup failed: {}", e))?;
 
         let title = recording.title;
         let artist = recording
@@ -1001,13 +1036,40 @@ pub struct TrackProfile {
     pub stream_url: Option<String>,
 }
 
+// Dedupe de prefetch en vuelo: get_listen_again dispara el prefetch de los
+// mismos 3 tracks en cada carga de la Home, lanzando N procesos idénticos.
+static PREFETCH_INFLIGHT: std::sync::OnceLock<std::sync::Mutex<std::collections::HashSet<String>>> =
+    std::sync::OnceLock::new();
+
 pub fn trigger_bad_engine_prefetch(
     mbid: String,
     artist: String,
     title: String,
     db: sqlx::MySqlPool,
 ) {
+    {
+        let set = PREFETCH_INFLIGHT.get_or_init(Default::default);
+        let mut guard = match set.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        if !guard.insert(mbid.clone()) {
+            return; // ya hay un prefetch en vuelo para este mbid
+        }
+    }
     tokio::spawn(async move {
+        // Al terminar (éxito o no), liberar el slot para permitir reintentos futuros.
+        struct Release(String);
+        impl Drop for Release {
+            fn drop(&mut self) {
+                if let Some(set) = PREFETCH_INFLIGHT.get() {
+                    if let Ok(mut g) = set.lock() {
+                        g.remove(&self.0);
+                    }
+                }
+            }
+        }
+        let _release = Release(mbid.clone());
         let needs_processing = match sqlx::query_as::<_, (Option<String>,)>(
             "SELECT lyrics_status FROM track_links WHERE mbid = ? LIMIT 1",
         )

@@ -129,9 +129,13 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
         const mbid = currentSong?.id || currentSong?.trackId;
         if (mbid) {
             setViewMode('cover');
+            // Limpiar SIEMPRE la letra anterior al cambiar de pista: si el fetch
+            // nuevo falla o se retrasa, la letra de la canción previa no debe
+            // quedarse en pantalla (bug: A terminaba, sonaba B, seguía la letra de A).
+            setLyricsData(null);
+            setLyricsError(false);
             if (isFullScreenOpen) {
                 setLyricsLoading(true);
-                setLyricsError(false);
                 api.get(`/lyrics/${mbid}`)
                     .then(res => {
                         if (cancelled) return;
