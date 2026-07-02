@@ -74,7 +74,11 @@ pub async fn get_playlists_handler(
     )
     .fetch_all(&state.db)
     .await
-    .unwrap_or_default();
+    .unwrap_or_else(|e| {
+        // No silenciar: antes un fallo de DB devolvía lista vacía sin rastro.
+        tracing::error!("user_data: error de DB en listado: {}", e);
+        Vec::new()
+    });
 
     let playlists: Vec<serde_json::Value> = rows
         .into_iter()
@@ -164,7 +168,11 @@ pub async fn get_playlist_handler(
     )
     .fetch_all(&state.db)
     .await
-    .unwrap_or_default();
+    .unwrap_or_else(|e| {
+        // No silenciar: antes un fallo de DB devolvía lista vacía sin rastro.
+        tracing::error!("user_data: error de DB en listado: {}", e);
+        Vec::new()
+    });
 
     let songs: Vec<serde_json::Value> = rows
         .into_iter()
@@ -244,7 +252,11 @@ pub async fn get_playlist_songs_handler(
     )
     .fetch_all(&state.db)
     .await
-    .unwrap_or_default();
+    .unwrap_or_else(|e| {
+        // No silenciar: antes un fallo de DB devolvía lista vacía sin rastro.
+        tracing::error!("user_data: error de DB en listado: {}", e);
+        Vec::new()
+    });
 
     let songs: Vec<serde_json::Value> = rows
         .into_iter()
@@ -357,7 +369,11 @@ pub async fn get_history_handler(
     )
     .fetch_all(&state.db)
     .await
-    .unwrap_or_default();
+    .unwrap_or_else(|e| {
+        // No silenciar: antes un fallo de DB devolvía lista vacía sin rastro.
+        tracing::error!("user_data: error de DB en listado: {}", e);
+        Vec::new()
+    });
 
     let history: Vec<serde_json::Value> = rows
         .into_iter()
@@ -409,7 +425,11 @@ pub async fn get_local_likes_handler(
     )
     .fetch_all(&state.db)
     .await
-    .unwrap_or_default();
+    .unwrap_or_else(|e| {
+        // No silenciar: antes un fallo de DB devolvía lista vacía sin rastro.
+        tracing::error!("user_data: error de DB en listado: {}", e);
+        Vec::new()
+    });
 
     let likes: Vec<String> = rows.into_iter().map(|r| r.track_id).collect();
     Json(likes)
@@ -425,7 +445,11 @@ pub async fn get_ia_likes_handler(
     )
     .fetch_all(&state.db)
     .await
-    .unwrap_or_default();
+    .unwrap_or_else(|e| {
+        // No silenciar: antes un fallo de DB devolvía lista vacía sin rastro.
+        tracing::error!("user_data: error de DB en listado: {}", e);
+        Vec::new()
+    });
 
     let likes: Vec<String> = rows.into_iter().map(|r| r.track_id).collect();
     Json(likes)

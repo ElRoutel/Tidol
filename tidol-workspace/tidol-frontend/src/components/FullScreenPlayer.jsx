@@ -60,6 +60,10 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
     const [lyricsError, setLyricsError] = useState(false);
 
     useEffect(() => {
+        // Flag de cancelación: al cambiar rápido de pista quedaban dos requests en
+        // vuelo y la respuesta MÁS LENTA (letra de la canción anterior) podía
+        // pisar a la correcta.
+        let cancelled = false;
         // El id canónico puede venir en `id` (álbum/normalizeTrackList) o solo en
         // `trackId` (Home "Volver a escuchar"/normalizeToUnifiedTrack). Antes solo se
         // usaba `id`, por lo que las canciones fuera del álbum no cargaban letras.
@@ -72,6 +76,7 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                 setLyricsError(false);
                 api.get(`/lyrics/${mbid}`)
                     .then(res => {
+                        if (cancelled) return;
                         const data = res.data;
                         if (data && data.type && data.lines) {
                             console.log(`[Debug] Payload de letras recibido: type="${data.type}", lines=${Array.isArray(data.lines) ? data.lines.length : '?'} items`);
@@ -82,6 +87,7 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                         }
                     })
                     .catch(error => {
+                        if (cancelled) return;
                         if (error.response && error.response.status === 404) {
                             // Es normal, la letra aún no existe o está procesándose
                             console.log("[Debug] Letras no encontradas (404) — caché negativo o pending");
@@ -98,10 +104,11 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                         }
                     })
                     .finally(() => {
-                        setLyricsLoading(false);
+                        if (!cancelled) setLyricsLoading(false);
                     });
             }
         }
+        return () => { cancelled = true; };
     }, [currentSong?.id, currentSong?.trackId, isFullScreenOpen]);
 
     useEffect(() => {
@@ -323,7 +330,15 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                                 <motion.span className="text-xs text-white/40 w-10 text-right font-mono">{displayTimeText}</motion.span>
                                 <div className="relative flex-1 h-1.5 bg-white/20 rounded-full cursor-pointer group-hover:h-2 transition-all">
                                     <motion.div className="absolute h-full bg-white rounded-full" style={{ width: displayWidth, willChange: 'width' }} />
-                                    <motion.input type="range" min="0" max={duration || 100} step="0.01" value={isScrubbing ? localProgress : currentTimeMotion} onChange={(e) => { setIsScrubbing(true); setLocalProgress(parseFloat(e.target.value)); seek(parseFloat(e.target.value)); }} onMouseUp={() => setIsScrubbing(false)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                                    {/* seek() solo al soltar: hacerlo en cada onChange durante el
+                                        arrastre machacaba el motor (y el IFrame de YouTube) con
+                                        decenas de seeks por segundo. */}
+                                    <input type="range" min="0" max={duration || 100} step="0.01"
+                                        value={isScrubbing ? localProgress : (currentTimeMotion.get() || 0)}
+                                        onPointerDown={() => { setLocalProgress(currentTimeMotion.get() || 0); setIsScrubbing(true); }}
+                                        onChange={(e) => setLocalProgress(parseFloat(e.target.value))}
+                                        onPointerUp={(e) => { seek(parseFloat(e.target.value)); setIsScrubbing(false); }}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
                                 </div>
                                 <span className="text-xs text-white/40 w-10 font-mono">{formatTime(duration)}</span>
                             </div>
@@ -331,21 +346,8 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
 
                         <div className="flex items-center justify-end gap-6 w-[25%]">
                             <div className="flex items-center gap-3">
-                                <button
-                                    onClick={handleToggleVox}
-                                    disabled={voxLoading}
-                                    className={`text-white/60 hover:text-white transition-all active:scale-90 ${voxLoading ? 'opacity-30 animate-pulse' : voxMode ? 'text-[#1db954]' : ''}`}
-                                >
-                                    <IoMic size={24} />
-                                </button>
-                                <button
-                                    onClick={handleToggleVoxType}
-                                    disabled={voxLoading}
-                                    className={`text-white/50 hover:text-white text-[13px] font-bold px-2 py-1 rounded-md active:scale-95 transition-all ${voxLoading ? 'opacity-30' : voxType === 'vocals' ? 'bg-white/10 text-white' : ''}`}
-                                >
-                                    {voxLoading ? '...' : voxType === 'vocals' ? 'V' : 'K'}
-                                </button>
-                            </div>
+                 
+                                                           </div>
                             <button onClick={() => setViewMode(viewMode === 'queue' ? 'cover' : 'queue')} className={`text-white/60 hover:text-white transition-colors active:scale-90 ${viewMode === 'queue' ? 'text-[#1db954]' : ''}`}><IoList size={24} /></button>
                             <div className="flex items-center gap-3 w-32 group">
                                 <IoVolumeHigh size={20} className="text-white/60" />
@@ -440,7 +442,12 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                         onPointerDown={(e) => e.stopPropagation()} // Aísla el toque para que no mueva la pantalla
                     >
                         <div className="relative w-full h-8 flex items-center cursor-pointer">
-                            <motion.input type="range" min="0" max={duration || 100} step="0.01" value={isScrubbing ? localProgress : currentTimeMotion} onChange={(e) => { setIsScrubbing(true); setLocalProgress(parseFloat(e.target.value)); seek(parseFloat(e.target.value)); }} onMouseUp={() => setIsScrubbing(false)} onTouchEnd={() => setIsScrubbing(false)} className="absolute z-20 opacity-0 w-full h-full cursor-pointer" />
+                            <input type="range" min="0" max={duration || 100} step="0.01"
+                                value={isScrubbing ? localProgress : (currentTimeMotion.get() || 0)}
+                                onPointerDown={() => { setLocalProgress(currentTimeMotion.get() || 0); setIsScrubbing(true); }}
+                                onChange={(e) => setLocalProgress(parseFloat(e.target.value))}
+                                onPointerUp={(e) => { seek(parseFloat(e.target.value)); setIsScrubbing(false); }}
+                                className="absolute z-20 opacity-0 w-full h-full cursor-pointer" />
                             <div className="absolute w-full h-[4px] bg-white/20 rounded-full overflow-hidden pointer-events-none">
                                 <motion.div className="h-full bg-white rounded-full" style={{ width: displayWidth, willChange: 'width' }} />
                             </div>
@@ -491,7 +498,7 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                             </button>  
 
 
-                                <p className="w-full flex items-center justify-center px-4"> BETA </p>
+                                <p className="w-full flex items-center justify-center px-4"> </p>
 
 
                             <button onClick={() => setViewMode(viewMode === 'queue' ? 'cover' : 'queue')} className={`transition-colors active:scale-90 p-2 ${viewMode === 'queue' ? 'text-[#1db954]' : 'hover:text-white'}`}>

@@ -7,7 +7,7 @@ use musicbrainz_rs::entity::release_group::ReleaseGroup;
 use musicbrainz_rs::{Fetch, Search};
 use reqwest::Client;
 use serde::Deserialize;
-use tracing::{error, info, warn};
+use tracing::info;
 
 #[derive(Deserialize)]
 struct ItunesSearchResponse {
@@ -55,10 +55,14 @@ pub struct MetadataOrchestrator {
 impl MetadataOrchestrator {
     pub fn new() -> Self {
         Self {
+            // Timeout obligatorio: sin él, una API externa colgada (iTunes está
+            // bloqueado desde el VPS) dejaba el handler esperando indefinidamente.
             http_client: Client::builder()
                 .user_agent("TidolCore/1.0")
+                .timeout(std::time::Duration::from_secs(8))
+                .connect_timeout(std::time::Duration::from_secs(4))
                 .build()
-                .unwrap(),
+                .unwrap_or_else(|_| Client::new()),
         }
     }
 
@@ -79,19 +83,6 @@ impl MetadataOrchestrator {
             tokio::join!(mb_query.execute_async(), artist_query.execute_async());
 
         let mb_results = mb_results_res?;
-        let mut searched_artists = Vec::new();
-        if let Ok(artist_results) = artist_results_res {
-            for artist in artist_results.entities {
-                let cover_url = self.fetch_apple_artwork(&artist.name, &artist.name).await;
-                searched_artists.push(crate::models::ArtistSearchResponse {
-                    mbid: artist.id,
-                    name: artist.name,
-                    cover_url: Some(cover_url),
-                });
-            }
-        }
-
-        let mut enriched_tracks = Vec::new();
 
         // Términos que delatan grabaciones no canónicas (megamix/karaoke/etc.)
         const BAD_DISAMBIG: [&str; 9] = [
@@ -106,19 +97,25 @@ impl MetadataOrchestrator {
             "instrumental",
         ];
 
-        for recording in mb_results.entities {
-            // Descartar grabaciones no canónicas según su disambiguation.
-            if let Some(disambig) = recording.disambiguation.as_ref() {
-                let d = disambig.to_lowercase();
-                if BAD_DISAMBIG.iter().any(|b| d.contains(b)) {
-                    continue;
+        // Filtrado primero, portadas después y EN PARALELO: antes se hacían hasta
+        // 20 llamadas HTTP secuenciales a iTunes por búsqueda (waterfall de varios
+        // segundos, o cuelgue total con iTunes bloqueado desde el VPS).
+        let filtered: Vec<_> = mb_results
+            .entities
+            .into_iter()
+            .filter(|recording| {
+                if let Some(disambig) = recording.disambiguation.as_ref() {
+                    let d = disambig.to_lowercase();
+                    if BAD_DISAMBIG.iter().any(|b| d.contains(b)) {
+                        return false;
+                    }
                 }
-            }
-            // Descartar videos (versiones en vivo/clips) cuando MB lo marca.
-            if recording.video == Some(true) {
-                continue;
-            }
+                // Descartar videos (versiones en vivo/clips) cuando MB lo marca.
+                recording.video != Some(true)
+            })
+            .collect();
 
+        let track_futures = filtered.into_iter().map(|recording| async move {
             let track_id = recording.id;
             let title = recording.title;
             let artist_name = recording
@@ -129,20 +126,37 @@ impl MetadataOrchestrator {
                 .unwrap_or_else(|| "Artista Desconocido".to_string());
             let duration_ms = recording.length.unwrap_or(0);
 
-            // Fetch Apple 4K cover
             let apple_cover = self.fetch_apple_artwork(&title, &artist_name).await;
 
-            enriched_tracks.push(TrackResponse {
+            TrackResponse {
                 track_id,
                 title,
-                artist: artist_name.clone(),
+                artist: artist_name,
                 cover_url: Some(apple_cover),
                 source: "musicbrainz".to_string(),
                 duration: Some((duration_ms / 1000) as i32),
                 has_lyrics: false,
-            });
-        }
+            }
+        });
 
+        let artist_entities = artist_results_res
+            .map(|r| r.entities)
+            .unwrap_or_default();
+        let artist_futures = artist_entities.into_iter().map(|artist| async move {
+            let cover_url = self.fetch_apple_artwork(&artist.name, &artist.name).await;
+            crate::models::ArtistSearchResponse {
+                mbid: artist.id,
+                name: artist.name,
+                cover_url: Some(cover_url),
+            }
+        });
+
+        let (enriched_tracks, searched_artists) = tokio::join!(
+            futures::future::join_all(track_futures),
+            futures::future::join_all(artist_futures)
+        );
+
+        let safe_limit = limit.max(1);
         Ok(SearchResponse {
             query: query.to_string(),
             canonical_hit: enriched_tracks.first().cloned(),
@@ -150,7 +164,7 @@ impl MetadataOrchestrator {
             archive_results: enriched_tracks,
             artists: searched_artists,
             pagination: PaginationMeta {
-                current_page: (offset / limit) + 1,
+                current_page: (offset / safe_limit) + 1,
                 has_next_page: mb_results.count as u32 > (offset + limit),
                 total_results: Some(mb_results.count as u32),
             },
@@ -260,7 +274,8 @@ impl MetadataOrchestrator {
             "https://musicbrainz.org/ws/2/artist/{}?fmt=json",
             artist_mbid
         );
-        let client = reqwest::Client::new();
+        // Reutiliza el cliente compartido (pooling + timeout) en vez de crear uno nuevo.
+        let client = &self.http_client;
         let res = client
             .get(&mb_url)
             .header("User-Agent", "TidolCore/0.1.0 ( contact@tidol.com )")
@@ -408,7 +423,7 @@ impl MetadataOrchestrator {
         .await?;
 
         if tracks.is_empty() {
-            let client = reqwest::Client::new();
+            let client = &self.http_client;
             let mb_search_url = format!(
                 "https://musicbrainz.org/ws/2/release?release-group={}&inc=recordings&fmt=json",
                 album_mbid
@@ -698,8 +713,9 @@ impl MetadataOrchestrator {
         limit: u8,
         db: &sqlx::MySqlPool,
     ) -> Result<Vec<TrackProfile>, String> {
-        //Hey dude no use my api key ;D
-        let lastfm_api_key = "27ef86c506629a10c7378bd848149f2e";
+        // Clave por env; el literal queda solo como fallback de desarrollo.
+        let lastfm_api_key = std::env::var("LASTFM_API_KEY")
+            .unwrap_or_else(|_| "27ef86c506629a10c7378bd848149f2e".to_string());
         let url = format!(
             "http://ws.audioscrobbler.com/2.0/?method=track.getsimilar&artist={}&track={}&api_key={}&format=json&limit={}",
             urlencoding::encode(artist),
@@ -721,49 +737,56 @@ impl MetadataOrchestrator {
             .and_then(|s| s.get("track"))
             .and_then(|t| t.as_array());
 
-        let mut result_tracks = Vec::new();
-
-        if let Some(tracks) = similar_tracks {
-            for track in tracks {
-                let track_name = track["name"].as_str().unwrap_or("");
-                let artist_name = track["artist"]["name"].as_str().unwrap_or("");
-
-                if track_name.is_empty() || artist_name.is_empty() {
-                    continue;
-                }
-
-                let query = format!(
-                    "recording:\"{}\" AND artist:\"{}\"",
-                    track_name, artist_name
-                );
-                let mb_url = format!(
-                    "https://musicbrainz.org/ws/2/recording?query={}&fmt=json&limit=1",
-                    urlencoding::encode(&query)
-                );
-
-                if let Ok(mb_res) = self
-                    .http_client
-                    .get(&mb_url)
-                    .header("User-Agent", "TidolCore/1.0")
-                    .send()
-                    .await
-                {
-                    if let Ok(mb_json) = mb_res.json::<serde_json::Value>().await {
-                        if let Some(recordings) =
-                            mb_json.get("recordings").and_then(|r| r.as_array())
-                        {
-                            if let Some(first) = recordings.first() {
-                                if let Some(mbid) = first.get("id").and_then(|id| id.as_str()) {
-                                    if let Ok(profile) = self.resolve_full_track(mbid, db).await {
-                                        result_tracks.push(profile);
-                                    }
-                                }
-                            }
+        // Antes: por cada pista similar, 1 lookup MB + resolve_full_track en SERIE
+        // (10 pistas ≈ 20-30 requests encadenados → la radio tardaba >10s).
+        // Ahora las resoluciones corren en paralelo.
+        let lookup_futures: Vec<_> = similar_tracks
+            .map(|tracks| {
+                tracks
+                    .iter()
+                    .filter_map(|track| {
+                        let track_name = track["name"].as_str().unwrap_or("");
+                        let artist_name = track["artist"]["name"].as_str().unwrap_or("");
+                        if track_name.is_empty() || artist_name.is_empty() {
+                            return None;
                         }
-                    }
-                }
-            }
-        }
+                        Some((track_name.to_string(), artist_name.to_string()))
+                    })
+                    .map(|(track_name, artist_name)| async move {
+                        let query = format!(
+                            "recording:\"{}\" AND artist:\"{}\"",
+                            track_name, artist_name
+                        );
+                        let mb_url = format!(
+                            "https://musicbrainz.org/ws/2/recording?query={}&fmt=json&limit=1",
+                            urlencoding::encode(&query)
+                        );
+
+                        let mb_res = self
+                            .http_client
+                            .get(&mb_url)
+                            .header("User-Agent", "TidolCore/1.0")
+                            .send()
+                            .await
+                            .ok()?;
+                        let mb_json = mb_res.json::<serde_json::Value>().await.ok()?;
+                        let mbid = mb_json
+                            .get("recordings")
+                            .and_then(|r| r.as_array())
+                            .and_then(|arr| arr.first())
+                            .and_then(|first| first.get("id"))
+                            .and_then(|id| id.as_str())?;
+                        self.resolve_full_track(mbid, db).await.ok()
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let result_tracks = futures::future::join_all(lookup_futures)
+            .await
+            .into_iter()
+            .flatten()
+            .collect();
 
         Ok(result_tracks)
     }
@@ -912,10 +935,10 @@ impl MetadataOrchestrator {
                             track_id: t.mbid.clone(),
                             title: t.title,
                             artist: t.artist,
-                            cover_url: Some(format!(
-                                "http://localhost:3000/api/v1/covers/{}",
-                                t.mbid
-                            )),
+                            // Ruta relativa: la URL absoluta a localhost:3000 rompía
+                            // las portadas en producción (y era la caché mala que se
+                            // veía como "covers erróneos").
+                            cover_url: Some(format!("/api/v1/covers/{}", t.mbid)),
                             source: "musicbrainz".to_string(),
                             duration: None,
                             has_lyrics: false,
@@ -1012,11 +1035,24 @@ pub fn trigger_bad_engine_prefetch(
 
             let ai_plugin_path = workspace_dir.join("plugins/provider-ai/target/release");
 
-            let _ = tokio::process::Command::new("cargo")
-                .arg("run")
-                .arg("--release")
-                .arg("--bin")
-                .arg("bad_engine")
+            // Ejecutar el BINARIO precompilado, nunca `cargo run`: compilar en el
+            // servidor por cada prefetch bloqueaba CPU y llenaba el disco raíz de
+            // 20GB con artefactos de build (los builds de Docker/Rust ya lo saturan).
+            let engine_bin = std::env::var("BAD_ENGINE_BIN").unwrap_or_else(|_| {
+                workspace_dir
+                    .join("target/release/bad_engine")
+                    .to_string_lossy()
+                    .into_owned()
+            });
+            if !std::path::Path::new(&engine_bin).exists() {
+                tracing::warn!(
+                    "[Prefetch] bad_engine no encontrado en '{}' (define BAD_ENGINE_BIN); se omite el prefetch",
+                    engine_bin
+                );
+                return;
+            }
+
+            let _ = tokio::process::Command::new(&engine_bin)
                 .current_dir(&workspace_dir)
                 .env("TARGET_MBID", &mbid)
                 .env("TARGET_ARTIST", &artist)

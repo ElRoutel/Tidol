@@ -20,9 +20,16 @@ pub struct OptimizeQuery {
 pub async fn optimize_image_handler(Query(query): Query<OptimizeQuery>) -> impl IntoResponse {
     let path = query.path.trim_start_matches('/');
 
+    // Anti path-traversal: solo se sirven imágenes bajo uploads/ (única ruta que
+    // usa el frontend). Antes `path=../../...` permitía leer imágenes arbitrarias
+    // del filesystem y sondear la existencia de ficheros.
+    if path.contains("..") || path.contains('\\') || !path.starts_with("uploads/") {
+        return (StatusCode::BAD_REQUEST, "Invalid image path").into_response();
+    }
+
     let file_path = PathBuf::from(".").join(path);
 
-    if !file_path.exists() {
+    if !tokio::fs::try_exists(&file_path).await.unwrap_or(false) {
         return (StatusCode::NOT_FOUND, "Image not found").into_response();
     }
 
@@ -80,7 +87,11 @@ pub async fn extract_colors_handler(
 ) -> impl IntoResponse {
     let image_url = payload.image_url.clone();
     let bytes_opt = if image_url.starts_with("http") {
-        if let Ok(res) = reqwest::get(&image_url).await {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(8))
+            .build()
+            .unwrap_or_default();
+        if let Ok(res) = client.get(&image_url).send().await {
             res.bytes().await.ok().map(|b| b.to_vec())
         } else {
             None
@@ -128,23 +139,18 @@ pub async fn extract_colors_handler(
         || payload.source.as_deref() == Some("archive")
         || payload.song_id.starts_with("ia_");
 
+    // Ambas fuentes (IA y local) persisten en la misma tabla.
+    let _ = is_ia;
     if let Ok(colors_json) = serde_json::to_string(&colors) {
-        if is_ia {
-            let _ = sqlx::query!(
-                "UPDATE trackMetadata SET extractedColors = ? WHERE trackId = ?",
-                colors_json,
-                payload.song_id
-            )
-            .execute(&state.db)
-            .await;
-        } else {
-            let _ = sqlx::query!(
-                "UPDATE trackMetadata SET extractedColors = ? WHERE trackId = ?",
-                colors_json,
-                payload.song_id
-            )
-            .execute(&state.db)
-            .await;
+        if let Err(e) = sqlx::query!(
+            "UPDATE trackMetadata SET extractedColors = ? WHERE trackId = ?",
+            colors_json,
+            payload.song_id
+        )
+        .execute(&state.db)
+        .await
+        {
+            tracing::warn!("extract_colors: no se pudo persistir colores: {}", e);
         }
     }
 
@@ -161,33 +167,95 @@ pub struct CoverQuery {
     pub fallback: Option<String>,
 }
 
+// Caché negativa en memoria: un mbid sin portada no debe re-disparar la cascada
+// CAA→MusicBrainz→iTunes (hasta ~15 requests externos) en CADA petición.
+static COVER_MISSES: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<String, std::time::Instant>>> =
+    std::sync::OnceLock::new();
+const COVER_MISS_TTL: std::time::Duration = std::time::Duration::from_secs(30 * 60);
+
+fn cover_miss_cached(mbid: &str) -> bool {
+    let map = COVER_MISSES.get_or_init(Default::default);
+    let mut guard = match map.lock() {
+        Ok(g) => g,
+        Err(_) => return false,
+    };
+    match guard.get(mbid) {
+        Some(t) if t.elapsed() < COVER_MISS_TTL => true,
+        Some(_) => {
+            guard.remove(mbid);
+            false
+        }
+        None => false,
+    }
+}
+
+fn cover_miss_store(mbid: &str) {
+    let map = COVER_MISSES.get_or_init(Default::default);
+    if let Ok(mut guard) = map.lock() {
+        // Poda simple para que el mapa no crezca sin límite.
+        if guard.len() > 10_000 {
+            guard.retain(|_, t| t.elapsed() < COVER_MISS_TTL);
+        }
+        guard.insert(mbid.to_string(), std::time::Instant::now());
+    }
+}
+
+async fn serve_default_cover(covers_dir: &std::path::Path) -> axum::response::Response {
+    let fallback_path = covers_dir.join("default.jpg");
+    if let Ok(bytes) = tokio::fs::read(&fallback_path).await {
+        return (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "image/jpeg")],
+            bytes,
+        )
+            .into_response();
+    }
+    (StatusCode::NOT_FOUND, "Cover not found").into_response()
+}
+
 pub async fn get_cover_handler(
     State(state): State<AppState>,
     axum::extract::Path(mbid): axum::extract::Path<String>,
     Query(q): Query<CoverQuery>,
 ) -> impl IntoResponse {
+    // Anti path-traversal: el mbid forma el nombre del fichero cacheado; un valor
+    // como `../x` escribía/leía fuera de covers/. Solo se aceptan ids "seguros".
+    if mbid.is_empty()
+        || mbid.len() > 64
+        || !mbid
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return (StatusCode::BAD_REQUEST, "Invalid id").into_response();
+    }
+
     let covers_dir = PathBuf::from("covers");
-    if !covers_dir.exists() {
+    if !tokio::fs::try_exists(&covers_dir).await.unwrap_or(false) {
         let _ = tokio::fs::create_dir_all(&covers_dir).await;
     }
 
     let file_path = covers_dir.join(format!("{}.jpg", mbid));
 
-    if file_path.exists() {
-        if let Ok(bytes) = tokio::fs::read(&file_path).await {
-            return (
-                StatusCode::OK,
-                [(header::CONTENT_TYPE, "image/jpeg")],
-                bytes,
-            )
-                .into_response();
-        }
+    if let Ok(bytes) = tokio::fs::read(&file_path).await {
+        return (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "image/jpeg")],
+            bytes,
+        )
+            .into_response();
+    }
+
+    // Miss reciente ya conocido → default inmediato, sin cascada externa.
+    if cover_miss_cached(&mbid) {
+        return serve_default_cover(&covers_dir).await;
     }
 
     // Cliente con User-Agent (MusicBrainz lo exige) y seguimiento de redirecciones
     // (Cover Art Archive redirige a archive.org).
     let client = reqwest::Client::builder()
         .user_agent("TidolMusic/0.2 (https://tidol.duckdns.org)")
+        .timeout(std::time::Duration::from_secs(8))
+        .connect_timeout(std::time::Duration::from_secs(4))
         .build()
         .unwrap_or_default();
 
@@ -389,13 +457,13 @@ pub async fn get_cover_handler(
             urlencoding::encode(&term)
         );
 
-        if let Ok(res) = reqwest::get(&url).await {
+        if let Ok(res) = client.get(&url).send().await {
             if let Ok(json) = res.json::<serde_json::Value>().await {
                 if let Some(results) = json.get("results").and_then(|r| r.as_array()) {
                     if let Some(first) = results.first() {
                         if let Some(artwork) = first.get("artworkUrl100").and_then(|a| a.as_str()) {
                             let high_res = artwork.replace("100x100bb", "600x600bb");
-                            if let Ok(img_res) = reqwest::get(&high_res).await {
+                            if let Ok(img_res) = client.get(&high_res).send().await {
                                 if let Ok(bytes) = img_res.bytes().await {
                                     // No se cachea: iTunes es texto-fuzzy y puede
                                     // equivocarse; dejamos que MB reintente y acierte.
@@ -436,15 +504,8 @@ pub async fn get_cover_handler(
         }
     }
 
-    let fallback_path = covers_dir.join("default.jpg");
-    if let Ok(bytes) = tokio::fs::read(&fallback_path).await {
-        return (
-            StatusCode::OK,
-            [(header::CONTENT_TYPE, "image/jpeg")],
-            bytes,
-        )
-            .into_response();
-    }
-
-    (StatusCode::NOT_FOUND, "Cover not found").into_response()
+    // Nada encontró portada: registrar el miss para no repetir la cascada
+    // durante el TTL (los fallbacks iTunes/YT no se cachean a disco a propósito).
+    cover_miss_store(&mbid);
+    serve_default_cover(&covers_dir).await
 }

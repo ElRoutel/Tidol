@@ -120,6 +120,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const [duration, setDuration] = useState(0);
     const [shuffle, setShuffle] = useState(false);
     const [repeatMode, setRepeatMode] = useState<'none' | 'one' | 'all'>('none');
+    // Ref para leer repeatMode desde listeners registrados una sola vez
+    // (implementa repeat "one", que antes existía en la UI pero no hacía nada).
+    const repeatModeRef = useRef(repeatMode);
+    useEffect(() => { repeatModeRef.current = repeatMode; }, [repeatMode]);
     const [isFullScreenOpen, setIsFullScreenOpen] = useState(false);
     const [isDataSaving, setIsDataSaving] = useState(false);
     const [voxMode, setVoxMode] = useState(false);
@@ -159,10 +163,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }, []);
 
     // ── Telemetry (Log Play) ────────────────────────────────────────────────
+    // Dedupe por mbid: currentTrack cambia de identidad al fusionarle
+    // resolvedCover/extractedColors/ytThumbnail (y en cada pausa→play), lo que
+    // registraba la misma reproducción 3-4 veces.
+    const lastLoggedPlayRef = useRef<string | null>(null);
     useEffect(() => {
         if (currentTrack && isPlaying) {
             const mbid = currentTrack.trackId || currentTrack.id || (currentTrack as any).mbid;
-            if (mbid) {
+            if (mbid && lastLoggedPlayRef.current !== String(mbid)) {
+                lastLoggedPlayRef.current = String(mbid);
                 api.post(`/tracks/${mbid}/log-play`).catch(() => {});
             }
         }
@@ -230,6 +239,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
 
     // ── MediaSession + Historial ─────────────────────────────────
+    const lastHistorySyncRef = useRef<string | null>(null);
     useEffect(() => {
         if (!currentTrack) {
             document.title = 'Tidol';
@@ -284,8 +294,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         const syncHistory = async () => {
             // El id canónico es trackId (types/music.ts); currentTrack.id puede venir
             // undefined → body {} → 422. Enviamos el correcto, coaccionado a string.
+            // Dedupe: este efecto re-corre cuando al track se le fusionan
+            // resolvedCover/colores (misma pista, nueva identidad de objeto);
+            // sin la guarda se insertaban 2-4 entradas de historial por canción.
             const cancionId = (currentTrack as any).trackId ?? currentTrack.id;
             if (cancionId == null) return;
+            if (lastHistorySyncRef.current === String(cancionId)) return;
+            lastHistorySyncRef.current = String(cancionId);
             try {
                 await api.post('/history/add', {
                     cancion_id: String(cancionId)
@@ -340,7 +355,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             progressRef.current = currentTime; // Keep ref in sync for drift detection
 
             if (d) {
-                if (Math.abs(duration - d) > 0.1) setDuration(d);
+                // durationRef (no el estado `duration`): este listener se registra
+                // una sola vez y su closure capturaba duration=0 para siempre.
+                if (Math.abs(durationRef.current - d) > 0.1) {
+                    durationRef.current = d;
+                    setDuration(d);
+                }
                 progressMotion.set((currentTime / d) * 100);
             }
         };
@@ -350,6 +370,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             setIsLoading(s === 'LOADING' || s === 'BUFFERING');
         };
         const handleEnded = () => {
+            if (repeatModeRef.current === 'one') {
+                engine.seek(0);
+                engine.resume();
+                return;
+            }
             console.log('[PlayerContext] Song ended, playing next...');
             nextSongRef.current();
         };
@@ -383,7 +408,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         if (s === 'playing') { setIsPlaying(true); setIsLoading(false); }
         else if (s === 'paused') { setIsPlaying(false); }
         else if (s === 'buffering') { setIsLoading(true); }
-        else if (s === 'ended') { nextSongRef.current(); }
+        else if (s === 'ended') {
+            if (repeatModeRef.current === 'one') {
+                ytRef.current?.seek(0);
+                ytRef.current?.play();
+                return;
+            }
+            nextSongRef.current();
+        }
     }, []);
 
     const handleYtTimeUpdate = useCallback((currentTime: number, dur: number) => {
@@ -401,8 +433,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
     }, []);
 
+    // Token de generación: si el usuario pulsa "siguiente" varias veces rápido,
+    // varias resolvePlayback() quedan en vuelo y la MÁS LENTA (no la última)
+    // podía ganar y arrancar una pista equivocada (o YouTube y Archive a la vez).
+    const playbackSeqRef = useRef(0);
+
     // Resuelve la pista a una fuente legal y arranca la reproducción correcta.
     const startPlayback = useCallback(async (track: UnifiedTrack) => {
+        const seq = ++playbackSeqRef.current;
         setCurrentTrack(track);
         setIsLoading(true);
         setIsPlaying(false);
@@ -413,6 +451,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
         try {
             const resolved = await resolvePlayback(track);
+            if (seq !== playbackSeqRef.current) return; // resolución obsoleta: la descartamos
 
             // Portada: si la pista no trae una válida, guardamos la miniatura resuelta
             // (p.ej. la del vídeo de YouTube) en `ytThumbnail` — NO en coverArtUrl —
@@ -448,6 +487,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                 await engineRef.current.playTrack({ ...track, playbackUrl: resolved.audioUrl });
             }
         } catch (err) {
+            if (seq !== playbackSeqRef.current) return;
             console.error('[PlayerContext] startPlayback:', err);
             setIsLoading(false);
             setIsPlaying(false);
@@ -496,6 +536,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }, [stopStems, startStems, voxMode, voxState.stemsAvailable, isPlaying, duration, currentTimeMotion, progressMotion]);
 
     const changeVolume = useCallback((val: number) => {
+        if (!Number.isFinite(val)) return; // p.ej. parseFloat(localStorage corrupto) → NaN
         const newVol = Math.min(1, Math.max(0, val));
         engineRef.current.setVolume(newVol);
         ytRef.current?.setVolume(newVol);
@@ -553,7 +594,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                     trackId: t.mbid,
                     trackName: t.title,
                     artistName: t.artist,
-                    coverArtUrl: t.coverUrl || t.stream_url ? '/default-album.png' : '/default-album.png',
+                    // Precedencia corregida: `a || b ? x : y` siempre evaluaba a
+                    // '/default-album.png' e ignoraba la portada real.
+                    coverArtUrl: t.coverUrl || '/default-album.png',
                     sourceType: 'radio',
                     attributes: {
                         name: t.title,
@@ -562,8 +605,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                     }
                 }));
 
+                // NO usar playAt(): su closure ve la cola VIEJA (setQueue es
+                // asíncrono), el índice quedaba fuera de rango y la radio nunca
+                // arrancaba. Se reproduce la primera pista nueva directamente.
                 setQueue(prev => [...prev, ...normalizedNewTracks]);
-                playAt(currentIndex + 1);
+                setCurrentIndex(currentIndex + 1);
+                stopStems();
+                startPlayback(normalizedNewTracks[0]);
             } else {
                 engineRef.current.pause();
                 setIsPlaying(false);
@@ -573,7 +621,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             engineRef.current.pause();
             setIsPlaying(false);
         }
-    }, [currentTrack, currentIndex, playAt]);
+    }, [currentTrack, currentIndex, stopStems, startPlayback]);
 
     const nextSong = useCallback(async () => {
         if (currentIndex < queue.length - 1) playAt(currentIndex + 1);
@@ -706,23 +754,36 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         duration,
     }), [currentTimeMotion, progressMotion, duration]);
 
+    // Memoizado: antes era un objeto literal nuevo en CADA render del provider,
+    // así que todo consumidor de usePlayer() re-renderizaba aunque no hubiera
+    // cambiado nada de lo que usa.
+    const legacyValue = useMemo(() => ({
+        currentTrack, queue, isPlaying, isLoading, volume, isMuted,
+        currentTimeMotion, progressMotion, duration, shuffle, repeatMode, isFullScreenOpen,
+        togglePlayPause, seek, changeVolume, toggleMute,
+        playSongList, playAt, nextSong, previousSong,
+        addToQueue, playNext, toggleShuffle, toggleRepeat,
+        setIsFullScreenOpen, isDataSaving, setIsDataSaving,
+        getOptimizedSize, isSongLiked, toggleLike,
+        spectraData, updateSpectraData, resetSpectraData,
+        closeFullScreenPlayer, toggleVox, toggleVoxType,
+        voxMode, voxType,
+        originalQueue: queue,
+        currentIndex,
+        engine: engineRef.current
+    }), [currentTrack, queue, isPlaying, isLoading, volume, isMuted,
+        currentTimeMotion, progressMotion, duration, shuffle, repeatMode, isFullScreenOpen,
+        togglePlayPause, seek, changeVolume, toggleMute,
+        playSongList, playAt, nextSong, previousSong,
+        addToQueue, playNext, toggleShuffle, toggleRepeat,
+        isDataSaving, getOptimizedSize, isSongLiked, toggleLike,
+        spectraData, updateSpectraData, resetSpectraData,
+        closeFullScreenPlayer, toggleVox, toggleVoxType,
+        voxMode, voxType, currentIndex]);
+
     // ── Provider value ───────────────────────────────────────────
     return (
-        <PlayerContext.Provider value={{
-            currentTrack, queue, isPlaying, isLoading, volume, isMuted,
-            currentTimeMotion, progressMotion, duration, shuffle, repeatMode, isFullScreenOpen,
-            togglePlayPause, seek, changeVolume, toggleMute,
-            playSongList, playAt, nextSong, previousSong,
-            addToQueue, playNext, toggleShuffle, toggleRepeat,
-            setIsFullScreenOpen, isDataSaving, setIsDataSaving,
-            getOptimizedSize, isSongLiked, toggleLike,
-            spectraData, updateSpectraData, resetSpectraData,
-            closeFullScreenPlayer, toggleVox, toggleVoxType,
-            voxMode, voxType,
-            originalQueue: queue,
-            currentIndex,
-            engine: engineRef.current
-        }}>
+        <PlayerContext.Provider value={legacyValue as any}>
           <PlayerActionsContext.Provider value={actionsValue}>
           <PlayerProgressContext.Provider value={progressValue}>
           <PlayerStateContext.Provider value={stateValue}>

@@ -72,14 +72,17 @@ const ProgressBar = memo(({ isDragging, onSeekStart, onSeekChange, onSeekEnd, lo
           className="absolute left-0 h-1 bg-white rounded-full group-hover:h-2 group-hover:bg-primary transition-all duration-300"
           style={{ width: displayWidth, willChange: 'width' }}
         ></motion.div>
-        <motion.input
+        {/* El input es invisible (opacity-0): su `value` solo importa durante el
+            drag. Antes se le pasaba el MotionValue como value (objeto, no número)
+            y el drag arrancaba siempre desde la posición previa (0). */}
+        <input
           type="range"
           min="0"
           max="100"
           step="0.01"
-          value={isDragging ? localProgress : progressMotion}
-          onMouseDown={onSeekStart}
-          onTouchStart={onSeekStart}
+          value={isDragging ? localProgress : progressMotion.get() || 0}
+          onMouseDown={() => onSeekStart(progressMotion.get() || 0)}
+          onTouchStart={() => onSeekStart(progressMotion.get() || 0)}
           onChange={onSeekChange}
           onMouseUp={onSeekEnd}
           onTouchEnd={onSeekEnd}
@@ -166,13 +169,16 @@ const PlayerBar = memo(function PlayerBar({ isSheetMode = false }) {
   const [localProgress, setLocalProgress] = useState(0);
 
   useEffect(() => {
-    const savedVolume = localStorage.getItem('userPreferences.volume');
-    if (savedVolume !== null) {
-      changeVolume(parseFloat(savedVolume));
+    const savedVolume = parseFloat(localStorage.getItem('userPreferences.volume'));
+    if (Number.isFinite(savedVolume)) {
+      changeVolume(savedVolume);
     }
   }, [changeVolume]);
 
-  const handleSeekStart = () => setIsDragging(true);
+  const handleSeekStart = (startProgress = 0) => {
+    setLocalProgress(startProgress); // arranca el drag desde la posición actual
+    setIsDragging(true);
+  };
   const handleSeekChange = (e) => setLocalProgress(parseFloat(e.target.value));
   const handleSeekEnd = (e) => {
     const newProgress = parseFloat(e.target.value);
@@ -310,38 +316,7 @@ const PlayerBar = memo(function PlayerBar({ isSheetMode = false }) {
       <div className="flex items-center justify-end gap-4 flex-1 md:flex-[0_0_30%]">
 
         {/* VOX Controls (Desktop) */}
-        <div className="hidden md:flex items-center gap-2 border-r border-white/10 pr-4 mr-2">
-          <button
-            onClick={toggleVox}
-            disabled={isVoxLoading}
-            className={`p-2 rounded-full transition-all ${voxMode ? 'bg-primary text-white shadow-[0_0_15px_rgba(var(--primary-rgb),0.6)]' : 'text-text-secondary hover:text-white hover:bg-white/10'}`}
-            title="AI Vocal Separation (VOX)"
-          >
-            {isVoxLoading ? (
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <IoMicSharp size={20} />
-            )}
-          </button>
 
-          {voxMode && (
-            <button
-              onClick={toggleVoxType}
-              className="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium text-white bg-white/10 hover:bg-white/20 transition-all border border-white/5"
-              title={voxType === 'vocals' ? 'Switch to Instrumental' : 'Switch to Vocals'}
-            >
-              {voxType === 'vocals' ? (
-                <>
-                  <IoPersonSharp size={14} /> <span>Vocals</span>
-                </>
-              ) : (
-                <>
-                  <IoMusicalNotesSharp size={14} /> <span>Karaoke</span>
-                </>
-              )}
-            </button>
-          )}
-        </div>
 
         {/* Controles de volumen (Solo escritorio) */}
         <div className="hidden md:flex items-center gap-2 group">

@@ -254,8 +254,10 @@ async fn search_handler(
         return Json(serde_json::json!({ "status": "error", "message": "Empty search" }));
     }
 
-    let limit = pagination.limit.unwrap_or(20);
-    let offset = pagination.offset.unwrap_or(0);
+    // Clamp: limit=0 provocaba división entre cero al calcular la página
+    // (offset / limit) y >255 truncaba en el cast a u8 de MusicBrainz.
+    let limit = pagination.limit.unwrap_or(20).clamp(1, 50);
+    let offset = pagination.offset.unwrap_or(0).min(10_000);
 
     match state
         .orchestrator
@@ -489,7 +491,11 @@ async fn get_lyrics_handler(
         urlencoding::encode(&title)
     );
 
-    let client = reqwest::Client::new();
+    // Timeout explícito: sin él, un LRCLIB caído dejaba la petición colgada.
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(8))
+        .build()
+        .unwrap_or_default();
     let lrclib_response = client.get(&lrclib_url).send().await;
     let mut lrclib_answered = false;
 

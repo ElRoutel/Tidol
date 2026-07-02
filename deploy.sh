@@ -8,7 +8,7 @@
 set -euo pipefail
 
 VPS="mi-vps"
-REMOTE_DIR="/opt/tidolcore"
+REMOTE_DIR="/mnt/storage"
 LOCAL_WORKSPACE="$(cd "$(dirname "$0")" && pwd)"
 MODE="${1:---full}"
 
@@ -57,7 +57,7 @@ echo "==> Construyendo imágenes y levantando servicios en el VPS..."
 # Pasamos MODE como variable al script remoto
 ssh "$VPS" DEPLOY_MODE="$MODE" bash << 'REMOTE'
 set -euo pipefail
-cd /opt/tidolcore
+cd /mnt/storage
 
 # Cargar variables de entorno del .env
 set -a; source .env; set +a
