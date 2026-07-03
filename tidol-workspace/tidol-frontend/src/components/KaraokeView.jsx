@@ -8,8 +8,17 @@ export default function KaraokeView({ lyricsPayload, accent = '#ffffff' }) {
   // el fullscreen mid-canción llegue tarde / se muestre un verso equivocado).
   const activeIndexRef = useRef(-1);
   const scrollRef = useRef(null);
+  const containerRef = useRef(null);
+  // El auto-scroll se suspende mientras el usuario desliza la letra (y ~3s
+  // después): antes cada cambio de verso hacía scrollIntoView y le arrancaba
+  // el scroll de las manos al usuario a mitad de gesto.
+  const userScrollUntilRef = useRef(0);
   const { currentTimeMotion } = usePlayerProgress();
   const { seek } = usePlayer();
+
+  const markUserScroll = () => {
+    userScrollUntilRef.current = Date.now() + 3000;
+  };
 
   const type = lyricsPayload?.type;
   const lyrics = lyricsPayload?.lines || [];
@@ -62,13 +71,17 @@ export default function KaraokeView({ lyricsPayload, accent = '#ffffff' }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lyrics, isSyncedMode]);
 
-  // Auto-scroll — solo para modo sincronizado.
+  // Auto-scroll — solo para modo sincronizado. Se desplaza el contenedor
+  // directamente (no scrollIntoView, que también puede mover ancestros
+  // scrolleables) y se respeta el scroll manual del usuario.
   useEffect(() => {
-    if (activeIndex >= 0 && scrollRef.current && isSyncedMode) {
-      const activeElement = scrollRef.current.children[activeIndex];
-      if (activeElement) {
-        activeElement.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
+    if (activeIndex < 0 || !isSyncedMode) return;
+    if (Date.now() < userScrollUntilRef.current) return;
+    const container = containerRef.current;
+    const activeElement = scrollRef.current?.children[activeIndex];
+    if (container && activeElement) {
+      const top = activeElement.offsetTop - container.clientHeight / 2 + activeElement.offsetHeight / 2;
+      container.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
     }
   }, [activeIndex, isSyncedMode]);
 
@@ -85,7 +98,7 @@ export default function KaraokeView({ lyricsPayload, accent = '#ffffff' }) {
   // ─── Render: Modo Texto Plano (sin sincronización) ───
   if (isPlainMode) {
     return (
-      <div className="relative w-full h-full overflow-y-auto no-scrollbar pb-64 px-6 text-left"
+      <div className="relative w-full h-full overflow-y-auto no-scrollbar overscroll-contain pb-64 px-6 text-left"
            style={{ maskImage: "linear-gradient(to bottom, transparent, black 8%, black 92%, transparent)", WebkitMaskImage: "linear-gradient(to bottom, transparent, black 8%, black 92%, transparent)" }}>
         <div className="max-w-3xl pt-16">
           {/* Aviso explícito: evita la falsa expectativa de que la letra sincroniza */}
@@ -109,7 +122,13 @@ export default function KaraokeView({ lyricsPayload, accent = '#ffffff' }) {
   // Estados por línea (estilo Apple Music): activa nítida y con peso máximo,
   // pasadas muy atenuadas, la siguiente semivisible, las lejanas con blur sutil.
   return (
-    <div className="relative w-full h-full overflow-y-auto no-scrollbar scroll-smooth" style={{ maskImage: "linear-gradient(to bottom, transparent, black 15%, black 85%, transparent)", WebkitMaskImage: "linear-gradient(to bottom, transparent, black 15%, black 85%, transparent)" }}>
+    <div
+      ref={containerRef}
+      onWheel={markUserScroll}
+      onTouchMove={markUserScroll}
+      className="relative w-full h-full overflow-y-auto no-scrollbar overscroll-contain scroll-smooth"
+      style={{ maskImage: "linear-gradient(to bottom, transparent, black 15%, black 85%, transparent)", WebkitMaskImage: "linear-gradient(to bottom, transparent, black 15%, black 85%, transparent)" }}
+    >
       <div ref={scrollRef} className="flex flex-wrap gap-x-3 gap-y-7 px-6 py-64 justify-start items-start max-w-3xl content-start">
         {lyrics.map((wordData, index) => {
           const isActive = index === activeIndex;

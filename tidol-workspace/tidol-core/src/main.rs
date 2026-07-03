@@ -389,7 +389,15 @@ fn parse_lrc(lrc: &str) -> Vec<serde_json::Value> {
                             if let (Ok(s), Ok(ms)) =
                                 (sec_parts[0].parse::<u32>(), sec_parts[1].parse::<u32>())
                             {
-                                let ms_val = if sec_parts[1].len() == 3 { ms / 10 } else { ms };
+                                // Normalizar la fracción a centésimas según sus dígitos:
+                                // [m:ss.d] son décimas (×10), [m:ss.dd] centésimas,
+                                // [m:ss.ddd] milésimas (÷10). Antes ".5" se leía como
+                                // 5cs en vez de 50cs y el verso llegaba adelantado.
+                                let ms_val = match sec_parts[1].len() {
+                                    1 => ms * 10,
+                                    3 => ms / 10,
+                                    _ => ms,
+                                };
                                 let total_cs = (m * 60 * 100) + (s * 100) + ms_val;
                                 result.push(serde_json::json!({
                                     "start_cs": total_cs,
@@ -1003,6 +1011,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             axum::http::Method::GET,
             axum::http::Method::POST,
             axum::http::Method::PUT,
+            // PATCH faltaba: el preflight de renombrar playlist (PATCH
+            // /api/v1/playlists/:id) fallaba en cualquier origen cruzado.
+            axum::http::Method::PATCH,
             axum::http::Method::DELETE,
             axum::http::Method::OPTIONS,
         ])

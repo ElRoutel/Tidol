@@ -52,7 +52,7 @@ const formatTime = (seconds) => {
 };
 
 // Componente memoizado para el progreso (se actualiza 60fps)
-const ProgressBar = memo(({ isDragging, onSeekStart, onSeekChange, onSeekEnd, localProgress }) => {
+const ProgressBar = memo(({ isDragging, onSeekStart, onSeekChange, onSeekEnd, onSeekCancel, localProgress }) => {
   const { currentTimeMotion, progressMotion, duration } = usePlayerProgress();
 
   const formattedTime = useTransform(currentTimeMotion, time => formatTime(time));
@@ -75,18 +75,21 @@ const ProgressBar = memo(({ isDragging, onSeekStart, onSeekChange, onSeekEnd, lo
         {/* El input es invisible (opacity-0): su `value` solo importa durante el
             drag. Antes se le pasaba el MotionValue como value (objeto, no número)
             y el drag arrancaba siempre desde la posición previa (0). */}
+        {/* Pointer events (cubren mouse y touch) + pointercancel: con los pares
+            mouse/touch de antes, un gesto cancelado por el navegador no disparaba
+            el "end" e isDragging quedaba en true → barra congelada para siempre. */}
         <input
           type="range"
           min="0"
           max="100"
           step="0.01"
           value={isDragging ? localProgress : progressMotion.get() || 0}
-          onMouseDown={() => onSeekStart(progressMotion.get() || 0)}
-          onTouchStart={() => onSeekStart(progressMotion.get() || 0)}
+          onPointerDown={() => onSeekStart(progressMotion.get() || 0)}
           onChange={onSeekChange}
-          onMouseUp={onSeekEnd}
-          onTouchEnd={onSeekEnd}
+          onPointerUp={onSeekEnd}
+          onPointerCancel={onSeekCancel}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          style={{ touchAction: 'none' }}
         />
         <motion.div
           className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
@@ -186,6 +189,8 @@ const PlayerBar = memo(function PlayerBar({ isSheetMode = false }) {
     seek(newTime);
     setIsDragging(false);
   };
+  // Gesto cancelado (el navegador se quedó el pointer): soltar sin hacer seek.
+  const handleSeekCancel = () => setIsDragging(false);
 
   const handleVolumeChange = (e) => {
     const newVolume = parseFloat(e.target.value);
@@ -308,6 +313,7 @@ const PlayerBar = memo(function PlayerBar({ isSheetMode = false }) {
           onSeekStart={handleSeekStart}
           onSeekChange={handleSeekChange}
           onSeekEnd={handleSeekEnd}
+          onSeekCancel={handleSeekCancel}
           localProgress={localProgress}
         />
       </div>

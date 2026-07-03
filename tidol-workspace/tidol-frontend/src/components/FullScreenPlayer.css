@@ -168,6 +168,9 @@
   background: transparent;
   margin: 0;
   cursor: pointer;
+  /* Sin esto, en móvil el navegador puede decidir que el arrastre horizontal
+     es un pan/scroll y cancelar el gesto a mitad → scrubbing entrecortado. */
+  touch-action: none;
 }
 .fsp-range::-webkit-slider-thumb {
   -webkit-appearance: none;

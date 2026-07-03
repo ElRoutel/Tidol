@@ -15,12 +15,15 @@ const PlayerSheet = () => {
     const getPositions = useCallback((mobile = isMobile) => {
         if (mobile) {
             // Mobile: Player (64px) only - mobile nav was removed
-            // Usamos dvh (dynamic viewport height) para evitar problemas con la barra de URL
+            // Usamos dvh (dynamic viewport height) para evitar problemas con la barra de URL.
+            // La altura es SIEMPRE 100dvh y solo se anima `y` (transform): animar height
+            // forzaba un reflow por frame durante el arrastre/spring y el deslizamiento
+            // iba a tirones en móvil. Colapsado, la sábana queda desplazada hacia abajo
+            // y solo asoma la franja superior de 64px (la mini barra).
             return {
                 collapsed: {
-                    // Position at bottom (only player height, no mobile nav)
                     y: 'calc(100dvh - 64px - env(safe-area-inset-bottom))',
-                    height: '64px',
+                    height: '100dvh',
                     width: '100%',
                     left: '0%',
                     x: '0%',
@@ -129,6 +132,10 @@ const PlayerSheet = () => {
             }}
             className="player-sheet-container shadow-2xl"
             onPointerDown={(e) => {
+                // El gesto de arrastre es solo móvil: en desktop, arrastrar con el
+                // ratón sobre la letra/cola movía la sábana entera (ahí se abre/cierra
+                // con click en la barra o el chevron).
+                if (!isMobile) return;
                 const target = e.target;
                 const isInteractive = target.closest('button, input, a, [role="button"], .progress-bar, .volume-slider');
 
@@ -141,8 +148,11 @@ const PlayerSheet = () => {
             <div className="w-full h-full relative flex flex-col bg-background">
 
                 {/* MINI PLAYER (Visible cuando colapsado) */}
+                {/* En móvil la sábana mide siempre 100dvh (solo se traslada), así que
+                    la mini barra necesita altura fija de 64px, no h-full. */}
                 <motion.div
-                    className="absolute top-0 left-0 right-0 z-20 h-full"
+                    className="absolute top-0 left-0 right-0 z-20"
+                    style={{ height: isMobile ? '64px' : '100%' }}
                     initial={{ opacity: 1, visibility: 'visible' }}
                     animate={{
                         opacity: isFullScreenOpen ? 0 : 1,

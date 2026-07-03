@@ -235,6 +235,10 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
         onPointerDown: () => { setLocalProgress(currentTimeMotion.get() || 0); setIsScrubbing(true); },
         onChange: (e) => setLocalProgress(parseFloat(e.target.value)),
         onPointerUp: (e) => { seek(parseFloat(e.target.value)); setIsScrubbing(false); },
+        // Si el navegador cancela el gesto (scroll/gesto del sistema se lo queda),
+        // no llega pointerup e isScrubbing quedaba en true para siempre → la barra
+        // y el tiempo se congelaban. Cancelar sin hacer seek.
+        onPointerCancel: () => setIsScrubbing(false),
         'aria-label': 'Posición de la canción',
     };
 
@@ -309,7 +313,7 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
     return (
         <ContainerTag
             {...dragProps}
-            className={`fsp-container fixed inset-0 z-[99999] flex flex-col overflow-hidden animate-slide-up bg-[#050505] font-sans select-none ${isEmbedded ? 'pointer-events-auto' : ''}`}
+            className={`fsp-container fixed inset-0 z-[99999] flex flex-col overflow-hidden bg-[#050505] font-sans select-none ${isEmbedded ? 'pointer-events-auto' : ''}`}
         >
             {/* Fondo: orbes de color que derivan + oscurecimiento hacia los controles */}
             <div className="absolute inset-0 z-0 bg-[#050505]" />
@@ -402,7 +406,7 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                                 );
                             })}
                         </div>
-                        <div className="no-scrollbar flex-1 overflow-y-auto pt-6 pr-12 pl-2 pb-40 min-h-0">
+                        <div className="no-scrollbar flex-1 overflow-y-auto overscroll-contain pt-6 pr-12 pl-2 pb-40 min-h-0">
                             {viewMode === 'queue' ? queuePanel : lyricsPanel}
                         </div>
                     </div>
@@ -677,7 +681,7 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                                     <IoChevronDown size={22} />
                                 </button>
                             </div>
-                            <div className="no-scrollbar flex-1 overflow-y-auto px-[18px] pb-8">
+                            <div className="no-scrollbar flex-1 overflow-y-auto overscroll-contain px-[18px] pb-8">
                                 {queuePanel}
                             </div>
                         </div>
