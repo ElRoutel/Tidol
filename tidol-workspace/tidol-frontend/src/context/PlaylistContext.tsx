@@ -122,14 +122,21 @@ export function PlaylistProvider({ children }: { children: ReactNode }) {
         if (!song || !playlistId) return false;
         setLoading(true);
         try {
+            // Leer duración y portada de forma tolerante: el `song` que llega
+            // aquí puede ser un UnifiedTrack normalizado (campos en `attributes`)
+            // o un objeto crudo de búsqueda/IA (campos planos). Si solo miramos
+            // `attributes`, las playlists guardaban duración 0 y sin portada.
+            const s: any = song;
             await api.post(`/playlists/${playlistId}/songs`, {
-                cancion_id: song.id,
-                song_source: song.sourceType,
-                titulo: song.title || song.attributes?.name || '',
-                artista: song.artist || song.attributes?.artistName || '',
-                portada: song.artworkUrl || song.attributes?.artwork?.url || '',
-                url: song.playbackUrl,
-                duracion: song.attributes?.durationInSeconds || 0
+                cancion_id: s.id || s.trackId,
+                song_source: s.sourceType,
+                titulo: s.trackName || s.title || s.titulo || s.attributes?.name || '',
+                artista: s.artistName || s.artist || s.artista || s.attributes?.artistName || '',
+                portada: s.coverArtUrl || s.artworkUrl || s.portada || s.cover_url ||
+                    s.coverUrl || s.image || s.attributes?.artwork?.url || '',
+                url: s.playbackUrl,
+                duracion: s.durationInSeconds || s.duracion || s.duration ||
+                    s.attributes?.durationInSeconds || 0
             });
             fetchPlaylists();
             return true;

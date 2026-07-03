@@ -18,7 +18,7 @@ const VirtualSongList = ({ data, getSubtitle, onClick, currentView }) => {
       {items.map((item, index) => {
         const title = item.titulo || item.title || item.nombre || 'Sin título';
         const subtitle = getSubtitle ? getSubtitle(item) : '';
-        const image = item.portada || item.cover_url || favImage;
+        const image = item.portada || item.cover_url || item.coverUrl || favImage;
         const uniqueKey = item.id || item.identifier || `idx-${index}`;
         return (
           <div key={uniqueKey} className="px-2">

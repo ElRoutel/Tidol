@@ -19,8 +19,11 @@ export const useLibrary = () => {
 
         let endpoint = '';
         switch (view) {
-            case 'favorites': endpoint = '/music/songs/likes'; break;
-            case 'ia-likes': endpoint = '/music/ia/likes'; break;
+            // likes/detailed devuelve título/artista/portada; los endpoints
+            // antiguos (/music/songs/likes) solo devuelven IDs y la Library
+            // mostraba "Sin título" en todo.
+            case 'favorites': endpoint = '/music/likes/detailed?source=local'; break;
+            case 'ia-likes': endpoint = '/music/likes/detailed?source=archive'; break;
             case 'playlists': endpoint = '/playlists'; break;
             default:
                 setIsLoading(false);

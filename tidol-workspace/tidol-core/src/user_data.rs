@@ -68,15 +68,30 @@ pub async fn get_playlists_handler(
     State(state): State<AppState>,
     axum::Extension(auth): axum::Extension<AuthContext>,
 ) -> impl IntoResponse {
+    // Enriquecido: dueño, nº de canciones, duración total, likes y portada
+    // (primera canción). Antes solo {id, nombre} y la Library mostraba
+    // "0 canciones" y sin imagen para todo.
     let rows = sqlx::query!(
-        "SELECT id, name, created_at FROM playlists WHERE user_id = ? ORDER BY created_at DESC",
+        r#"
+        SELECT
+            p.id, p.name, p.created_at,
+            u.username AS owner,
+            (SELECT COUNT(*) FROM playlist_songs ps WHERE ps.playlist_id = p.id) AS song_count,
+            (SELECT CAST(COALESCE(SUM(ps.duration), 0) AS SIGNED) FROM playlist_songs ps WHERE ps.playlist_id = p.id) AS total_duration,
+            (SELECT COUNT(*) FROM playlist_likes pl WHERE pl.playlist_id = p.id) AS likes,
+            (SELECT ps.cover_url FROM playlist_songs ps WHERE ps.playlist_id = p.id ORDER BY ps.added_at ASC LIMIT 1) AS cover_url
+        FROM playlists p
+        JOIN users u ON u.id = p.user_id
+        WHERE p.user_id = ?
+        ORDER BY p.created_at DESC
+        "#,
         auth.user_id
     )
     .fetch_all(&state.db)
     .await
     .unwrap_or_else(|e| {
         // No silenciar: antes un fallo de DB devolvía lista vacía sin rastro.
-        tracing::error!("user_data: error de DB en listado: {}", e);
+        tracing::error!("user_data: error de DB en listado de playlists: {}", e);
         Vec::new()
     });
 
@@ -86,7 +101,12 @@ pub async fn get_playlists_handler(
             serde_json::json!({
                 "id": r.id,
                 "nombre": r.name,
-                "creada_en": r.created_at.map(|dt| dt.unix_timestamp())
+                "creada_en": r.created_at.map(|dt| dt.unix_timestamp()),
+                "owner": r.owner,
+                "songCount": r.song_count,
+                "totalDuration": r.total_duration,
+                "likes": r.likes,
+                "coverUrl": r.cover_url
             })
         })
         .collect();
@@ -142,16 +162,29 @@ pub async fn delete_playlist_handler(
 }
 
 /// GET /api/v1/playlists/:id — metadata de una playlist + sus canciones.
-/// (Antes esta ruta solo existía para DELETE → el GET del frontend recibía 405.)
+/// Lectura pública para cualquier usuario autenticado (los likes solo tienen
+/// sentido si otros pueden ver la playlist); las mutaciones siguen siendo
+/// exclusivas del dueño.
 pub async fn get_playlist_handler(
     State(state): State<AppState>,
     Path(playlist_id): Path<String>,
     axum::Extension(auth): axum::Extension<AuthContext>,
 ) -> impl IntoResponse {
     let playlist = sqlx::query!(
-        "SELECT id, name, created_at FROM playlists WHERE id = ? AND user_id = ?",
-        playlist_id,
-        auth.user_id
+        r#"
+        SELECT
+            p.id, p.name, p.created_at, p.user_id,
+            u.username AS owner,
+            (SELECT COUNT(*) FROM playlist_likes pl WHERE pl.playlist_id = p.id) AS likes,
+            (SELECT CAST(EXISTS(
+                SELECT 1 FROM playlist_likes pl2 WHERE pl2.playlist_id = p.id AND pl2.user_id = ?
+            ) AS SIGNED)) AS liked_by_me
+        FROM playlists p
+        JOIN users u ON u.id = p.user_id
+        WHERE p.id = ?
+        "#,
+        auth.user_id,
+        playlist_id
     )
     .fetch_optional(&state.db)
     .await
@@ -174,16 +207,31 @@ pub async fn get_playlist_handler(
         Vec::new()
     });
 
+    let total_duration: i64 = rows.iter().map(|r| r.duration.unwrap_or(0) as i64).sum();
+
     let songs: Vec<serde_json::Value> = rows
         .into_iter()
         .map(|r| {
+            // Claves alineadas con normalizeTrack() del frontend: emitimos los
+            // nombres canónicos (trackName/artistName/coverArtUrl) además de los
+            // legacy (titulo/artista/portada). Antes solo se enviaba
+            // artist/artworkUrl → el normalizador los ignoraba y mostraba
+            // "Unknown Artist" y la portada por defecto.
             serde_json::json!({
                 "id": r.track_id,
+                "trackId": r.track_id,
                 "sourceType": r.song_source.unwrap_or_else(|| "local".to_string()),
+                "trackName": r.title,
                 "title": r.title,
+                "titulo": r.title,
+                "artistName": r.artist,
                 "artist": r.artist,
+                "artista": r.artist,
+                "coverArtUrl": r.cover_url,
                 "artworkUrl": r.cover_url,
-                "duration": r.duration
+                "portada": r.cover_url,
+                "duration": r.duration,
+                "duracion": r.duration
             })
         })
         .collect();
@@ -192,9 +240,71 @@ pub async fn get_playlist_handler(
         "id": playlist.id,
         "nombre": playlist.name,
         "creada_en": playlist.created_at.map(|dt| dt.unix_timestamp()),
+        "owner": playlist.owner,
+        "isOwner": playlist.user_id == auth.user_id,
+        "likes": playlist.likes,
+        "likedByMe": playlist.liked_by_me != 0,
+        "songCount": songs.len(),
+        "totalDuration": total_duration,
         "songs": songs
     }))
     .into_response()
+}
+
+/// POST /api/v1/playlists/:id/like — alterna el like del usuario sobre una
+/// playlist y devuelve el estado + contador actualizado.
+pub async fn toggle_playlist_like_handler(
+    State(state): State<AppState>,
+    Path(playlist_id): Path<String>,
+    axum::Extension(auth): axum::Extension<AuthContext>,
+) -> impl IntoResponse {
+    // La playlist debe existir (FK lo garantiza, pero devolvemos 404 limpio).
+    let exists = sqlx::query!("SELECT id FROM playlists WHERE id = ?", playlist_id)
+        .fetch_optional(&state.db)
+        .await
+        .unwrap_or(None);
+    if exists.is_none() {
+        return (StatusCode::NOT_FOUND, "Playlist no encontrada").into_response();
+    }
+
+    // Toggle: si el DELETE no afectó filas, no había like → insertar.
+    let deleted = sqlx::query!(
+        "DELETE FROM playlist_likes WHERE playlist_id = ? AND user_id = ?",
+        playlist_id,
+        auth.user_id
+    )
+    .execute(&state.db)
+    .await
+    .map(|r| r.rows_affected())
+    .unwrap_or(0);
+
+    let liked = if deleted == 0 {
+        let res = sqlx::query!(
+            "INSERT IGNORE INTO playlist_likes (playlist_id, user_id) VALUES (?, ?)",
+            playlist_id,
+            auth.user_id
+        )
+        .execute(&state.db)
+        .await;
+        if let Err(e) = res {
+            tracing::error!("toggle_playlist_like: fallo al insertar: {}", e);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Error DB").into_response();
+        }
+        true
+    } else {
+        false
+    };
+
+    let likes = sqlx::query!(
+        "SELECT COUNT(*) AS n FROM playlist_likes WHERE playlist_id = ?",
+        playlist_id
+    )
+    .fetch_one(&state.db)
+    .await
+    .map(|r| r.n)
+    .unwrap_or(0);
+
+    Json(serde_json::json!({ "liked": liked, "likes": likes })).into_response()
 }
 
 /// PATCH /api/v1/playlists/:id — renombra una playlist.
@@ -230,17 +340,14 @@ pub async fn rename_playlist_handler(
 pub async fn get_playlist_songs_handler(
     State(state): State<AppState>,
     Path(playlist_id): Path<String>,
-    axum::Extension(auth): axum::Extension<AuthContext>,
+    axum::Extension(_auth): axum::Extension<AuthContext>,
 ) -> impl IntoResponse {
-    // Verificar que la playlist pertenezca al usuario
-    let playlist = sqlx::query!(
-        "SELECT id FROM playlists WHERE id = ? AND user_id = ?",
-        playlist_id,
-        auth.user_id
-    )
-    .fetch_optional(&state.db)
-    .await
-    .unwrap_or(None);
+    // Lectura pública (coherente con get_playlist_handler): cualquier usuario
+    // autenticado puede reproducir una playlist; solo el dueño la modifica.
+    let playlist = sqlx::query!("SELECT id FROM playlists WHERE id = ?", playlist_id)
+        .fetch_optional(&state.db)
+        .await
+        .unwrap_or(None);
 
     if playlist.is_none() {
         return (StatusCode::NOT_FOUND, "Playlist no encontrada").into_response();
@@ -261,13 +368,26 @@ pub async fn get_playlist_songs_handler(
     let songs: Vec<serde_json::Value> = rows
         .into_iter()
         .map(|r| {
+            // Claves alineadas con normalizeTrack() del frontend: emitimos los
+            // nombres canónicos (trackName/artistName/coverArtUrl) además de los
+            // legacy (titulo/artista/portada). Antes solo se enviaba
+            // artist/artworkUrl → el normalizador los ignoraba y mostraba
+            // "Unknown Artist" y la portada por defecto.
             serde_json::json!({
                 "id": r.track_id,
+                "trackId": r.track_id,
                 "sourceType": r.song_source.unwrap_or_else(|| "local".to_string()),
+                "trackName": r.title,
                 "title": r.title,
+                "titulo": r.title,
+                "artistName": r.artist,
                 "artist": r.artist,
+                "artista": r.artist,
+                "coverArtUrl": r.cover_url,
                 "artworkUrl": r.cover_url,
-                "duration": r.duration
+                "portada": r.cover_url,
+                "duration": r.duration,
+                "duracion": r.duration
             })
         })
         .collect();
@@ -415,6 +535,74 @@ pub async fn add_history_handler(
 // -------------------------------------------------------------------------
 // MANEJADORES: LIKES
 // -------------------------------------------------------------------------
+#[derive(Deserialize)]
+pub struct LikesDetailedQuery {
+    /// 'local' | 'archive' | ausente (= todos)
+    pub source: Option<String>,
+}
+
+/// GET /api/v1/music/likes/detailed — favoritos CON metadata (título, artista,
+/// portada) para la Library. Los endpoints /music/songs/likes y /music/ia/likes
+/// siguen devolviendo solo IDs (los consume PlayerContext) — no se tocan.
+pub async fn get_likes_detailed_handler(
+    State(state): State<AppState>,
+    axum::extract::Query(q): axum::extract::Query<LikesDetailedQuery>,
+    axum::Extension(auth): axum::Extension<AuthContext>,
+) -> impl IntoResponse {
+    // La metadata puede vivir en track_links (mbid, catálogo) o en trackMetadata
+    // (caché de búsquedas/IA); se toma la primera disponible.
+    let rows = sqlx::query!(
+        r#"
+        SELECT
+            ul.track_id,
+            ul.source,
+            ul.liked_at,
+            COALESCE(tl.title, tm.trackName)        AS title,
+            COALESCE(tl.artist, tm.artistName)      AS artist,
+            COALESCE(tl.cover_url, tm.coverArtUrl)  AS cover_url
+        FROM user_likes ul
+        LEFT JOIN track_links   tl ON tl.mbid    = ul.track_id
+        LEFT JOIN trackMetadata tm ON tm.trackId = ul.track_id
+        WHERE ul.user_id = ?
+          AND (? IS NULL
+               OR (? = 'local'   AND ul.source = 'local')
+               OR (? = 'archive' AND ul.source != 'local'))
+        ORDER BY ul.liked_at DESC
+        "#,
+        auth.user_id,
+        q.source,
+        q.source,
+        q.source
+    )
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_else(|e| {
+        tracing::error!("user_data: error de DB en likes detailed: {}", e);
+        Vec::new()
+    });
+
+    let likes: Vec<serde_json::Value> = rows
+        .into_iter()
+        .map(|r| {
+            let cover = r
+                .cover_url
+                .filter(|c| !c.is_empty())
+                .unwrap_or_else(|| format!("/api/v1/covers/{}", r.track_id));
+            serde_json::json!({
+                "id": r.track_id,
+                "trackId": r.track_id,
+                "title": r.title.unwrap_or_else(|| "Sin título".to_string()),
+                "artist": r.artist.unwrap_or_else(|| "Artista desconocido".to_string()),
+                "coverUrl": cover,
+                "source": r.source,
+                "likedAt": r.liked_at.map(|dt| dt.unix_timestamp())
+            })
+        })
+        .collect();
+
+    Json(likes)
+}
+
 pub async fn get_local_likes_handler(
     State(state): State<AppState>,
     axum::Extension(auth): axum::Extension<AuthContext>,

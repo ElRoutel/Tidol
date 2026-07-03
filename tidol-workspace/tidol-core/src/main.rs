@@ -933,6 +933,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/api/v1/playlists/:id/songs/:song_id",
             delete(user_data::remove_song_from_playlist_handler),
         )
+        .route(
+            "/api/v1/playlists/:id/like",
+            post(user_data::toggle_playlist_like_handler),
+        )
         // History
         .route("/api/v1/history", get(user_data::get_history_handler))
         .route("/api/v1/history/add", post(user_data::add_history_handler))
@@ -944,6 +948,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route(
             "/api/v1/music/ia/likes",
             get(user_data::get_ia_likes_handler),
+        )
+        .route(
+            "/api/v1/music/likes/detailed",
+            get(user_data::get_likes_detailed_handler),
         )
         .route(
             "/api/v1/music/songs/:id/like",

@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { usePlayer } from '../context/PlayerContext';
 import { usePlaylist } from '../context/PlaylistContext';
 import UniversalCard from '../components/cards/UniversalCard';
-import { IoPlaySharp, IoShuffle, IoEllipsisHorizontal, IoTrashOutline, IoTimeOutline, IoPencilOutline } from 'react-icons/io5';
+import { IoPlaySharp, IoShuffle, IoEllipsisHorizontal, IoTrashOutline, IoTimeOutline, IoPencilOutline, IoHeart, IoHeartOutline } from 'react-icons/io5';
 import { normalizeTrackList } from '../utils/trackNormalization';
 import PlaylistNameModal from '../components/PlaylistNameModal';
 import '../styles/glass.css';
@@ -12,13 +12,14 @@ import './ImmersiveLayout.css'; // Mantener estilos específicos de layout inmer
 
 export default function PlaylistPage() {
     const { id } = useParams();
+    const navigate = useNavigate();
     const [playlist, setPlaylist] = useState(null);
     const [songs, setSongs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     const { playSongList, currentSong } = usePlayer();
-    const { removeSongFromPlaylist, renamePlaylist } = usePlaylist();
+    const { removeSongFromPlaylist, renamePlaylist, deletePlaylist } = usePlaylist();
     const [totalDuration, setTotalDuration] = useState(0);
     const [showMenu, setShowMenu] = useState(false);
     const [isRenameOpen, setIsRenameOpen] = useState(false);
@@ -27,6 +28,33 @@ export default function PlaylistPage() {
         await renamePlaylist(id, nombre);
         setPlaylist(prev => prev ? { ...prev, nombre } : prev);
         setIsRenameOpen(false);
+    };
+
+    const handleDeletePlaylist = async () => {
+        setShowMenu(false);
+        if (!window.confirm('¿Eliminar esta playlist? Esta acción no se puede deshacer.')) return;
+        const ok = await deletePlaylist(id);
+        if (ok) navigate('/library');
+    };
+
+    // Like de playlist: actualización optimista + estado real del backend.
+    const handleToggleLike = async () => {
+        setPlaylist(prev => prev ? {
+            ...prev,
+            likedByMe: !prev.likedByMe,
+            likes: (prev.likes ?? 0) + (prev.likedByMe ? -1 : 1)
+        } : prev);
+        try {
+            const res = await api.post(`/playlists/${id}/like`);
+            setPlaylist(prev => prev ? { ...prev, likedByMe: res.data.liked, likes: res.data.likes } : prev);
+        } catch (err) {
+            console.error('No se pudo actualizar el like de la playlist:', err);
+            setPlaylist(prev => prev ? {
+                ...prev,
+                likedByMe: !prev.likedByMe,
+                likes: (prev.likes ?? 0) + (prev.likedByMe ? -1 : 1)
+            } : prev);
+        }
     };
 
     useEffect(() => {
@@ -70,11 +98,15 @@ export default function PlaylistPage() {
     }, [id]);
 
     useEffect(() => {
-        if (songs.length > 0) {
+        // Preferir la duración total calculada por el backend; si no viene
+        // (fallback local), sumarla de las canciones.
+        if (playlist?.totalDuration > 0) {
+            setTotalDuration(playlist.totalDuration);
+        } else if (songs.length > 0) {
             const total = songs.reduce((acc, curr) => acc + (curr.duracion || curr.duration || 0), 0);
             setTotalDuration(total);
         }
-    }, [songs]);
+    }, [songs, playlist?.totalDuration]);
 
     const handleSongClick = (index) => {
         playSongList(songs, index);
@@ -144,47 +176,86 @@ export default function PlaylistPage() {
                         <h5 className="uppercase tracking-widest text-xs font-bold mb-2 text-white/80">Playlist</h5>
                         <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 tracking-tight">{playlist?.nombre}</h1>
 
-                        <div className="flex items-center gap-2 text-sm text-gray-300 mb-6">
-                            <span className="font-medium text-white">Creado por ti</span>
+                        <div className="flex items-center flex-wrap gap-2 text-sm text-gray-300 mb-6">
+                            <span className="font-medium text-white">
+                                {playlist?.owner ? `Creada por ${playlist.owner}` : 'Playlist'}
+                            </span>
                             <span>•</span>
-                            <span>{songs.length} canciones</span>
-                            <span>•</span>
-                            <span>{formatTotalDuration(totalDuration)}</span>
+                            <span>{playlist?.songCount ?? songs.length} canciones</span>
+                            {totalDuration > 0 && (
+                                <>
+                                    <span>•</span>
+                                    <span>{formatTotalDuration(totalDuration)}</span>
+                                </>
+                            )}
+                            {(playlist?.likes ?? 0) > 0 && (
+                                <>
+                                    <span>•</span>
+                                    <span className="inline-flex items-center gap-1">
+                                        <IoHeart size={14} className="text-white/70" /> {playlist.likes}
+                                    </span>
+                                </>
+                            )}
                         </div>
 
                         <div className="flex items-center gap-4">
                             <button
                                 onClick={() => playSongList(songs, 0)}
-                                className="w-14 h-14 rounded-full bg-[#1db954] hover:bg-[#1ed760] text-black flex items-center justify-center shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-14 h-14 rounded-full bg-white text-black flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                 disabled={songs.length === 0}
+                                aria-label="Reproducir playlist"
                             >
                                 <IoPlaySharp size={28} className="ml-1" />
                             </button>
-                            <button className="w-10 h-10 rounded-full border border-white/20 hover:bg-white/10 flex items-center justify-center text-white transition-all">
+                            <button
+                                onClick={handleToggleLike}
+                                className={`h-10 px-4 rounded-full border flex items-center gap-2 text-sm font-semibold transition-all active:scale-95 ${
+                                    playlist?.likedByMe
+                                        ? 'bg-white/15 border-white/30 text-white'
+                                        : 'border-white/20 text-white/80 hover:bg-white/10 hover:text-white'
+                                }`}
+                                aria-label={playlist?.likedByMe ? 'Quitar like' : 'Dar like'}
+                            >
+                                {playlist?.likedByMe ? <IoHeart size={18} /> : <IoHeartOutline size={18} />}
+                                {playlist?.likes ?? 0}
+                            </button>
+                            <button
+                                onClick={() => { if (songs.length) playSongList([...songs].sort(() => Math.random() - 0.5), 0); }}
+                                className="w-10 h-10 rounded-full border border-white/20 hover:bg-white/10 flex items-center justify-center text-white transition-all"
+                                aria-label="Reproducir en aleatorio"
+                            >
                                 <IoShuffle size={20} />
                             </button>
-                            <div className="relative">
-                                <button
-                                    onClick={() => setShowMenu(v => !v)}
-                                    className="w-10 h-10 rounded-full border border-white/20 hover:bg-white/10 flex items-center justify-center text-white transition-all"
-                                    title="Más opciones"
-                                >
-                                    <IoEllipsisHorizontal size={20} />
-                                </button>
-                                {showMenu && (
-                                    <>
-                                        <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-                                        <div className="absolute left-0 mt-2 w-48 z-20 rounded-xl bg-[#282828] border border-white/10 shadow-2xl py-1">
-                                            <button
-                                                onClick={() => { setShowMenu(false); setIsRenameOpen(true); }}
-                                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-white/10 transition-colors"
-                                            >
-                                                <IoPencilOutline size={18} /> Cambiar nombre
-                                            </button>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
+                            {playlist?.isOwner !== false && (
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setShowMenu(v => !v)}
+                                        className="w-10 h-10 rounded-full border border-white/20 hover:bg-white/10 flex items-center justify-center text-white transition-all"
+                                        title="Más opciones"
+                                    >
+                                        <IoEllipsisHorizontal size={20} />
+                                    </button>
+                                    {showMenu && (
+                                        <>
+                                            <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
+                                            <div className="absolute left-0 mt-2 w-52 z-20 rounded-xl bg-[#282828] border border-white/10 shadow-2xl py-1">
+                                                <button
+                                                    onClick={() => { setShowMenu(false); setIsRenameOpen(true); }}
+                                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-white/10 transition-colors"
+                                                >
+                                                    <IoPencilOutline size={18} /> Cambiar nombre
+                                                </button>
+                                                <button
+                                                    onClick={handleDeletePlaylist}
+                                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:bg-white/10 transition-colors"
+                                                >
+                                                    <IoTrashOutline size={18} /> Eliminar playlist
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
