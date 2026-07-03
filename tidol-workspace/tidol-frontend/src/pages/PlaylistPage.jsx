@@ -1,14 +1,97 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Reorder, useDragControls } from 'framer-motion';
 import api from '../api/axiosConfig';
 import { usePlayer } from '../context/PlayerContext';
 import { usePlaylist } from '../context/PlaylistContext';
-import UniversalCard from '../components/cards/UniversalCard';
-import { IoPlaySharp, IoShuffle, IoEllipsisHorizontal, IoTrashOutline, IoTimeOutline, IoPencilOutline, IoHeart, IoHeartOutline } from 'react-icons/io5';
+import { useContextMenu } from '../context/ContextMenuContext';
+import { getCoverSrc } from '../utils/coverArt';
+import { IoPlaySharp, IoShuffle, IoEllipsisHorizontal, IoTrashOutline, IoTimeOutline, IoPencilOutline, IoHeart, IoHeartOutline, IoReorderThreeOutline } from 'react-icons/io5';
 import { normalizeTrackList } from '../utils/trackNormalization';
 import PlaylistNameModal from '../components/PlaylistNameModal';
 import '../styles/glass.css';
 import './ImmersiveLayout.css'; // Mantener estilos específicos de layout inmersivo si son necesarios
+
+// Fila de canción de la playlist. Antes se delegaba en UniversalCard, que
+// ignora `children`/`index`/variante list: ni numeración, ni duración, ni el
+// botón de quitar llegaban a renderizarse. La fila propia además soporta
+// reordenación drag & drop (solo el dueño, desde el asa ≡).
+function PlaylistSongRow({ song, index, isOwner, isCurrent, onPlay, onDelete, onDragEnd, formatDuration }) {
+    const dragControls = useDragControls();
+    const { openContextMenu } = useContextMenu();
+    // Al soltar un arrastre, el navegador dispara también un click sobre la
+    // fila; sin esta guarda cada reordenación reproducía la canción movida.
+    const dragEndAtRef = useRef(0);
+
+    return (
+        <Reorder.Item
+            as="div"
+            value={song}
+            dragListener={false}
+            dragControls={dragControls}
+            onDragEnd={() => { dragEndAtRef.current = Date.now(); onDragEnd(); }}
+            className={`group grid grid-cols-[2rem_1fr_auto_auto] gap-4 items-center px-4 md:px-6 py-2.5 cursor-pointer border-b border-white/5 last:border-0 transition-colors hover:bg-white/5 ${isCurrent ? 'bg-white/10' : ''}`}
+            onClick={() => { if (Date.now() - dragEndAtRef.current > 250) onPlay(); }}
+            onContextMenu={(e) => { e.preventDefault(); openContextMenu(e, 'song', song); }}
+        >
+            {/* nº / asa de arrastre (el asa sustituye al número al hacer hover si eres dueño) */}
+            <div className="w-8 flex items-center justify-center text-sm text-gray-400">
+                {isOwner ? (
+                    <>
+                        <span className="group-hover:hidden">{index + 1}</span>
+                        <button
+                            onPointerDown={(e) => { e.stopPropagation(); dragControls.start(e); }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="hidden group-hover:flex items-center justify-center text-white/60 hover:text-white cursor-grab active:cursor-grabbing p-1"
+                            style={{ touchAction: 'none' }}
+                            aria-label="Reordenar"
+                            title="Arrastrar para reordenar"
+                        >
+                            <IoReorderThreeOutline size={20} />
+                        </button>
+                    </>
+                ) : (
+                    <span>{index + 1}</span>
+                )}
+            </div>
+
+            <div className="flex items-center gap-3 min-w-0">
+                <img
+                    src={getCoverSrc(song, true)}
+                    alt=""
+                    loading="lazy"
+                    onError={(e) => { e.currentTarget.src = '/default-album.png'; }}
+                    className="w-11 h-11 rounded-md object-cover shrink-0"
+                />
+                <div className="min-w-0">
+                    <p className={`text-sm font-medium truncate ${isCurrent ? 'text-primary' : 'text-white'}`}>
+                        {song.trackName || song.titulo || song.title}
+                    </p>
+                    <p className="text-xs text-gray-400 truncate">
+                        {song.artistName || song.artista || song.artist}
+                    </p>
+                </div>
+            </div>
+
+            <div className="hidden md:block text-sm text-gray-400 tabular-nums">
+                {formatDuration(song.durationInSeconds || song.duracion || song.duration)}
+            </div>
+
+            <div className="w-8 flex justify-end">
+                {isOwner && (
+                    <button
+                        className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2"
+                        onClick={onDelete}
+                        title="Quitar de playlist"
+                        aria-label="Quitar de playlist"
+                    >
+                        <IoTrashOutline size={18} />
+                    </button>
+                )}
+            </div>
+        </Reorder.Item>
+    );
+}
 
 export default function PlaylistPage() {
     const { id } = useParams();
@@ -19,10 +102,23 @@ export default function PlaylistPage() {
     const [error, setError] = useState(null);
 
     const { playSongList, currentSong } = usePlayer();
-    const { removeSongFromPlaylist, renamePlaylist, deletePlaylist } = usePlaylist();
+    const { removeSongFromPlaylist, renamePlaylist, deletePlaylist, reorderPlaylistSongs } = usePlaylist();
     const [totalDuration, setTotalDuration] = useState(0);
     const [showMenu, setShowMenu] = useState(false);
     const [isRenameOpen, setIsRenameOpen] = useState(false);
+
+    const isOwner = playlist?.isOwner !== false;
+
+    // Ref con el orden vigente: onDragEnd persiste el estado ya reordenado por
+    // onReorder (que dispara durante el arrastre). El pequeño defer deja que el
+    // último swap termine de aplicarse antes de leerlo.
+    const songsRef = useRef(songs);
+    useEffect(() => { songsRef.current = songs; }, [songs]);
+    const persistOrder = () => {
+        setTimeout(() => {
+            reorderPlaylistSongs(id, songsRef.current.map(s => s.id));
+        }, 50);
+    };
 
     const handleRename = async (nombre) => {
         await renamePlaylist(id, nombre);
@@ -263,7 +359,7 @@ export default function PlaylistPage() {
                 {/* Tracks List */}
                 <div className="glass-card rounded-xl overflow-hidden animate-slide-up">
                     {/* Header Row */}
-                    <div className="grid grid-cols-[auto_1fr_auto_auto] gap-4 px-6 py-3 border-b border-white/5 text-sm text-gray-400 font-medium uppercase tracking-wider">
+                    <div className="grid grid-cols-[2rem_1fr_auto_auto] gap-4 px-4 md:px-6 py-3 border-b border-white/5 text-sm text-gray-400 font-medium uppercase tracking-wider">
                         <div className="w-8 text-center">#</div>
                         <div>Título</div>
                         <div className="hidden md:block"><IoTimeOutline size={18} /></div>
@@ -277,24 +373,21 @@ export default function PlaylistPage() {
                             <p className="text-sm">Agrega canciones desde el menú contextual</p>
                         </div>
                     ) : (
-                        songs.map((song, index) => (
-                            <UniversalCard
-                                key={song.id || index}
-                                data={song}
-                                type="song"
-                                variant="list"
-                                index={index}
-                                onPlay={() => handleSongClick(index)}
-                            >
-                                <button
-                                    className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2"
-                                    onClick={(e) => handleDeleteSong(e, song.id)}
-                                    title="Quitar de playlist"
-                                >
-                                    <IoTrashOutline size={18} />
-                                </button>
-                            </UniversalCard>
-                        ))
+                        <Reorder.Group as="div" axis="y" values={songs} onReorder={setSongs}>
+                            {songs.map((song, index) => (
+                                <PlaylistSongRow
+                                    key={song.id || song.trackId || index}
+                                    song={song}
+                                    index={index}
+                                    isOwner={isOwner}
+                                    isCurrent={currentSong && (currentSong.id === song.id || currentSong.trackId === song.trackId)}
+                                    onPlay={() => handleSongClick(index)}
+                                    onDelete={(e) => handleDeleteSong(e, song.id)}
+                                    onDragEnd={persistOrder}
+                                    formatDuration={formatDuration}
+                                />
+                            ))}
+                        </Reorder.Group>
                     )}
                 </div>
             </div>

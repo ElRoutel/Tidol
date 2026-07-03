@@ -15,7 +15,7 @@ use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, HeaderValue, StatusCode},
     response::IntoResponse,
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 use dotenvy::dotenv;
@@ -781,6 +781,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .execute(&pool)
     .await?;
 
+    // Migración idempotente: orden estable (position) y URL de reproducción
+    // directa (url, p.ej. Internet Archive) en playlist_songs. El backfill
+    // asigna 1..N por fecha de añadido solo a filas sin posición.
+    sqlx::query(
+        "ALTER TABLE playlist_songs
+            ADD COLUMN IF NOT EXISTS position INT NOT NULL DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS url TEXT DEFAULT NULL",
+    )
+    .execute(&pool)
+    .await?;
+    sqlx::query(
+        "UPDATE playlist_songs ps
+         JOIN (
+             SELECT playlist_id, track_id,
+                    ROW_NUMBER() OVER (PARTITION BY playlist_id ORDER BY added_at ASC) AS rn
+             FROM playlist_songs
+         ) x ON ps.playlist_id = x.playlist_id AND ps.track_id = x.track_id
+         SET ps.position = x.rn
+         WHERE ps.position = 0",
+    )
+    .execute(&pool)
+    .await?;
+
     // Proxy rotator (still useful for outbound API calls)
     let proxy_urls: Vec<String> = std::env::var("PROXY_POOL")
         .ok()
@@ -936,6 +959,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/api/v1/playlists/:id/songs",
             get(user_data::get_playlist_songs_handler)
                 .post(user_data::add_song_to_playlist_handler),
+        )
+        .route(
+            "/api/v1/playlists/:id/songs/order",
+            put(user_data::reorder_playlist_songs_handler),
         )
         .route(
             "/api/v1/playlists/:id/songs/:song_id",

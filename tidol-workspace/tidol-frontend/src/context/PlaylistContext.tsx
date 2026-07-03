@@ -18,7 +18,8 @@ interface PlaylistContextType {
     fetchPlaylists: () => Promise<void>;
     createPlaylist: (nombre: string) => Promise<Playlist | false>;
     renamePlaylist: (playlistId: number | string, nombre: string) => Promise<boolean>;
-    addSongToPlaylist: (playlistId: number | string, song: UnifiedTrack) => Promise<boolean>;
+    addSongToPlaylist: (playlistId: number | string, song: UnifiedTrack) => Promise<{ added: boolean; already: boolean } | false>;
+    reorderPlaylistSongs: (playlistId: number | string, order: (string | number)[]) => Promise<boolean>;
     removeSongFromPlaylist: (playlistId: number | string, cancionId: string | number) => Promise<boolean>;
     deletePlaylist: (playlistId: number | string) => Promise<boolean>;
     openAddToPlaylistModal: (song: UnifiedTrack) => void;
@@ -127,36 +128,49 @@ export function PlaylistProvider({ children }: { children: ReactNode }) {
             // o un objeto crudo de búsqueda/IA (campos planos). Si solo miramos
             // `attributes`, las playlists guardaban duración 0 y sin portada.
             const s: any = song;
-            await api.post(`/playlists/${playlistId}/songs`, {
+            const { data } = await api.post(`/playlists/${playlistId}/songs`, {
                 cancion_id: s.id || s.trackId,
-                song_source: s.sourceType,
+                // `sourceType` (objetos normalizados) o `source` (items crudos del
+                // menú contextual, que marcan Internet Archive en `source`).
+                song_source: s.sourceType || s.source,
                 titulo: s.trackName || s.title || s.titulo || s.attributes?.name || '',
                 artista: s.artistName || s.artist || s.artista || s.attributes?.artistName || '',
                 portada: s.coverArtUrl || s.artworkUrl || s.portada || s.cover_url ||
                     s.coverUrl || s.image || s.attributes?.artwork?.url || '',
-                url: s.playbackUrl,
+                url: s.playbackUrl || s.url,
                 duracion: s.durationInSeconds || s.duracion || s.duration ||
                     s.attributes?.durationInSeconds || 0
             });
             fetchPlaylists();
-            return true;
+            // El backend distingue inserción real de duplicado ({added, already}).
+            return { added: !!data?.added, already: !!data?.already };
         } catch (error) {
             const current = getLocalPlaylists();
             const idx = current.findIndex(p => p.id === playlistId);
             if (idx !== -1) {
                 if (!current[idx].songs) current[idx].songs = [];
                 const exists = current[idx].songs.some(s => s.id === song.id);
-                if (!exists) {
-                    current[idx].songs.push(song);
-                    saveLocalPlaylists(current);
-                    return true;
-                }
+                if (exists) return { added: false, already: true };
+                current[idx].songs.push(song);
+                saveLocalPlaylists(current);
+                return { added: true, already: false };
             }
             return false;
         } finally {
             setLoading(false);
         }
     }, [fetchPlaylists]);
+
+    // Persiste el orden tras un drag & drop en PlaylistPage (solo dueño).
+    const reorderPlaylistSongs = useCallback(async (playlistId: number | string, order: (string | number)[]) => {
+        try {
+            await api.put(`/playlists/${playlistId}/songs/order`, { order: order.map(String) });
+            return true;
+        } catch (error) {
+            console.error('[PlaylistContext] No se pudo guardar el orden:', error);
+            return false;
+        }
+    }, []);
 
     const removeSongFromPlaylist = useCallback(async (playlistId: number | string, cancionId: string | number) => {
         setLoading(true);
@@ -207,7 +221,7 @@ export function PlaylistProvider({ children }: { children: ReactNode }) {
         <PlaylistContext.Provider value={{
             playlists, loading, isModalOpen, songToAdd,
             fetchPlaylists, createPlaylist, renamePlaylist, addSongToPlaylist,
-            removeSongFromPlaylist, deletePlaylist,
+            reorderPlaylistSongs, removeSongFromPlaylist, deletePlaylist,
             openAddToPlaylistModal, closeAddToPlaylistModal
         }}>
             {children}

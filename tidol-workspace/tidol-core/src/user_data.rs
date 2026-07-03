@@ -40,6 +40,12 @@ pub struct RenamePlaylistPayload {
     pub nombre: String,
 }
 
+#[derive(Deserialize)]
+pub struct ReorderPlaylistPayload {
+    /// track_ids en el nuevo orden (completo o parcial: solo se actualizan los listados).
+    pub order: Vec<String>,
+}
+
 /// Convierte un id JSON (string o número) a String no vacío.
 fn json_id_to_string(v: &serde_json::Value) -> Option<String> {
     let s = match v {
@@ -79,7 +85,7 @@ pub async fn get_playlists_handler(
             (SELECT COUNT(*) FROM playlist_songs ps WHERE ps.playlist_id = p.id) AS song_count,
             (SELECT CAST(COALESCE(SUM(ps.duration), 0) AS SIGNED) FROM playlist_songs ps WHERE ps.playlist_id = p.id) AS total_duration,
             (SELECT COUNT(*) FROM playlist_likes pl WHERE pl.playlist_id = p.id) AS likes,
-            (SELECT ps.cover_url FROM playlist_songs ps WHERE ps.playlist_id = p.id ORDER BY ps.added_at ASC LIMIT 1) AS cover_url
+            (SELECT ps.cover_url FROM playlist_songs ps WHERE ps.playlist_id = p.id ORDER BY ps.position ASC, ps.added_at ASC LIMIT 1) AS cover_url
         FROM playlists p
         JOIN users u ON u.id = p.user_id
         WHERE p.user_id = ?
@@ -196,7 +202,7 @@ pub async fn get_playlist_handler(
     };
 
     let rows = sqlx::query!(
-        "SELECT track_id, song_source, title, artist, cover_url, duration FROM playlist_songs WHERE playlist_id = ? ORDER BY added_at DESC",
+        "SELECT track_id, song_source, title, artist, cover_url, duration, url FROM playlist_songs WHERE playlist_id = ? ORDER BY position ASC, added_at ASC",
         playlist_id
     )
     .fetch_all(&state.db)
@@ -231,7 +237,11 @@ pub async fn get_playlist_handler(
                 "artworkUrl": r.cover_url,
                 "portada": r.cover_url,
                 "duration": r.duration,
-                "duracion": r.duration
+                "duracion": r.duration,
+                // URL de reproducción directa (Internet Archive); las pistas de
+                // catálogo (MusicBrainz) no la tienen y se resuelven vía embed.
+                "url": r.url,
+                "playbackUrl": r.url
             })
         })
         .collect();
@@ -354,7 +364,7 @@ pub async fn get_playlist_songs_handler(
     }
 
     let rows = sqlx::query!(
-        "SELECT track_id, song_source, title, artist, cover_url, duration FROM playlist_songs WHERE playlist_id = ? ORDER BY added_at DESC",
+        "SELECT track_id, song_source, title, artist, cover_url, duration, url FROM playlist_songs WHERE playlist_id = ? ORDER BY position ASC, added_at ASC",
         playlist_id
     )
     .fetch_all(&state.db)
@@ -387,7 +397,11 @@ pub async fn get_playlist_songs_handler(
                 "artworkUrl": r.cover_url,
                 "portada": r.cover_url,
                 "duration": r.duration,
-                "duracion": r.duration
+                "duracion": r.duration,
+                // URL de reproducción directa (Internet Archive); las pistas de
+                // catálogo (MusicBrainz) no la tienen y se resuelven vía embed.
+                "url": r.url,
+                "playbackUrl": r.url
             })
         })
         .collect();
@@ -417,11 +431,28 @@ pub async fn add_song_to_playlist_handler(
     let source = payload.song_source.unwrap_or_else(|| "local".to_string());
     let duration = payload.duracion.unwrap_or(0);
 
+    // Duplicado: no re-insertar ni mover la canción; avisar al frontend.
+    let existing = sqlx::query!(
+        "SELECT track_id FROM playlist_songs WHERE playlist_id = ? AND track_id = ?",
+        playlist_id,
+        payload.cancion_id
+    )
+    .fetch_optional(&state.db)
+    .await
+    .unwrap_or(None);
+
+    if existing.is_some() {
+        return Json(serde_json::json!({ "added": false, "already": true })).into_response();
+    }
+
+    // Orden estable: la canción nueva va al final (MAX(position) + 1).
     let result = sqlx::query!(
         r#"
-        INSERT INTO playlist_songs (playlist_id, track_id, song_source, title, artist, cover_url, duration)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE added_at = CURRENT_TIMESTAMP
+        INSERT INTO playlist_songs
+            (playlist_id, track_id, song_source, title, artist, cover_url, duration, url, position)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?,
+            (SELECT COALESCE(MAX(ps.position), 0) + 1 FROM playlist_songs ps WHERE ps.playlist_id = ?))
+        ON DUPLICATE KEY UPDATE added_at = added_at
         "#,
         playlist_id,
         payload.cancion_id,
@@ -429,15 +460,79 @@ pub async fn add_song_to_playlist_handler(
         payload.titulo,
         payload.artista,
         payload.portada,
-        duration
+        duration,
+        payload.url,
+        playlist_id
     )
     .execute(&state.db)
     .await;
 
     match result {
-        Ok(_) => (StatusCode::OK, "Canción añadida").into_response(),
-        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Error al añadir canción").into_response(),
+        Ok(_) => Json(serde_json::json!({ "added": true, "already": false })).into_response(),
+        Err(e) => {
+            tracing::error!("add_song_to_playlist: fallo al insertar: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Error al añadir canción").into_response()
+        }
     }
+}
+
+/// PUT /api/v1/playlists/:id/songs/order — persiste el nuevo orden de las
+/// canciones (drag & drop). Solo el dueño. Las posiciones se asignan 1..N
+/// según el array recibido; los track_ids no listados conservan la suya.
+pub async fn reorder_playlist_songs_handler(
+    State(state): State<AppState>,
+    Path(playlist_id): Path<String>,
+    axum::Extension(auth): axum::Extension<AuthContext>,
+    Json(payload): Json<ReorderPlaylistPayload>,
+) -> impl IntoResponse {
+    if payload.order.is_empty() || payload.order.len() > 1000 {
+        return (StatusCode::BAD_REQUEST, "Orden inválido").into_response();
+    }
+
+    let playlist = sqlx::query!(
+        "SELECT id FROM playlists WHERE id = ? AND user_id = ?",
+        playlist_id,
+        auth.user_id
+    )
+    .fetch_optional(&state.db)
+    .await
+    .unwrap_or(None);
+
+    if playlist.is_none() {
+        return (StatusCode::NOT_FOUND, "Playlist no encontrada").into_response();
+    }
+
+    // Transacción: o se aplica el orden completo o no se aplica nada.
+    let mut tx = match state.db.begin().await {
+        Ok(tx) => tx,
+        Err(e) => {
+            tracing::error!("reorder_playlist: no se pudo abrir transacción: {}", e);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Error DB").into_response();
+        }
+    };
+
+    for (idx, track_id) in payload.order.iter().enumerate() {
+        let res = sqlx::query!(
+            "UPDATE playlist_songs SET position = ? WHERE playlist_id = ? AND track_id = ?",
+            (idx as i32) + 1,
+            playlist_id,
+            track_id
+        )
+        .execute(&mut *tx)
+        .await;
+        if let Err(e) = res {
+            tracing::error!("reorder_playlist: fallo al actualizar posición: {}", e);
+            let _ = tx.rollback().await;
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Error DB").into_response();
+        }
+    }
+
+    if let Err(e) = tx.commit().await {
+        tracing::error!("reorder_playlist: fallo al hacer commit: {}", e);
+        return (StatusCode::INTERNAL_SERVER_ERROR, "Error DB").into_response();
+    }
+
+    Json(serde_json::json!({ "ok": true })).into_response()
 }
 
 pub async fn remove_song_from_playlist_handler(

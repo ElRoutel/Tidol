@@ -17,7 +17,15 @@ export function normalizeTrack(song: any, source?: SourceType): UnifiedTrack {
     // sección Covers y Remixes, cuyos items usan { title: ... }).
     song = { ...song, name: song.trackName || song.titulo || song.name || song.title };
 
-    const sourceType: SourceType = source || (song.identifier ? 'internet-archive' : 'local');
+    // Respetar el origen declarado por el propio objeto (p.ej. canciones de
+    // playlist, que llegan del backend con `sourceType` guardado al añadirlas).
+    // Antes se ignoraba y una pista de Internet Archive sin `identifier` se
+    // normalizaba como 'local', perdiendo su URL de reproducción directa.
+    const declared = typeof song.sourceType === 'string'
+        ? song.sourceType.replace(/_/g, '-').toLowerCase()
+        : '';
+    const sourceType: SourceType =
+        source || ((declared === 'internet-archive' || song.identifier) ? 'internet-archive' : 'local');
 
     // Mapeo para Internet Archive
     if (sourceType === 'internet-archive' || song.identifier) {

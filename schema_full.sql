@@ -165,6 +165,8 @@ CREATE TABLE IF NOT EXISTS playlist_songs (
     artist      VARCHAR(255) DEFAULT NULL,
     cover_url   TEXT         DEFAULT NULL,
     duration    INT          DEFAULT NULL,
+    url         TEXT         DEFAULT NULL,
+    position    INT          NOT NULL DEFAULT 0,
     added_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (playlist_id, track_id),
     CONSTRAINT fk_playlist_songs_playlist FOREIGN KEY (playlist_id) REFERENCES playlists (id) ON DELETE CASCADE

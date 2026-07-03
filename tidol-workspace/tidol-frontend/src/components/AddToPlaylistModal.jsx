@@ -16,11 +16,21 @@ export default function AddToPlaylistModal() {
 
     const [newPlaylistName, setNewPlaylistName] = useState('');
     const [showCreateInput, setShowCreateInput] = useState(false);
+    // Feedback en el propio modal: "Añadida" cierra solo; "Ya estaba" avisa
+    // sin cerrar (antes un duplicado cerraba en silencio y parecía añadido).
+    const [feedback, setFeedback] = useState(null); // { type: 'ok'|'dup', text }
 
-    const handleAddToPlaylist = async (playlistId) => {
-        const success = await addSongToPlaylist(playlistId, songToAdd);
-        if (success) {
-            closeAddToPlaylistModal();
+    const handleAddToPlaylist = async (playlistId, playlistName) => {
+        const res = await addSongToPlaylist(playlistId, songToAdd);
+        if (res && res.already) {
+            setFeedback({ type: 'dup', text: `Ya está en "${playlistName}"` });
+            setTimeout(() => setFeedback(null), 2200);
+        } else if (res) {
+            setFeedback({ type: 'ok', text: `Añadida a "${playlistName}"` });
+            setTimeout(() => {
+                setFeedback(null);
+                closeAddToPlaylistModal();
+            }, 700);
         }
     };
 
@@ -37,6 +47,11 @@ export default function AddToPlaylistModal() {
     };
 
     if (!songToAdd) return null;
+
+    const songTitle = songToAdd.trackName || songToAdd.titulo || songToAdd.title || 'Sin título';
+    const songArtist = songToAdd.artistName || songToAdd.artista || songToAdd.artist || '';
+    const songCover = songToAdd.coverArtUrl || songToAdd.portada || songToAdd.cover_url ||
+        songToAdd.coverUrl || songToAdd.image || '/default_cover.png';
 
     return (
         <AnimatePresence>
@@ -76,19 +91,30 @@ export default function AddToPlaylistModal() {
                         {/* Song Info */}
                         <div className="p-4 flex items-center gap-3 bg-white/5">
                             <img
-                                src={songToAdd.portada || songToAdd.cover_url || '/default_cover.png'}
-                                alt={songToAdd.titulo || songToAdd.title}
+                                src={songCover}
+                                alt={songTitle}
+                                onError={(e) => { e.currentTarget.src = '/default_cover.png'; }}
                                 className="w-12 h-12 rounded object-cover"
                             />
                             <div className="flex-1 min-w-0">
-                                <p className="text-white font-medium truncate">
-                                    {songToAdd.titulo || songToAdd.title}
-                                </p>
-                                <p className="text-white/60 text-sm truncate">
-                                    {songToAdd.artista || songToAdd.artist}
-                                </p>
+                                <p className="text-white font-medium truncate">{songTitle}</p>
+                                <p className="text-white/60 text-sm truncate">{songArtist}</p>
                             </div>
                         </div>
+
+                        {/* Feedback (añadida / duplicada) */}
+                        <AnimatePresence>
+                            {feedback && (
+                                <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    className={`px-4 py-2 text-sm font-medium ${feedback.type === 'dup' ? 'bg-yellow-500/15 text-yellow-300' : 'bg-green-600/15 text-green-400'}`}
+                                >
+                                    {feedback.text}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
 
                         {/* Playlists List */}
                         <div className="max-h-[300px] overflow-y-auto">
@@ -103,17 +129,28 @@ export default function AddToPlaylistModal() {
                             {playlists.map((playlist) => (
                                 <button
                                     key={playlist.id}
-                                    onClick={() => handleAddToPlaylist(playlist.id)}
+                                    onClick={() => handleAddToPlaylist(playlist.id, playlist.nombre)}
                                     disabled={loading}
                                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    <div className="w-10 h-10 bg-white/10 rounded flex items-center justify-center">
-                                        <MdMusicNote size={20} className="text-white/80" />
+                                    <div className="w-10 h-10 bg-white/10 rounded overflow-hidden flex items-center justify-center shrink-0">
+                                        {playlist.coverUrl ? (
+                                            <img
+                                                src={playlist.coverUrl}
+                                                alt=""
+                                                loading="lazy"
+                                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <MdMusicNote size={20} className="text-white/80" />
+                                        )}
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-white font-medium truncate">{playlist.nombre}</p>
                                         <p className="text-white/60 text-sm">
-                                            {playlist.canciones?.length || 0} canciones
+                                            {/* songCount llega del backend enriquecido; `canciones` es el fallback local */}
+                                            {playlist.songCount ?? playlist.canciones?.length ?? playlist.songs?.length ?? 0} canciones
                                         </p>
                                     </div>
                                 </button>
