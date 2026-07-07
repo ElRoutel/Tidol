@@ -69,9 +69,13 @@ set -a; source .env; set +a
 echo "--- Arrancando MariaDB (necesaria para compilar SQLx)..."
 docker compose up -d mariadb redis
 
+# OJO: este script llega a bash por stdin (heredoc del ssh). Todo
+# `docker compose exec -T` SIN redirección de entrada se come el stdin,
+# es decir, EL RESTO DE ESTE SCRIPT (el deploy terminaba "bien" sin migrar
+# ni compilar). De ahí los </dev/null y los `< fichero`.
 echo "--- Esperando que MariaDB esté lista..."
 RETRIES=30
-until docker compose exec -T mariadb healthcheck.sh --connect --innodb_initialized 2>/dev/null; do
+until docker compose exec -T mariadb healthcheck.sh --connect --innodb_initialized </dev/null 2>/dev/null; do
     RETRIES=$((RETRIES - 1))
     if [ "$RETRIES" -le 0 ]; then
         echo "ERROR: MariaDB no arrancó a tiempo."
@@ -86,7 +90,7 @@ DB_CLI="docker compose exec -T mariadb mariadb -u tidol_admin -p${MARIADB_PASSWO
 
 echo "--- Verificando esquema de BD..."
 TABLE_COUNT=$($DB_CLI -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='tidol';" \
-    --skip-column-names 2>/dev/null || echo "0")
+    --skip-column-names </dev/null 2>/dev/null || echo "0")
 TABLE_COUNT=$(echo "$TABLE_COUNT" | tr -d '[:space:]')
 
 if [ "$TABLE_COUNT" = "0" ]; then
