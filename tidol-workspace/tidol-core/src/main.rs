@@ -149,16 +149,22 @@ async fn get_artist_details_handler(
 async fn artist_discography_handler(
     State(state): State<AppState>,
     Path(mbid): Path<String>,
-) -> Json<serde_json::Value> {
+) -> impl axum::response::IntoResponse {
     match state
         .orchestrator
         .get_artist_discography(&mbid, &state.db)
         .await
     {
-        Ok(res) => Json(serde_json::json!(res)),
+        Ok(res) => (axum::http::StatusCode::OK, Json(serde_json::json!(res))).into_response(),
         Err(e) => {
             info!("Error in artist_discography_handler: {}", e);
-            Json(serde_json::json!({ "status": "error", "message": e.to_string() }))
+            // 502 y no 200: con 200 el frontend hacía setArtist(errorJson) y
+            // renderizaba una página vacía en vez de su estado de error.
+            (
+                axum::http::StatusCode::BAD_GATEWAY,
+                Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
@@ -283,10 +289,7 @@ async fn embed_search_handler(
     Query(params): Query<EmbedSearchQuery>,
 ) -> impl IntoResponse {
     let limit = params.limit.unwrap_or(10);
-    let tracks = state
-        .embed_orchestrator
-        .search_all(&params.q, limit)
-        .await;
+    let tracks = state.embed_orchestrator.search_all(&params.q, limit).await;
 
     (
         StatusCode::OK,
@@ -573,10 +576,7 @@ async fn get_lyrics_handler(
             .await;
     }
 
-    Err((
-        StatusCode::NOT_FOUND,
-        "Lyrics not available".to_string(),
-    ))
+    Err((StatusCode::NOT_FOUND, "Lyrics not available".to_string()))
 }
 
 // -------------------------------------------------------------------------
@@ -752,8 +752,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
     info!("=== Starting Tidol Core (Legal Embed Architecture) ===");
 
-    let database_url =
-        std::env::var("DATABASE_URL").expect("CRITICAL: DATABASE_URL not set");
+    let database_url = std::env::var("DATABASE_URL").expect("CRITICAL: DATABASE_URL not set");
     let db_max_connections = std::env::var("DATABASE_MAX_CONNECTIONS")
         .ok()
         .and_then(|v| v.parse::<u32>().ok())
@@ -814,7 +813,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Lyrics plugin (legal — scrapes public lyrics databases)
     let default_plugins_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../target/debug");
-    let plugins_dir = std::env::var("PLUGINS_DIR").unwrap_or_else(|_| default_plugins_dir.to_string());
+    let plugins_dir =
+        std::env::var("PLUGINS_DIR").unwrap_or_else(|_| default_plugins_dir.to_string());
     info!("[CONFIG] Plugins directory: {}", plugins_dir);
 
     let lyrics_path = format!("{}/libprovider_lyrics.so", plugins_dir);
@@ -835,7 +835,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // YouTube Data API v3
     let yt_api_key = std::env::var("YOUTUBE_API_KEY").unwrap_or_default();
     if !yt_api_key.is_empty() {
-        embed_providers.push(Box::new(providers::youtube::YouTubeProvider::new(yt_api_key)));
+        embed_providers.push(Box::new(providers::youtube::YouTubeProvider::new(
+            yt_api_key,
+        )));
         info!("[OK] YouTube provider initialized (Data API v3)");
     } else {
         warn!("[WARN] YOUTUBE_API_KEY not set, YouTube provider disabled");
@@ -857,7 +859,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // SoundCloud
     let sc_client_id = std::env::var("SOUNDCLOUD_CLIENT_ID").unwrap_or_default();
     if !sc_client_id.is_empty() {
-        embed_providers.push(Box::new(providers::soundcloud::SoundCloudProvider::new(sc_client_id)));
+        embed_providers.push(Box::new(providers::soundcloud::SoundCloudProvider::new(
+            sc_client_id,
+        )));
         info!("[OK] SoundCloud provider initialized");
     } else {
         warn!("[WARN] SOUNDCLOUD_CLIENT_ID not set, SoundCloud disabled");
@@ -914,7 +918,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/v1/covers/:mbid", get(media::get_cover_handler))
         // Embed endpoints (public so frontend can use without auth for search preview)
         .route("/api/v1/embed/search", get(embed_search_handler))
-        .route("/api/v1/embed/resolve/:platform_id", get(embed_resolve_handler));
+        .route(
+            "/api/v1/embed/resolve/:platform_id",
+            get(embed_resolve_handler),
+        );
 
     // ─── PROTECTED ROUTES ───
     let protected_routes = Router::new()

@@ -33,7 +33,7 @@ pub fn is_valid_match(query_artist: &str, result_artist: &str) -> bool {
             .replace(",", "")
             .replace(".", "")
             .replace(" ", "")
-            .replace("/ ","")
+            .replace("/ ", "")
             .trim()
             .to_string()
     };
@@ -167,7 +167,10 @@ impl MetadataOrchestrator {
                     j["artists"].as_array().map(|arr| {
                         arr.iter()
                             .filter_map(|a| {
-                                Some((a["id"].as_str()?.to_string(), a["name"].as_str()?.to_string()))
+                                Some((
+                                    a["id"].as_str()?.to_string(),
+                                    a["name"].as_str()?.to_string(),
+                                ))
                             })
                             .take(3)
                             .collect()
@@ -250,6 +253,36 @@ impl MetadataOrchestrator {
         })
     }
 
+    /// GET a MusicBrainz con validación de status y reintento ante rate-limit.
+    /// MB limita a 1 req/s por IP: justo tras una búsqueda (que ya hizo 2
+    /// peticiones) un lookup inmediato recibe 503 con un body JSON de error.
+    /// Antes ese body se parseaba "bien" y acababa cacheado como si fuera el
+    /// artista ("Unknown Artist", 0 álbumes, status full_discography_synced).
+    async fn mb_get_json(
+        &self,
+        url: &str,
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
+        let mut attempts = 0;
+        loop {
+            attempts += 1;
+            let res = self
+                .http_client
+                .get(url)
+                .header("User-Agent", "TidolCore/1.0 (contact@tidol.duckdns.org)")
+                .send()
+                .await?;
+            let status = res.status();
+            if status.is_success() {
+                return Ok(res.json().await?);
+            }
+            if attempts < 3 && (status.as_u16() == 503 || status.as_u16() == 429) {
+                tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+                continue;
+            }
+            return Err(format!("MusicBrainz devolvió {} para {}", status, url).into());
+        }
+    }
+
     pub async fn get_artist_discography(
         &self,
         artist_mbid: &str,
@@ -263,7 +296,9 @@ impl MetadataOrchestrator {
                 .await?;
 
         if let Some((db_mbid, db_name, db_cover, status)) = &artist_row {
-            if status == "full_discography_synced" {
+            // Una fila "sincronizada" sin nombre real o sin álbumes es el
+            // residuo de un sync que falló y se cacheó: se re-sincroniza.
+            if status == "full_discography_synced" && db_name != "Unknown Artist" {
                 // Traer todos los álbumes
                 let album_rows: Vec<(String, String, Option<i32>, Option<String>, Option<String>)> = sqlx::query_as(
                     "SELECT mbid, title, release_year, cover_url, cover_status FROM albums WHERE artist_mbid = ?"
@@ -272,51 +307,50 @@ impl MetadataOrchestrator {
                 .fetch_all(db)
                 .await?;
 
-                let albums = album_rows
-                    .into_iter()
-                    .map(|(id, title, year, cover, status)| AlbumResponse {
-                        id,
-                        title,
-                        artist_id: db_mbid.clone(),
-                        artist_name: Some(db_name.clone()),
-                        release_year: year,
-                        cover_url: if status.as_deref() == Some("not_found") {
-                            Some("/default-album.png".to_string())
-                        } else {
-                            cover
-                        },
-                    })
-                    .collect();
+                if !album_rows.is_empty() {
+                    let albums = album_rows
+                        .into_iter()
+                        .map(|(id, title, year, cover, status)| AlbumResponse {
+                            id,
+                            title,
+                            artist_id: db_mbid.clone(),
+                            artist_name: Some(db_name.clone()),
+                            release_year: year,
+                            cover_url: if status.as_deref() == Some("not_found") {
+                                Some("/default-album.png".to_string())
+                            } else {
+                                cover
+                            },
+                        })
+                        .collect();
 
-                let biography = self.fetch_wikipedia_bio(db_name).await;
+                    let biography = self.fetch_wikipedia_bio(db_name).await;
 
-                return Ok(ArtistProfileResponse {
-                    id: db_mbid.clone(),
-                    name: db_name.clone(),
-                    cover_url: db_cover.clone().unwrap_or_default(),
-                    biography,
-                    albums,
-                });
+                    return Ok(ArtistProfileResponse {
+                        id: db_mbid.clone(),
+                        name: db_name.clone(),
+                        cover_url: db_cover.clone().unwrap_or_default(),
+                        biography,
+                        albums,
+                    });
+                }
             }
         }
 
-        // Si no está sincronizado, pedir de MusicBrainz
+        // Si no está sincronizado (o la caché está envenenada), pedir de MusicBrainz
         let mb_url = format!(
             "https://musicbrainz.org/ws/2/artist/{}?fmt=json",
             artist_mbid
         );
-        // Reutiliza el cliente compartido (pooling + timeout) en vez de crear uno nuevo.
-        let client = &self.http_client;
-        let res = client
-            .get(&mb_url)
-            .header("User-Agent", "TidolCore/0.1.0 ( contact@tidol.com )")
-            .send()
-            .await?;
-
-        let mb_data: serde_json::Value = res.json().await?;
+        let mb_data = self.mb_get_json(&mb_url).await?;
         let artist_name = mb_data["name"]
             .as_str()
-            .unwrap_or("Unknown Artist")
+            .ok_or_else(|| {
+                format!(
+                    "MusicBrainz no devolvió el nombre del artista {}",
+                    artist_mbid
+                )
+            })?
             .to_string();
 
         // Obtener Discografía (límite 100)
@@ -324,12 +358,14 @@ impl MetadataOrchestrator {
             "https://musicbrainz.org/ws/2/release-group?artist={}&limit=100&fmt=json",
             artist_mbid
         );
-        let rg_res = client
-            .get(&rg_url)
-            .header("User-Agent", "TidolCore/0.1.0 ( contact: elroutel@hotmail.com )")
-            .send()
-            .await?;
-        let rg_data: serde_json::Value = rg_res.json().await?;
+        let rg_data = self.mb_get_json(&rg_url).await?;
+        if !rg_data["release-groups"].is_array() {
+            return Err(format!(
+                "MusicBrainz no devolvió release-groups para {}",
+                artist_mbid
+            )
+            .into());
+        }
 
         let cover_url = self.fetch_apple_artwork(&artist_name, &artist_name).await;
 
@@ -652,7 +688,9 @@ impl MetadataOrchestrator {
                 // así las portadas malas se auto-reparan al reproducir la pista.
                 let needs_cover = match cover_url.as_deref() {
                     None => true,
-                    Some(c) => c.is_empty() || c.contains("via.placeholder") || c.contains("placeholder"),
+                    Some(c) => {
+                        c.is_empty() || c.contains("via.placeholder") || c.contains("placeholder")
+                    }
                 };
                 if needs_cover {
                     if let Some(new_cover) = self.fetch_apple_music_cover(&artist, &title).await {
@@ -705,8 +743,8 @@ impl MetadataOrchestrator {
         let cover_url = self.fetch_apple_music_cover(&artist, &title).await;
 
         // Guardar nuevo registro maestro o actualizar si es Unknown
-       sqlx::query(
-    r#"
+        sqlx::query(
+            r#"
     INSERT INTO track_links (
         mbid, title, artist, yt_video_id, genius_id, cover_url, soundcloud_track_id
     )
@@ -718,16 +756,16 @@ impl MetadataOrchestrator {
         genius_id = VALUES(genius_id),
         cover_url = VALUES(cover_url)
     "#,
-)
-.bind(mbid)
-.bind(&title)
-.bind(&artist)
-.bind(&yt_video_id)
-.bind(&genius_id)
-.bind(&cover_url)
-.execute(db)
-.await
-.map_err(|e| format!("Fallo al persistir enlace: {}", e))?;
+        )
+        .bind(mbid)
+        .bind(&title)
+        .bind(&artist)
+        .bind(&yt_video_id)
+        .bind(&genius_id)
+        .bind(&cover_url)
+        .execute(db)
+        .await
+        .map_err(|e| format!("Fallo al persistir enlace: {}", e))?;
 
         let stream_url = None;
 
@@ -1090,10 +1128,9 @@ pub fn trigger_bad_engine_prefetch(
                 "[Prefetch] 🚀 Pre-calentando Bad Engine para: {} - {} ({})",
                 artist, title, mbid
             );
-            let workspace_dir = std::env::current_dir()
-                .unwrap_or_else(|_| {
-                    std::path::PathBuf::from("/home/routel/TidolCore/tidol-workspace")
-                });
+            let workspace_dir = std::env::current_dir().unwrap_or_else(|_| {
+                std::path::PathBuf::from("/home/routel/TidolCore/tidol-workspace")
+            });
 
             let ai_plugin_path = workspace_dir.join("plugins/provider-ai/target/release");
 
