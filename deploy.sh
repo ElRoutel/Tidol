@@ -62,43 +62,49 @@ cd /mnt/storage
 # Cargar variables de entorno del .env
 set -a; source .env; set +a
 
-# En un full deploy (o si MariaDB no está corriendo): arrancar BD primero
-# El build del backend necesita MariaDB en 127.0.0.1:3306 (network: host)
-MARIADB_RUNNING=$(docker ps -q -f name=tidol-mariadb 2>/dev/null || true)
+# La BD debe estar SIEMPRE lista y migrada antes del build: los macros
+# sqlx::query! del backend compilan contra el esquema real de esta MariaDB.
+# (Ojo: la imagen mariadb:11.x ya no trae el binario `mysql`, es `mariadb`;
+# el antiguo check con `mysql` fallaba en silencio por el `|| echo 0`.)
+echo "--- Arrancando MariaDB (necesaria para compilar SQLx)..."
+docker compose up -d mariadb redis
 
-if [ "$DEPLOY_MODE" = "--full" ] || [ -z "$MARIADB_RUNNING" ]; then
-    echo "--- Arrancando MariaDB (necesaria para compilar SQLx)..."
-    docker compose up -d mariadb redis
-
-    echo "--- Esperando que MariaDB esté lista..."
-    RETRIES=30
-    until docker compose exec -T mariadb healthcheck.sh --connect --innodb_initialized 2>/dev/null; do
-        RETRIES=$((RETRIES - 1))
-        if [ "$RETRIES" -le 0 ]; then
-            echo "ERROR: MariaDB no arrancó a tiempo."
-            exit 1
-        fi
-        echo "    Esperando... ($RETRIES intentos restantes)"
-        sleep 5
-    done
-    echo "--- MariaDB lista."
-
-    echo "--- Verificando esquema de BD..."
-    TABLE_COUNT=$(docker compose exec -T mariadb \
-        mysql -u tidol_admin -p"${MARIADB_PASSWORD}" tidol \
-        -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='tidol';" \
-        --skip-column-names 2>/dev/null || echo "0")
-    TABLE_COUNT=$(echo "$TABLE_COUNT" | tr -d '[:space:]')
-
-    if [ "$TABLE_COUNT" = "0" ]; then
-        echo "    BD vacía — importando schema_full.sql..."
-        docker compose exec -T mariadb \
-            mysql -u tidol_admin -p"${MARIADB_PASSWORD}" tidol \
-            < schema_full.sql
-        echo "    Esquema importado correctamente."
-    else
-        echo "    BD ya tiene $TABLE_COUNT tabla(s), omitiendo importación."
+echo "--- Esperando que MariaDB esté lista..."
+RETRIES=30
+until docker compose exec -T mariadb healthcheck.sh --connect --innodb_initialized 2>/dev/null; do
+    RETRIES=$((RETRIES - 1))
+    if [ "$RETRIES" -le 0 ]; then
+        echo "ERROR: MariaDB no arrancó a tiempo."
+        exit 1
     fi
+    echo "    Esperando... ($RETRIES intentos restantes)"
+    sleep 5
+done
+echo "--- MariaDB lista."
+
+DB_CLI="docker compose exec -T mariadb mariadb -u tidol_admin -p${MARIADB_PASSWORD} tidol"
+
+echo "--- Verificando esquema de BD..."
+TABLE_COUNT=$($DB_CLI -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='tidol';" \
+    --skip-column-names 2>/dev/null || echo "0")
+TABLE_COUNT=$(echo "$TABLE_COUNT" | tr -d '[:space:]')
+
+if [ "$TABLE_COUNT" = "0" ]; then
+    echo "    BD vacía — importando schema_full.sql..."
+    $DB_CLI < schema_full.sql
+    echo "    Esquema importado correctamente."
+else
+    echo "    BD ya tiene $TABLE_COUNT tabla(s), omitiendo importación."
+fi
+
+# Migraciones idempotentes (en orden de nombre) ANTES del build: sin esto,
+# un cambio de esquema rompe la compilación de sqlx en el propio deploy.
+if compgen -G "migrations/*.sql" > /dev/null; then
+    for MIGRATION in migrations/*.sql; do
+        echo "--- Aplicando migración: $MIGRATION"
+        $DB_CLI < "$MIGRATION"
+    done
+    echo "--- Migraciones aplicadas."
 fi
 
 echo ""

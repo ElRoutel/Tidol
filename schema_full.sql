@@ -104,20 +104,6 @@ CREATE TABLE IF NOT EXISTS searchClicks (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------
--- Cola de procesamiento de audio / letras
--- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS audioProcessingQueue (
-    taskId       BIGINT       NOT NULL AUTO_INCREMENT,
-    trackId      VARCHAR(255) NOT NULL,
-    status       VARCHAR(50)  DEFAULT 'PENDING',
-    progress     INT          DEFAULT 0,
-    errorMessage TEXT         DEFAULT NULL,
-    PRIMARY KEY (taskId),
-    KEY idx_apq_trackId (trackId),
-    KEY idx_apq_status  (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ---------------------------------------------------------------------------
 -- Usuarios
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS users (
@@ -173,16 +159,16 @@ CREATE TABLE IF NOT EXISTS playlist_songs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------
--- Historial de reproducción del usuario
+-- Likes de playlists
 -- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS user_history (
-    id        BIGINT       NOT NULL AUTO_INCREMENT,
-    user_id   BIGINT       NOT NULL,
-    track_id  VARCHAR(255) NOT NULL,
-    played_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    KEY idx_user_history_user (user_id),
-    CONSTRAINT fk_user_history_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS playlist_likes (
+    playlist_id VARCHAR(36) NOT NULL,
+    user_id     BIGINT      NOT NULL,
+    liked_at    TIMESTAMP   DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (playlist_id, user_id),
+    KEY idx_playlist_likes_user (user_id),
+    CONSTRAINT fk_playlist_likes_playlist FOREIGN KEY (playlist_id) REFERENCES playlists (id) ON DELETE CASCADE,
+    CONSTRAINT fk_playlist_likes_user     FOREIGN KEY (user_id)     REFERENCES users (id)     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------
@@ -208,7 +194,7 @@ CREATE TABLE IF NOT EXISTS play_history (
     user_id    BIGINT      DEFAULT NULL,
     played_at  TIMESTAMP   DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    KEY idx_play_history_user  (user_id),
+    KEY idx_play_history_user  (user_id, track_mbid, played_at),
     KEY idx_play_history_track (track_mbid)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

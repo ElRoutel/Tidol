@@ -64,7 +64,10 @@ pub struct ToggleLikePayload {
     pub title: Option<String>,
     pub creator: Option<String>,
     pub artist: Option<String>,
+    #[allow(dead_code)]
     pub album: Option<String>,
+    pub portada: Option<String>,
+    pub duration: Option<f64>,
 }
 
 // -------------------------------------------------------------------------
@@ -571,13 +574,17 @@ pub async fn get_history_handler(
     State(state): State<AppState>,
     axum::Extension(auth): axum::Extension<AuthContext>,
 ) -> impl IntoResponse {
+    // Fuente única: play_history (la escribe POST /tracks/:mbid/log-play y la
+    // leen también Home y "Volver a escuchar"). La antigua user_history
+    // duplicaba cada reproducción en una segunda tabla que solo leía este
+    // endpoint — ver cleanup_legacy_tables.sql.
     let rows = sqlx::query!(
         r#"
-        SELECT h.track_id, h.played_at, tm.trackName, tm.artistName, tm.coverArtUrl
-        FROM user_history h
-        LEFT JOIN trackMetadata tm ON h.track_id = tm.trackId
-        WHERE h.user_id = ?
-        ORDER BY h.played_at DESC
+        SELECT p.track_mbid AS track_id, p.played_at, t.title, t.artist, t.cover_url
+        FROM play_history p
+        JOIN track_links t ON t.mbid = p.track_mbid
+        WHERE p.user_id = ?
+        ORDER BY p.played_at DESC
         LIMIT 50
         "#,
         auth.user_id
@@ -595,9 +602,9 @@ pub async fn get_history_handler(
         .map(|r| {
             serde_json::json!({
                 "id": r.track_id,
-                "title": r.trackName,
-                "artist": r.artistName,
-                "artworkUrl": r.coverArtUrl,
+                "title": r.title,
+                "artist": r.artist,
+                "artworkUrl": r.cover_url,
                 "playedAt": r.played_at.map(|dt| dt.unix_timestamp())
             })
         })
@@ -607,24 +614,15 @@ pub async fn get_history_handler(
 }
 
 pub async fn add_history_handler(
-    State(state): State<AppState>,
-    axum::Extension(auth): axum::Extension<AuthContext>,
     Json(payload): Json<AddHistoryPayload>,
 ) -> impl IntoResponse {
-    let track_id = match payload.cancion_id.as_ref().and_then(json_id_to_string) {
-        Some(s) => s,
-        None => return (StatusCode::BAD_REQUEST, "cancion_id requerido").into_response(),
-    };
-
-    let _ = sqlx::query!(
-        "INSERT INTO user_history (user_id, track_id) VALUES (?, ?)",
-        auth.user_id,
-        track_id
-    )
-    .execute(&state.db)
-    .await;
-
-    (StatusCode::OK, "Añadido al historial").into_response()
+    // Deprecado (no-op): el frontend registraba cada reproducción DOS veces
+    // (aquí y en /tracks/:mbid/log-play → play_history). Se mantiene la ruta
+    // por compatibilidad con clientes antiguos, pero ya no escribe nada.
+    if payload.cancion_id.as_ref().and_then(json_id_to_string).is_none() {
+        return (StatusCode::BAD_REQUEST, "cancion_id requerido").into_response();
+    }
+    (StatusCode::OK, "OK").into_response()
 }
 
 // -------------------------------------------------------------------------
@@ -780,9 +778,39 @@ pub async fn toggle_ia_like_handler(
 ) -> impl IntoResponse {
     let track_id = payload
         .id
-        .unwrap_or_else(|| payload.identifier.unwrap_or_default());
+        .clone()
+        .unwrap_or_else(|| payload.identifier.clone().unwrap_or_default());
     if track_id.is_empty() {
         return (StatusCode::BAD_REQUEST, "Missing ID").into_response();
+    }
+
+    // Persistir la metadata que envía el cliente: antes se ignoraba y, como
+    // las pistas IA no existen en track_links ni (normalmente) en
+    // trackMetadata, la Library mostraba "Sin título / Artista desconocido".
+    // trackMetadata es la caché que ya lee get_likes_detailed_handler.
+    let title = payload.title.clone().or(payload.name.clone()).unwrap_or_default();
+    let artist = payload.artist.clone().or(payload.creator.clone()).unwrap_or_default();
+    if !title.is_empty() {
+        let duration_s = payload.duration.map(|d| d.round() as i32);
+        let _ = sqlx::query!(
+            r#"
+            INSERT INTO trackMetadata (trackId, trackName, artistName, coverArtUrl, durationSeconds, isCached)
+            VALUES (?, ?, ?, ?, ?, 0)
+            ON DUPLICATE KEY UPDATE
+                trackName       = IF(trackName = '' OR trackName IS NULL, VALUES(trackName), trackName),
+                artistName      = COALESCE(artistName, VALUES(artistName)),
+                coverArtUrl     = COALESCE(coverArtUrl, VALUES(coverArtUrl)),
+                durationSeconds = COALESCE(durationSeconds, VALUES(durationSeconds))
+            "#,
+            track_id,
+            title,
+            artist,
+            payload.portada,
+            duration_s
+        )
+        .execute(&state.db)
+        .await
+        .map_err(|e| tracing::warn!("toggle_ia_like: no se pudo cachear metadata: {}", e));
     }
 
     let existing = sqlx::query!(

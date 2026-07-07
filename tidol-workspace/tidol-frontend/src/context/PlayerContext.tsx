@@ -257,7 +257,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
 
     // ── MediaSession + Historial ─────────────────────────────────
-    const lastHistorySyncRef = useRef<string | null>(null);
     useEffect(() => {
         if (!currentTrack) {
             document.title = 'Tidol';
@@ -313,25 +312,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             updatePositionState(progressRef.current, durationRef.current);
         }
 
-        const syncHistory = async () => {
-            // El id canónico es trackId (types/music.ts); currentTrack.id puede venir
-            // undefined → body {} → 422. Enviamos el correcto, coaccionado a string.
-            // Dedupe: este efecto re-corre cuando al track se le fusionan
-            // resolvedCover/colores (misma pista, nueva identidad de objeto);
-            // sin la guarda se insertaban 2-4 entradas de historial por canción.
-            const cancionId = (currentTrack as any).trackId ?? currentTrack.id;
-            if (cancionId == null) return;
-            if (lastHistorySyncRef.current === String(cancionId)) return;
-            lastHistorySyncRef.current = String(cancionId);
-            try {
-                await api.post('/history/add', {
-                    cancion_id: String(cancionId)
-                });
-            } catch (err) {
-                console.warn('⚠️ No se pudo sincronizar el historial:', err);
-            }
-        };
-        syncHistory();
+        // El historial se registra UNA sola vez por pista vía POST
+        // /tracks/:mbid/log-play (tabla play_history, la que leen Home,
+        // "Volver a escuchar" y GET /history). La llamada extra a
+        // /history/add duplicaba cada reproducción en una segunda tabla.
 
         // Congelar la portada canónica UNA sola vez por pista: fuente única de verdad
         // que leen bar, fullscreen y MediaSession (garantiza que coincidan). Una vez
