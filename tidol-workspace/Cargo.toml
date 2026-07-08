@@ -2,6 +2,7 @@
 members = [
     "tidol-core",
     "tidol-server",
+    "tidol-shell",
     "plugins/provider-archive",
     "plugins/provider-lyrics",
     "plugins/provider-jamendo"
