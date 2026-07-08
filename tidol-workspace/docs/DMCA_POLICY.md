@@ -30,7 +30,7 @@ If you believe that content accessible through Tidol infringes your copyright, p
 3. **For metadata or search results:** If you believe that metadata displayed on Tidol (such as a title, artist name, or album cover link) infringes your rights, send a DMCA notice to:
 
 **DMCA Agent**  
-Email: dmca@tidol.app
+Email: elroutel@hotmail.com
 
 Your notice must include:
 - Identification of the copyrighted work claimed to have been infringed

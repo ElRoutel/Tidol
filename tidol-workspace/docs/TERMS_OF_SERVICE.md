@@ -59,4 +59,4 @@ We reserve the right to modify these terms at any time. Continued use of the Ser
 
 ## 11. Contact
 
-For questions about these terms, contact us at legal@tidol.app.
+For questions about these terms, contact us at elroutel@hotmail.com.

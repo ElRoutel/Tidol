@@ -81,4 +81,4 @@ We may update this policy periodically. We will notify users of significant chan
 
 ## 11. Contact
 
-For privacy questions or data requests, contact privacy@tidol.app.
+For privacy questions or data requests, contact  elroutel@hotmail.com.

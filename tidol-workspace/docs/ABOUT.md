@@ -53,6 +53,4 @@ All Internet Archive content is verified to have Creative Commons or public doma
 
 ## Contact
 
-- General: hello@tidol.app
-- Legal: legal@tidol.app
-- DMCA: dmca@tidol.app
+- General:  elroutel@hotmail.com
