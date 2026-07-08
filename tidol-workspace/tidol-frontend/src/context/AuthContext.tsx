@@ -36,12 +36,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     const res = await api.get('/auth/me');
                     if (res.data && res.data.username) {
                         setUser({ username: res.data.username, role: 'user' });
+                        localStorage.setItem('username', res.data.username);
                     } else {
                         logout();
                     }
                 } catch (err) {
-                    console.error("Token validation failed:", err);
-                    logout();
+                    // Solo un 401 prueba que el token es inválido. Ante un fallo de
+                    // red (backend caído, timeout) cerrar sesión borraba el token y
+                    // expulsaba al usuario por un corte pasajero.
+                    const status = (err as { response?: { status?: number } })?.response?.status;
+                    if (status === 401) {
+                        logout();
+                    } else {
+                        const cached = localStorage.getItem('username');
+                        if (cached) setUser({ username: cached, role: 'user' });
+                    }
                 }
             } else {
                 setUser(null);
@@ -89,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             
             localStorage.setItem('token', newToken);
             localStorage.setItem('device_id', newDeviceId);
+            localStorage.setItem('username', userName);
 
             setLoading(false);
             return { success: true };
@@ -108,6 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         localStorage.removeItem('token');
         localStorage.removeItem('device_id');
+        localStorage.removeItem('username');
     };
 
     const register = async (username: string, password: string) => {

@@ -106,14 +106,26 @@ fn eprintln_stdout(s: &str) {
     println!("{s}");
 }
 
-/// Prompt coloreado por modo, con los marcadores `\x01`/`\x02` que rustyline
-/// necesita para no descuadrar el ancho al contar caracteres no imprimibles.
+/// Prompt coloreado por modo.
+///
+/// El ANSI va **crudo**, sin envolver en `\x01`/`\x02`: esos marcadores son
+/// `RL_PROMPT_{START,END}_IGNORE` de GNU readline, y rustyline no los conoce.
+/// Su `width()` solo sabe saltarse secuencias de escape; cualquier otro byte cae
+/// en `unicode_width`, que cuenta los controles C0 como una columna. Envolverlos
+/// hacía que rustyline midiese el prompt 4 columnas más ancho de lo que es y
+/// desplazaba el cursor. rustyline ya ignora el ANSI por sí solo.
 pub fn prompt(mode: Mode) -> String {
+    prompt_with_color(mode, color_on())
+}
+
+/// Núcleo testeable de [`prompt`]: `color_on()` mira si stdout es una TTY, y bajo
+/// `cargo test` nunca lo es.
+fn prompt_with_color(mode: Mode, color: bool) -> String {
     let label = match mode {
         Mode::Local => "TidolCore> ",
         Mode::Prod => "Tidol(prod)> ",
     };
-    if !color_on() {
+    if !color {
         return label.to_string();
     }
     // 32 = verde (local), 31 = rojo (prod), ambos en negrita.
@@ -121,7 +133,7 @@ pub fn prompt(mode: Mode) -> String {
         Mode::Local => 32,
         Mode::Prod => 31,
     };
-    format!("\x01\x1b[1;{code}m\x02{label}\x01\x1b[0m\x02")
+    format!("\x1b[1;{code}m{label}\x1b[0m")
 }
 
 /// "ok" verde / "fail" rojo para los chequeos de `health`.
@@ -172,5 +184,77 @@ pub fn age(t: SystemTime) -> String {
         Ok(d) => format!("{}s", d.as_secs()),
         // Reloj hacia atrás: no es un error del usuario, mostramos 0.
         Err(_) => "0s".to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Réplica del cálculo de ancho de rustyline (`tty/mod.rs`, `fn width`): salta
+    /// las secuencias ANSI y cuenta todo lo demás. Nótese que un `\x01` **suma
+    /// una columna**, igual que en `unicode_width`: ahí estaba el bug, y por eso
+    /// el helper debe contarlo en vez de ignorarlo.
+    fn visible_width(s: &str) -> usize {
+        let mut esc = 0u8;
+        let mut w = 0usize;
+        for c in s.chars() {
+            match esc {
+                1 => esc = if c == '[' { 2 } else { 0 },
+                2 => {
+                    if !(c == ';' || c.is_ascii_digit()) {
+                        esc = 0;
+                    }
+                }
+                _ if c == '\x1b' => esc = 1,
+                _ if c == '\n' => {}
+                _ => w += 1,
+            }
+        }
+        w
+    }
+
+    #[test]
+    fn visible_width_cuenta_lo_que_cuenta_rustyline() {
+        assert_eq!(visible_width("abc"), 3);
+        assert_eq!(visible_width("\x1b[1;32mabc\x1b[0m"), 3);
+        // Un marcador de readline NO es invisible para rustyline.
+        assert_eq!(visible_width("\x01abc\x02"), 5);
+    }
+
+    #[test]
+    fn prompt_coloreado_mide_lo_mismo_que_sin_color() {
+        for mode in [Mode::Local, Mode::Prod] {
+            let plano = prompt_with_color(mode, false);
+            let coloreado = prompt_with_color(mode, true);
+            assert_eq!(
+                visible_width(&coloreado),
+                plano.chars().count(),
+                "el color no debe alterar el ancho visible del prompt en {mode:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn prompt_tiene_el_ancho_visible_esperado() {
+        assert_eq!(visible_width(&prompt_with_color(Mode::Local, true)), 11);
+        assert_eq!(visible_width(&prompt_with_color(Mode::Prod, true)), 13);
+    }
+
+    /// Guardia directa contra la regresión: `\x01`/`\x02` son de GNU readline y
+    /// rustyline los cuenta como ancho visible → prompt desplazado.
+    #[test]
+    fn prompt_no_lleva_marcadores_de_readline() {
+        for mode in [Mode::Local, Mode::Prod] {
+            let p = prompt_with_color(mode, true);
+            assert!(!p.contains('\x01'), "prompt con SOH en {mode:?}");
+            assert!(!p.contains('\x02'), "prompt con STX en {mode:?}");
+        }
+    }
+
+    #[test]
+    fn prompt_sin_color_es_el_label_pelado() {
+        assert_eq!(prompt_with_color(Mode::Local, false), "TidolCore> ");
+        assert_eq!(prompt_with_color(Mode::Prod, false), "Tidol(prod)> ");
     }
 }

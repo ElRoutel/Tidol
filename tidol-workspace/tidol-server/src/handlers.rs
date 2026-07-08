@@ -529,9 +529,9 @@ pub async fn rename_playlist_handler(
 pub async fn get_playlist_songs_handler(
     State(state): State<AppState>,
     Path(playlist_id): Path<String>,
-    Extension(_auth): Extension<AuthContext>,
+    Extension(auth): Extension<AuthContext>,
 ) -> impl IntoResponse {
-    match state.core.get_playlist_songs(&playlist_id).await {
+    match state.core.get_playlist_songs(auth.user_id, &playlist_id).await {
         Some(songs) => Json(songs).into_response(),
         None => (StatusCode::NOT_FOUND, "Playlist no encontrada").into_response(),
     }
@@ -638,14 +638,25 @@ pub async fn get_ia_likes_handler(
     Json(state.core.get_ia_likes(auth.user_id).await)
 }
 
-pub async fn toggle_local_like_handler(
+pub async fn set_local_like_handler(
     State(state): State<AppState>,
     Path(track_id): Path<String>,
     Extension(auth): Extension<AuthContext>,
 ) -> impl IntoResponse {
     (
         StatusCode::OK,
-        Json(state.core.toggle_local_like(auth.user_id, &track_id).await),
+        Json(state.core.set_local_like(auth.user_id, &track_id).await),
+    )
+}
+
+pub async fn unset_local_like_handler(
+    State(state): State<AppState>,
+    Path(track_id): Path<String>,
+    Extension(auth): Extension<AuthContext>,
+) -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        Json(state.core.unset_local_like(auth.user_id, &track_id).await),
     )
 }
 

@@ -1,6 +1,6 @@
 {
   "db_name": "MySQL",
-  "query": "\n            SELECT\n                p.id, p.name, p.created_at, p.user_id,\n                u.username AS owner,\n                (SELECT COUNT(*) FROM playlist_likes pl WHERE pl.playlist_id = p.id) AS likes,\n                (SELECT CAST(EXISTS(\n                    SELECT 1 FROM playlist_likes pl2 WHERE pl2.playlist_id = p.id AND pl2.user_id = ?\n                ) AS SIGNED)) AS liked_by_me\n            FROM playlists p\n            JOIN users u ON u.id = p.user_id\n            WHERE p.id = ?\n            ",
+  "query": "\n            SELECT\n                p.id, p.name, p.created_at, p.user_id,\n                u.username AS owner,\n                (SELECT COUNT(*) FROM playlist_likes pl WHERE pl.playlist_id = p.id) AS likes,\n                (SELECT CAST(EXISTS(\n                    SELECT 1 FROM playlist_likes pl2 WHERE pl2.playlist_id = p.id AND pl2.user_id = ?\n                ) AS SIGNED)) AS liked_by_me\n            FROM playlists p\n            JOIN users u ON u.id = p.user_id\n            WHERE p.id = ? AND p.user_id = ?\n            ",
   "describe": {
     "columns": [
       {
@@ -75,7 +75,7 @@
       }
     ],
     "parameters": {
-      "Right": 2
+      "Right": 3
     },
     "nullable": [
       false,
@@ -87,5 +87,5 @@
       false
     ]
   },
-  "hash": "0115f77d28f8a018eb22edb7b7600b6018a9704642f8ee7ddeff00a0ab67160b"
+  "hash": "28a32ceef41c415bd88f9b567ff69a3b0f3c4f2cf2535fb5a6a8e0c7a5eea676"
 }

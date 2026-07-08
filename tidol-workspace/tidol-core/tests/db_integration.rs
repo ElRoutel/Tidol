@@ -90,10 +90,10 @@ fn song(id: &str, titulo: &str) -> AddSongToPlaylistPayload {
     AddSongToPlaylistPayload {
         cancion_id: id.to_string(),
         song_source: Some("archive".into()),
-        titulo: titulo.to_string(),
-        artista: "Artista Test".into(),
-        portada: "https://example.invalid/c.jpg".into(),
-        url: "https://example.invalid/s.mp3".into(),
+        titulo: Some(titulo.to_string()),
+        artista: Some("Artista Test".into()),
+        portada: Some("https://example.invalid/c.jpg".into()),
+        url: Some("https://example.invalid/s.mp3".into()),
         duracion: Some(120),
     }
 }
@@ -231,6 +231,33 @@ async fn create_get_rename_delete_playlist() {
     assert!(core.get_playlist(uid, &pid).await.is_none());
 }
 
+/// Una playlist ajena debe ser indistinguible de una inexistente: antes,
+/// `get_playlist`/`get_playlist_songs` la servían a cualquier autenticado.
+#[tokio::test]
+async fn playlist_ajena_no_es_legible() {
+    let core = core().await;
+    let (dueno, _t1, _u1) = register_user(&core).await;
+    let (intruso, _t2, _u2) = register_user(&core).await;
+
+    let created = core
+        .create_playlist(dueno, CreatePlaylistPayload { nombre: "Privada".into() })
+        .await
+        .expect("create_playlist");
+    let pid = created["id"].as_str().expect("id").to_string();
+
+    // El dueño sí la lee.
+    assert!(core.get_playlist(dueno, &pid).await.is_some());
+    assert!(core.get_playlist_songs(dueno, &pid).await.is_some());
+
+    // El intruso no, ni el detalle ni las canciones.
+    assert!(core.get_playlist(intruso, &pid).await.is_none(), "detalle ajeno filtrado");
+    assert!(core.get_playlist_songs(intruso, &pid).await.is_none(), "canciones ajenas filtradas");
+
+    // Y tampoco asoma en su listado.
+    let del_intruso = core.get_playlists(intruso).await;
+    assert!(del_intruso.iter().all(|p| p["id"] != serde_json::json!(pid)));
+}
+
 #[tokio::test]
 async fn add_song_posiciones_duplicados_y_propiedad() {
     let core = core().await;
@@ -251,7 +278,7 @@ async fn add_song_posiciones_duplicados_y_propiedad() {
     let r = core.add_song_to_playlist(uid, &pid, song(&id_b, "B")).await.unwrap();
     assert_eq!(r["added"], true);
 
-    let songs = core.get_playlist_songs(&pid).await.expect("lista");
+    let songs = core.get_playlist_songs(uid, &pid).await.expect("lista");
     assert_eq!(ids_of(&songs), vec![id_a.clone(), id_b.clone()]);
 
     // Payload con todos los alias de clave que espera el frontend.
@@ -266,7 +293,7 @@ async fn add_song_posiciones_duplicados_y_propiedad() {
     // Duplicado: no re-inserta ni reordena; avisa.
     let dup = core.add_song_to_playlist(uid, &pid, song(&id_a, "A")).await.unwrap();
     assert_eq!(dup, serde_json::json!({ "added": false, "already": true }));
-    assert_eq!(core.get_playlist_songs(&pid).await.unwrap().len(), 2);
+    assert_eq!(core.get_playlist_songs(uid, &pid).await.unwrap().len(), 2);
 
     // Playlist ajena → NotFound (404), sin insertar.
     let (otro, _t, _un) = register_user(&core).await;
@@ -299,7 +326,7 @@ async fn reorder_persiste_el_orden_y_valida_entrada() {
         core.add_song_to_playlist(uid, &pid, song(id, t)).await.unwrap();
     }
     assert_eq!(
-        ids_of(&core.get_playlist_songs(&pid).await.unwrap()),
+        ids_of(&core.get_playlist_songs(uid, &pid).await.unwrap()),
         vec![a.clone(), b.clone(), c.clone()]
     );
 
@@ -310,7 +337,7 @@ async fn reorder_persiste_el_orden_y_valida_entrada() {
         .expect("reorder");
     assert_eq!(ok, serde_json::json!({ "ok": true }));
     assert_eq!(
-        ids_of(&core.get_playlist_songs(&pid).await.unwrap()),
+        ids_of(&core.get_playlist_songs(uid, &pid).await.unwrap()),
         vec![c.clone(), a.clone(), b.clone()]
     );
 
@@ -319,7 +346,7 @@ async fn reorder_persiste_el_orden_y_valida_entrada() {
     // empata con c (que ya tenía 1); el desempate es added_at ASC → c antes.
     let ok = core.reorder_playlist_songs(uid, &pid, vec![b.clone()]).await.unwrap();
     assert_eq!(ok["ok"], true);
-    let order = ids_of(&core.get_playlist_songs(&pid).await.unwrap());
+    let order = ids_of(&core.get_playlist_songs(uid, &pid).await.unwrap());
     assert_eq!(order.len(), 3);
     // b (pos 1) debe ir ahora antes que a (pos 2, intacta).
     let pos_of = |id: &str| order.iter().position(|x| x == id).unwrap();
@@ -363,12 +390,12 @@ async fn remove_song_respeta_propiedad_e_integridad() {
     // Ajeno → false (404) y la canción sigue.
     let (otro, _t, _un) = register_user(&core).await;
     assert!(!core.remove_song_from_playlist(otro, &pid, &id_a).await);
-    assert_eq!(core.get_playlist_songs(&pid).await.unwrap().len(), 1);
+    assert_eq!(core.get_playlist_songs(uid, &pid).await.unwrap().len(), 1);
 
     // Dueño → true y desaparece. Canción inexistente en playlist propia →
     // true igualmente (contrato de la base: 200 "Canción eliminada").
     assert!(core.remove_song_from_playlist(uid, &pid, &id_a).await);
-    assert_eq!(core.get_playlist_songs(&pid).await.unwrap().len(), 0);
+    assert_eq!(core.get_playlist_songs(uid, &pid).await.unwrap().len(), 0);
     assert!(core.remove_song_from_playlist(uid, &pid, "fantasma").await);
 }
 
@@ -406,9 +433,13 @@ async fn likes_local_e_ia_y_detallados() {
     let local_id = unique("l");
     let ia_id = unique("ia_");
 
-    // Local: alterna y lista.
+    // Local: dar like es idempotente (repetirlo NO lo quita).
     assert_eq!(
-        core.toggle_local_like(uid, &local_id).await,
+        core.set_local_like(uid, &local_id).await,
+        serde_json::json!({ "liked": true })
+    );
+    assert_eq!(
+        core.set_local_like(uid, &local_id).await,
         serde_json::json!({ "liked": true })
     );
     assert!(core.get_local_likes(uid).await.contains(&local_id));
@@ -485,9 +516,13 @@ async fn likes_local_e_ia_y_detallados() {
         .unwrap();
     assert_eq!(r, serde_json::json!({ "liked": false }));
 
-    // Local: segundo toggle → fuera.
+    // Local: quitar el like también es idempotente (nunca lo vuelve a poner).
     assert_eq!(
-        core.toggle_local_like(uid, &local_id).await,
+        core.unset_local_like(uid, &local_id).await,
+        serde_json::json!({ "liked": false })
+    );
+    assert_eq!(
+        core.unset_local_like(uid, &local_id).await,
         serde_json::json!({ "liked": false })
     );
     assert!(!core.get_local_likes(uid).await.contains(&local_id));

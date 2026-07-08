@@ -64,8 +64,8 @@ function UserLibrary() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   const handleConfirmCreate = async (name) => {
-    await createPlaylist(name);
-    setIsCreateOpen(false);
+    // Solo cerramos si el backend confirmó la creación.
+    if (await createPlaylist(name)) setIsCreateOpen(false);
   };
 
   const linkClass = ({ isActive }) =>

@@ -51,19 +51,21 @@ function ProfilePage() {
         </div>
       </div>
 
-      {/* Settings Section (Placeholder) */}
+      {/* Aún no implementado: sin `cursor-pointer` ni hover, que prometían un clic
+          que no existe. Cuando haya destino, devolverle la interactividad. */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="glass-card p-6 rounded-2xl hover:bg-white/5 transition-colors cursor-pointer group">
+        <div className="glass-card p-6 rounded-2xl opacity-60" aria-disabled="true">
           <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 rounded-full bg-blue-500/10 text-blue-400 group-hover:scale-110 transition-transform">
+            <div className="p-3 rounded-full bg-blue-500/10 text-blue-400">
               <IoSettingsOutline size={24} />
             </div>
             <h3 className="text-xl font-semibold text-white">Configuración</h3>
+            <span className="ml-auto text-[11px] uppercase tracking-wider text-white/40 border border-white/15 rounded-full px-2 py-0.5">
+              Próximamente
+            </span>
           </div>
-          <p className="text-gray-400 text-sm">(Proximamente) Gestiona tus preferencias de cuenta y reproducción.</p>
+          <p className="text-gray-400 text-sm">Gestiona tus preferencias de cuenta y reproducción.</p>
         </div>
-
-        {/* More sections can be added here */}
       </div>
     </div>
   );

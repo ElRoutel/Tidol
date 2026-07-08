@@ -2,7 +2,10 @@ import axios from "axios";
 
 const api = axios.create({
   baseURL: "/api/v1",
-  withCredentials: false
+  withCredentials: false,
+  // Sin timeout, un backend caído o colgado deja la promesa pendiente para
+  // siempre: la UI se queda cargando y ningún `catch` llega a ejecutarse.
+  timeout: 15000
 });
 
 // 2. Interceptor INTELIGENTE

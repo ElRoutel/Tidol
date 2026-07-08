@@ -12,14 +12,20 @@ pub struct CreatePlaylistPayload {
     pub nombre: String,
 }
 
+/// Solo `cancion_id` es obligatorio: los metadatos son opcionales. Exigirlos hacía
+/// que Axum rechazase la petición con un 422 sin cuerpo antes de llegar al handler.
 #[derive(Deserialize)]
 pub struct AddSongToPlaylistPayload {
     pub cancion_id: String,
     pub song_source: Option<String>,
-    pub titulo: String,
-    pub artista: String,
-    pub portada: String,
-    pub url: String,
+    #[serde(default)]
+    pub titulo: Option<String>,
+    #[serde(default)]
+    pub artista: Option<String>,
+    #[serde(default)]
+    pub portada: Option<String>,
+    #[serde(default)]
+    pub url: Option<String>,
     pub duracion: Option<i32>,
 }
 
@@ -205,7 +211,8 @@ impl TidolCore {
     }
 
     /// GET /api/v1/playlists/:id — metadata de una playlist + sus canciones.
-    /// `None` → 404. Lectura pública para cualquier usuario autenticado.
+    /// `None` → 404, tanto si no existe como si es de otro usuario: una playlist
+    /// ajena es indistinguible de una inexistente.
     pub async fn get_playlist(
         &self,
         user_id: i64,
@@ -222,10 +229,11 @@ impl TidolCore {
                 ) AS SIGNED)) AS liked_by_me
             FROM playlists p
             JOIN users u ON u.id = p.user_id
-            WHERE p.id = ?
+            WHERE p.id = ? AND p.user_id = ?
             "#,
             user_id,
-            playlist_id
+            playlist_id,
+            user_id
         )
         .fetch_optional(&self.db)
         .await
@@ -283,6 +291,8 @@ impl TidolCore {
             "nombre": playlist.name,
             "creada_en": playlist.created_at.map(|dt| dt.unix_timestamp()),
             "owner": playlist.owner,
+            // Siempre `true`: la consulta ya filtra por dueño. Se mantiene en el
+            // payload por compatibilidad con los clientes que lo leen.
             "isOwner": playlist.user_id == user_id,
             "likes": playlist.likes,
             "likedByMe": playlist.liked_by_me != 0,
@@ -377,12 +387,21 @@ impl TidolCore {
         }
     }
 
-    /// Canciones de una playlist. `None` → 404. Lectura pública.
-    pub async fn get_playlist_songs(&self, playlist_id: &str) -> Option<Vec<serde_json::Value>> {
-        let playlist = sqlx::query!("SELECT id FROM playlists WHERE id = ?", playlist_id)
-            .fetch_optional(&self.db)
-            .await
-            .unwrap_or(None);
+    /// Canciones de una playlist. `None` → 404, igual para una playlist ajena que
+    /// para una inexistente.
+    pub async fn get_playlist_songs(
+        &self,
+        user_id: i64,
+        playlist_id: &str,
+    ) -> Option<Vec<serde_json::Value>> {
+        let playlist = sqlx::query!(
+            "SELECT id FROM playlists WHERE id = ? AND user_id = ?",
+            playlist_id,
+            user_id
+        )
+        .fetch_optional(&self.db)
+        .await
+        .unwrap_or(None);
 
         playlist.as_ref()?;
 
@@ -446,6 +465,10 @@ impl TidolCore {
 
         let source = payload.song_source.unwrap_or_else(|| "local".to_string());
         let duration = payload.duracion.unwrap_or(0);
+        let titulo = payload.titulo.unwrap_or_default();
+        let artista = payload.artista.unwrap_or_default();
+        let portada = payload.portada.unwrap_or_default();
+        let url = payload.url.unwrap_or_default();
 
         // Duplicado: no re-insertar ni mover la canción; avisar al frontend.
         let existing = sqlx::query!(
@@ -473,11 +496,11 @@ impl TidolCore {
             playlist_id,
             payload.cancion_id,
             source,
-            payload.titulo,
-            payload.artista,
-            payload.portada,
+            titulo,
+            artista,
+            portada,
             duration,
-            payload.url,
+            url,
             playlist_id
         )
         .execute(&self.db)
@@ -709,35 +732,29 @@ impl TidolCore {
         rows.into_iter().map(|r| r.track_id).collect()
     }
 
-    pub async fn toggle_local_like(&self, user_id: i64, track_id: &str) -> serde_json::Value {
-        let existing = sqlx::query!(
-            "SELECT track_id FROM user_likes WHERE user_id = ? AND track_id = ?",
+    /// POST /api/v1/music/songs/:id/like — da like. Idempotente: repetirlo no
+    /// lo quita. `uq_user_likes (user_id, track_id)` sostiene el `INSERT IGNORE`.
+    pub async fn set_local_like(&self, user_id: i64, track_id: &str) -> serde_json::Value {
+        let _ = sqlx::query!(
+            "INSERT IGNORE INTO user_likes (user_id, track_id, source) VALUES (?, ?, 'local')",
             user_id,
             track_id
         )
-        .fetch_optional(&self.db)
-        .await
-        .unwrap_or(None);
+        .execute(&self.db)
+        .await;
+        serde_json::json!({"liked": true})
+    }
 
-        if existing.is_some() {
-            let _ = sqlx::query!(
-                "DELETE FROM user_likes WHERE user_id = ? AND track_id = ?",
-                user_id,
-                track_id
-            )
-            .execute(&self.db)
-            .await;
-            serde_json::json!({"liked": false})
-        } else {
-            let _ = sqlx::query!(
-                "INSERT INTO user_likes (user_id, track_id, source) VALUES (?, ?, 'local')",
-                user_id,
-                track_id
-            )
-            .execute(&self.db)
-            .await;
-            serde_json::json!({"liked": true})
-        }
+    /// DELETE /api/v1/music/songs/:id/like — quita el like. Idempotente.
+    pub async fn unset_local_like(&self, user_id: i64, track_id: &str) -> serde_json::Value {
+        let _ = sqlx::query!(
+            "DELETE FROM user_likes WHERE user_id = ? AND track_id = ?",
+            user_id,
+            track_id
+        )
+        .execute(&self.db)
+        .await;
+        serde_json::json!({"liked": false})
     }
 
     pub async fn toggle_ia_like(

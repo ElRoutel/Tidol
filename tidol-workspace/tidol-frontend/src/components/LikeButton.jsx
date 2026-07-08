@@ -29,7 +29,6 @@ export default function LikeButton({ song, isLiked, onLikeToggle, isArchive = fa
 
     // Fallback: LikeButton will call API itself if no parent handler
     try {
-      let response;
       if (isArchive) {
         const body = {
           identifier: songId,
@@ -40,14 +39,12 @@ export default function LikeButton({ song, isLiked, onLikeToggle, isArchive = fa
           portada: song.attributes?.artwork?.url || song.artworkUrl || song.portada || song.cover,
           duration: song.attributes?.durationInSeconds || song.duration
         };
-        response = await api.post('/music/ia/likes/toggle', body);
+        await api.post('/music/ia/likes/toggle', body);
+      } else if (isLiked) {
+        await api.delete(`/music/songs/${songId}/like`);
       } else {
-        response = await api.post(`/music/songs/${songId}/like`);
+        await api.post(`/music/songs/${songId}/like`);
       }
-
-      const newLikedState = response.data.liked;
-      // Ideally we should update local state here if this was a standalone component,
-      // but usually this is controlled by parent.
     } catch (error) {
       const serverMsg = error?.response?.data?.error || error?.message || 'Unknown error';
       console.error("Error al dar/quitar like:", serverMsg, error?.response?.data);

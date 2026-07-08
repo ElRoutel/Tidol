@@ -9,7 +9,7 @@ import SkeletonSongList from "../components/skeletons/SkeletonSongList";
 import VirtualSongList from "../components/VirtualSongList";
 import PlaylistNameModal from "../components/PlaylistNameModal";
 import { normalizeTrackList } from "../utils/trackNormalization";
-import { IoGridOutline, IoListOutline, IoAdd, IoHeart } from "react-icons/io5";
+import { IoGridOutline, IoListOutline, IoAdd, IoHeart, IoAlertCircleOutline } from "react-icons/io5";
 import favImage from "./favImage.jpg";
 import "../styles/glass.css";
 import "./Library.css";
@@ -33,7 +33,7 @@ function formatMinutes(seconds) {
 }
 
 export default function LibraryPage() {
-  const { currentView, setCurrentView, layout, setLayout, data, isLoading, refresh } = useLibrary();
+  const { currentView, setCurrentView, layout, setLayout, data, isLoading, error, refresh } = useLibrary();
   const { playSongList } = usePlayer();
   const { createPlaylist } = usePlaylist();
   const navigate = useNavigate();
@@ -54,11 +54,11 @@ export default function LibraryPage() {
 
   const handleCreatePlaylist = async (nombre) => {
     const created = await createPlaylist(nombre);
+    // Si falló, el contexto ya avisó: dejamos el modal abierto con lo escrito.
+    if (!created) return;
     setIsCreateOpen(false);
-    if (created) {
-      refresh();
-      navigate(`/playlist/${created.id}`);
-    }
+    refresh();
+    navigate(`/playlist/${created.id}`);
   };
 
   // Subtítulos por vista: las playlists muestran nº de canciones, minutos,
@@ -101,7 +101,7 @@ export default function LibraryPage() {
               {VIEW_TITLES[currentView]}
             </h1>
             <p className="text-white/45 text-sm mt-1.5">
-              {isLoading ? "Cargando…" : `${data.length} ${data.length === 1 ? "elemento" : "elementos"}`}
+              {isLoading ? "Cargando…" : error ? "—" : `${data.length} ${data.length === 1 ? "elemento" : "elementos"}`}
             </p>
           </div>
 
@@ -145,7 +145,23 @@ export default function LibraryPage() {
         {/* Contenido */}
         {isLoading && <SkeletonSongList count={12} />}
 
-        {!isLoading && data.length === 0 && (
+        {!isLoading && error && (
+          <div className="flex flex-col items-center justify-center min-h-[320px] text-center px-8">
+            <div className="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center mb-6">
+              <IoAlertCircleOutline size={26} className="text-red-400" />
+            </div>
+            <h2 className="text-xl font-bold text-white mb-1.5">No se pudo cargar tu biblioteca</h2>
+            <p className="text-white/45 text-[15px] max-w-sm mb-6">{error}</p>
+            <button
+              onClick={refresh}
+              className="px-5 py-2.5 rounded-full bg-white/[0.08] border border-white/15 text-white font-semibold hover:bg-white/[0.14] transition-colors"
+            >
+              Reintentar
+            </button>
+          </div>
+        )}
+
+        {!isLoading && !error && data.length === 0 && (
           <div className="flex flex-col items-center justify-center min-h-[320px] text-center px-8">
             <div className="w-16 h-16 rounded-full bg-white/[0.06] border border-white/10 flex items-center justify-center mb-6">
               <IoHeart size={24} className="text-white/50" />
@@ -168,7 +184,7 @@ export default function LibraryPage() {
           </div>
         )}
 
-        {!isLoading && data.length > 0 && (
+        {!isLoading && !error && data.length > 0 && (
           <div className={`lib-grid ${layout}`}>
             {layout === "list" ? (
               <VirtualSongList

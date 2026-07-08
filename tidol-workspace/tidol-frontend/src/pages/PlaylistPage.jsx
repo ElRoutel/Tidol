@@ -9,6 +9,7 @@ import { getCoverSrc } from '../utils/coverArt';
 import { IoPlaySharp, IoShuffle, IoEllipsisHorizontal, IoTrashOutline, IoTimeOutline, IoPencilOutline, IoHeart, IoHeartOutline, IoReorderThreeOutline } from 'react-icons/io5';
 import { normalizeTrackList } from '../utils/trackNormalization';
 import PlaylistNameModal from '../components/PlaylistNameModal';
+import ConfirmModal from '../components/ConfirmModal';
 import '../styles/glass.css';
 import './ImmersiveLayout.css'; // Mantener estilos específicos de layout inmersivo si son necesarios
 
@@ -93,6 +94,17 @@ function PlaylistSongRow({ song, index, isOwner, isCurrent, onPlay, onDelete, on
     );
 }
 
+/** Última copia conocida del listado. Solo se usa estando offline. */
+function readCachedPlaylist(playlistId) {
+    try {
+        const local = localStorage.getItem('tidol_playlists');
+        if (!local) return null;
+        return JSON.parse(local).find(p => String(p.id) === String(playlistId)) || null;
+    } catch {
+        return null;
+    }
+}
+
 export default function PlaylistPage() {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -106,31 +118,34 @@ export default function PlaylistPage() {
     const [totalDuration, setTotalDuration] = useState(0);
     const [showMenu, setShowMenu] = useState(false);
     const [isRenameOpen, setIsRenameOpen] = useState(false);
+    const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
-    const isOwner = playlist?.isOwner !== false;
+    // Solo el dueño manda: si el backend no lo afirma, no ofrecemos sus acciones.
+    const isOwner = playlist?.isOwner === true;
 
-    // Ref con el orden vigente: onDragEnd persiste el estado ya reordenado por
-    // onReorder (que dispara durante el arrastre). El pequeño defer deja que el
-    // último swap termine de aplicarse antes de leerlo.
-    const songsRef = useRef(songs);
-    useEffect(() => { songsRef.current = songs; }, [songs]);
+    // `onReorder` dispara durante el arrastre con el array ya reordenado; lo
+    // guardamos para que `onDragEnd` lo persista sin depender del estado de React.
+    const pendingOrder = useRef(null);
+    const handleReorder = (nuevoOrden) => {
+        pendingOrder.current = nuevoOrden;
+        setSongs(nuevoOrden);
+    };
     const persistOrder = () => {
-        setTimeout(() => {
-            reorderPlaylistSongs(id, songsRef.current.map(s => s.id));
-        }, 50);
+        const orden = pendingOrder.current;
+        if (!orden) return; // soltó donde estaba: nada que guardar
+        pendingOrder.current = null;
+        void reorderPlaylistSongs(id, orden.map(s => s.id));
     };
 
     const handleRename = async (nombre) => {
-        await renamePlaylist(id, nombre);
+        if (!await renamePlaylist(id, nombre)) return;
         setPlaylist(prev => prev ? { ...prev, nombre } : prev);
         setIsRenameOpen(false);
     };
 
     const handleDeletePlaylist = async () => {
-        setShowMenu(false);
-        if (!window.confirm('¿Eliminar esta playlist? Esta acción no se puede deshacer.')) return;
-        const ok = await deletePlaylist(id);
-        if (ok) navigate('/library');
+        setIsDeleteOpen(false);
+        if (await deletePlaylist(id)) navigate('/library');
     };
 
     // Like de playlist: actualización optimista + estado real del backend.
@@ -154,43 +169,43 @@ export default function PlaylistPage() {
     };
 
     useEffect(() => {
-        const fetchPlaylist = async () => {
-            try {
-                setLoading(true);
-                // Try to fetch from API first
-                try {
-                    const res = await api.get(`/playlists/${id}`);
-                    setPlaylist(res.data);
+        if (!id) return;
 
-                    if (res.data.songs) {
-                        setSongs(normalizeTrackList(res.data.songs));
+        const fetchPlaylist = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const res = await api.get(`/playlists/${id}`);
+                setPlaylist(res.data);
+
+                if (res.data.songs) {
+                    setSongs(normalizeTrackList(res.data.songs));
+                } else {
+                    const songsRes = await api.get(`/playlists/${id}/songs`);
+                    setSongs(normalizeTrackList(songsRes.data));
+                }
+            } catch (err) {
+                if (err?.response) {
+                    // El servidor contestó: es un rechazo real, no falta de red.
+                    // Servir una copia local aquí ocultaría un 404 legítimo.
+                    setError(err.response.status === 404
+                        ? 'Esta playlist no existe o no es tuya.'
+                        : 'No se pudo cargar la playlist.');
+                } else {
+                    const cached = readCachedPlaylist(id);
+                    if (cached) {
+                        setPlaylist(cached);
+                        setSongs(cached.songs || []);
                     } else {
-                        const songsRes = await api.get(`/playlists/${id}/songs`);
-                        setSongs(normalizeTrackList(songsRes.data));
-                    }
-                } catch (err) {
-                    console.warn("API fetch failed, trying local fallback", err);
-                    const local = localStorage.getItem('tidol_playlists');
-                    if (local) {
-                        const parsed = JSON.parse(local);
-                        const found = parsed.find(p => p.id.toString() === id);
-                        if (found) {
-                            setPlaylist(found);
-                            setSongs(found.songs || []);
-                        } else {
-                            throw new Error("Playlist not found locally");
-                        }
+                        setError('Sin conexión y no hay copia local de esta playlist.');
                     }
                 }
-                setLoading(false);
-            } catch (err) {
-                console.error('Error loading playlist:', err);
-                setError('No se pudo cargar la playlist');
+            } finally {
                 setLoading(false);
             }
         };
 
-        if (id) fetchPlaylist();
+        fetchPlaylist();
     }, [id]);
 
     useEffect(() => {
@@ -342,7 +357,7 @@ export default function PlaylistPage() {
                                                     <IoPencilOutline size={18} /> Cambiar nombre
                                                 </button>
                                                 <button
-                                                    onClick={handleDeletePlaylist}
+                                                    onClick={() => { setShowMenu(false); setIsDeleteOpen(true); }}
                                                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:bg-white/10 transition-colors"
                                                 >
                                                     <IoTrashOutline size={18} /> Eliminar playlist
@@ -373,7 +388,7 @@ export default function PlaylistPage() {
                             <p className="text-sm">Agrega canciones desde el menú contextual</p>
                         </div>
                     ) : (
-                        <Reorder.Group as="div" axis="y" values={songs} onReorder={setSongs}>
+                        <Reorder.Group as="div" axis="y" values={songs} onReorder={handleReorder}>
                             {songs.map((song, index) => (
                                 <PlaylistSongRow
                                     key={song.id || song.trackId || index}
@@ -399,6 +414,15 @@ export default function PlaylistPage() {
                 confirmLabel="Guardar"
                 onConfirm={handleRename}
                 onClose={() => setIsRenameOpen(false)}
+            />
+
+            <ConfirmModal
+                isOpen={isDeleteOpen}
+                title="Eliminar playlist"
+                message="Esta acción no se puede deshacer."
+                confirmLabel="Eliminar"
+                onConfirm={handleDeletePlaylist}
+                onClose={() => setIsDeleteOpen(false)}
             />
         </div>
     );

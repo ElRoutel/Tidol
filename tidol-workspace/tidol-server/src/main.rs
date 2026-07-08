@@ -207,7 +207,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route(
             "/api/v1/music/songs/:id/like",
-            post(handlers::toggle_local_like_handler).delete(handlers::toggle_local_like_handler),
+            post(handlers::set_local_like_handler).delete(handlers::unset_local_like_handler),
         )
         .route(
             "/api/v1/music/ia/likes/toggle",

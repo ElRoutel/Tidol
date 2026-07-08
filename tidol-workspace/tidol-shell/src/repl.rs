@@ -99,7 +99,7 @@ impl Repl {
         if let Some(path) = &self.history_path {
             let _ = editor.save_history(path);
         }
-        println!("hasta luego.");
+        println!("Hasta luego.");
     }
 
     /// Procesa una línea. Devuelve `false` si hay que salir del loop.

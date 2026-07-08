@@ -3,12 +3,43 @@ import { createContext, useContext, useState, useCallback, useEffect, ReactNode 
 import api from '../api/axiosConfig';
 import { useAuth } from './AuthContext';
 import { UnifiedTrack } from '../types/music';
+import { showToast } from '../utils/toast';
 
 export interface Playlist {
     id: number | string;
     nombre: string;
-    songs: UnifiedTrack[];
+    /** Solo en el detalle (`GET /playlists/:id`); el listado no las trae. */
+    songs?: UnifiedTrack[];
+    /** Campos enriquecidos que emite el backend y que la UI ya consumía sin tipar. */
+    songCount?: number;
+    totalDuration?: number;
+    owner?: string;
+    isOwner?: boolean;
+    likes?: number;
+    likedByMe?: boolean;
+    coverUrl?: string;
+    creada_en?: number;
 }
+
+/**
+ * Formas crudas que llegan desde búsqueda, menú contextual o Internet Archive,
+ * antes de pasar por `normalizeTrack()`. Describirlas evita el `any` al leerlas.
+ */
+type SongLike = UnifiedTrack & {
+    trackId?: string;
+    source?: string;
+    cover_url?: string;
+    coverUrl?: string;
+    duration?: number;
+    duracion?: number;
+    url?: string;
+    attributes?: {
+        name?: string;
+        artistName?: string;
+        durationInSeconds?: number;
+        artwork?: { url?: string };
+    };
+};
 
 interface PlaylistContextType {
     playlists: Playlist[];
@@ -42,18 +73,23 @@ export function PlaylistProvider({ children }: { children: ReactNode }) {
 
     const { isAuthenticated } = useAuth();
 
-    const getLocalPlaylists = (): Playlist[] => {
+    // localStorage es **solo caché de lectura**: sirve la última lista conocida si
+    // la red falla. Ninguna escritura se da por buena sin que el backend la confirme.
+    const readCache = (): Playlist[] => {
         try {
             const local = localStorage.getItem('tidol_playlists');
             return local ? JSON.parse(local) : [];
-        } catch (e) {
+        } catch {
             return [];
         }
     };
 
-    const saveLocalPlaylists = (newPlaylists: Playlist[]) => {
-        localStorage.setItem('tidol_playlists', JSON.stringify(newPlaylists));
-        setPlaylists(newPlaylists);
+    const writeCache = (lists: Playlist[]) => {
+        try {
+            localStorage.setItem('tidol_playlists', JSON.stringify(lists));
+        } catch {
+            /* cuota llena: la caché es prescindible */
+        }
     };
 
     const fetchPlaylists = useCallback(async () => {
@@ -61,9 +97,9 @@ export function PlaylistProvider({ children }: { children: ReactNode }) {
         try {
             const { data } = await api.get('/playlists');
             setPlaylists(data || []);
-            localStorage.setItem('tidol_playlists', JSON.stringify(data || []));
-        } catch (error) {
-            setPlaylists(getLocalPlaylists());
+            writeCache(data || []);
+        } catch {
+            setPlaylists(readCache());
         } finally {
             setLoading(false);
         }
@@ -71,7 +107,7 @@ export function PlaylistProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         if (isAuthenticated) {
-            fetchPlaylists();
+            void fetchPlaylists();
         } else {
             setPlaylists([]);
         }
@@ -84,15 +120,13 @@ export function PlaylistProvider({ children }: { children: ReactNode }) {
             const { data } = await api.post('/playlists', { nombre });
             setPlaylists(prev => {
                 const updated = [...prev, data];
-                localStorage.setItem('tidol_playlists', JSON.stringify(updated));
+                writeCache(updated);
                 return updated;
             });
             return data;
-        } catch (error) {
-            const tempPlaylist: Playlist = { id: Date.now(), nombre, songs: [] };
-            const current = getLocalPlaylists();
-            saveLocalPlaylists([...current, tempPlaylist]);
-            return tempPlaylist;
+        } catch {
+            showToast('No se pudo crear la playlist.', 'error');
+            return false;
         } finally {
             setLoading(false);
         }
@@ -101,21 +135,17 @@ export function PlaylistProvider({ children }: { children: ReactNode }) {
     const renamePlaylist = useCallback(async (playlistId: number | string, nombre: string) => {
         const nuevo = (nombre || '').trim();
         if (!nuevo) return false;
-        const applyLocal = () => {
-            setPlaylists(prev => {
-                const updated = prev.map(p => p.id === playlistId ? { ...p, nombre: nuevo } : p);
-                localStorage.setItem('tidol_playlists', JSON.stringify(updated));
-                return updated;
-            });
-        };
         try {
             await api.patch(`/playlists/${playlistId}`, { nombre: nuevo });
-            applyLocal();
+            setPlaylists(prev => {
+                const updated = prev.map(p => p.id === playlistId ? { ...p, nombre: nuevo } : p);
+                writeCache(updated);
+                return updated;
+            });
             return true;
-        } catch (error) {
-            // Fallback local (playlists creadas offline / sin conexión).
-            applyLocal();
-            return true;
+        } catch {
+            showToast('No se pudo renombrar la playlist.', 'error');
+            return false;
         }
     }, []);
 
@@ -127,7 +157,7 @@ export function PlaylistProvider({ children }: { children: ReactNode }) {
             // aquí puede ser un UnifiedTrack normalizado (campos en `attributes`)
             // o un objeto crudo de búsqueda/IA (campos planos). Si solo miramos
             // `attributes`, las playlists guardaban duración 0 y sin portada.
-            const s: any = song;
+            const s = song as SongLike;
             const { data } = await api.post(`/playlists/${playlistId}/songs`, {
                 cancion_id: s.id || s.trackId,
                 // `sourceType` (objetos normalizados) o `source` (items crudos del
@@ -141,20 +171,11 @@ export function PlaylistProvider({ children }: { children: ReactNode }) {
                 duracion: s.durationInSeconds || s.duracion || s.duration ||
                     s.attributes?.durationInSeconds || 0
             });
-            fetchPlaylists();
+            await fetchPlaylists();
             // El backend distingue inserción real de duplicado ({added, already}).
             return { added: !!data?.added, already: !!data?.already };
-        } catch (error) {
-            const current = getLocalPlaylists();
-            const idx = current.findIndex(p => p.id === playlistId);
-            if (idx !== -1) {
-                if (!current[idx].songs) current[idx].songs = [];
-                const exists = current[idx].songs.some(s => s.id === song.id);
-                if (exists) return { added: false, already: true };
-                current[idx].songs.push(song);
-                saveLocalPlaylists(current);
-                return { added: true, already: false };
-            }
+        } catch {
+            showToast('No se pudo añadir la canción.', 'error');
             return false;
         } finally {
             setLoading(false);
@@ -166,8 +187,8 @@ export function PlaylistProvider({ children }: { children: ReactNode }) {
         try {
             await api.put(`/playlists/${playlistId}/songs/order`, { order: order.map(String) });
             return true;
-        } catch (error) {
-            console.error('[PlaylistContext] No se pudo guardar el orden:', error);
+        } catch {
+            showToast('No se pudo guardar el nuevo orden.', 'error');
             return false;
         }
     }, []);
@@ -176,16 +197,10 @@ export function PlaylistProvider({ children }: { children: ReactNode }) {
         setLoading(true);
         try {
             await api.delete(`/playlists/${playlistId}/songs/${cancionId}`);
-            fetchPlaylists();
+            await fetchPlaylists();
             return true;
-        } catch (error) {
-            const current = getLocalPlaylists();
-            const idx = current.findIndex(p => p.id === playlistId);
-            if (idx !== -1) {
-                current[idx].songs = current[idx].songs.filter(s => s.id !== cancionId);
-                saveLocalPlaylists(current);
-                return true;
-            }
+        } catch {
+            showToast('No se pudo quitar la canción.', 'error');
             return false;
         } finally {
             setLoading(false);
@@ -196,12 +211,15 @@ export function PlaylistProvider({ children }: { children: ReactNode }) {
         setLoading(true);
         try {
             await api.delete(`/playlists/${playlistId}`);
-            setPlaylists(prev => prev.filter(p => p.id !== playlistId));
+            setPlaylists(prev => {
+                const updated = prev.filter(p => p.id !== playlistId);
+                writeCache(updated);
+                return updated;
+            });
             return true;
-        } catch (error) {
-            const current = getLocalPlaylists();
-            saveLocalPlaylists(current.filter(p => p.id !== playlistId));
-            return true;
+        } catch {
+            showToast('No se pudo eliminar la playlist.', 'error');
+            return false;
         } finally {
             setLoading(false);
         }

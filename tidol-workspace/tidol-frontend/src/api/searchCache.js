@@ -1,6 +1,10 @@
 // searchCache.js - Sistema de caché para búsquedas de Tidol
 // Módulo independiente para gestión de caché con localStorage
 
+// Trazas solo en desarrollo: en producción ensuciaban la consola del usuario en
+// cada búsqueda. Los console.error/warn se mantienen: señalan fallos reales.
+const trace = import.meta.env.DEV ? console.log.bind(console) : () => {};
+
 const CACHE_CONFIG = {
   PREFIX: 'tidol_search_',
   EXPIRATION_HOURS: 24,
@@ -40,7 +44,7 @@ export function getCachedResults(query) {
     const cached = localStorage.getItem(key);
     
     if (!cached) {
-      console.log(`📦 Caché MISS: "${query}" - No encontrado`);
+      trace(`📦 Caché MISS: "${query}" - No encontrado`);
       return null;
     }
     
@@ -48,12 +52,12 @@ export function getCachedResults(query) {
     
     // Verificar expiración
     if (isExpired(data.timestamp)) {
-      console.log(`⏰ Caché EXPIRADO: "${query}" - Eliminando...`);
+      trace(`⏰ Caché EXPIRADO: "${query}" - Eliminando...`);
       localStorage.removeItem(key);
       return null;
     }
     
-    console.log(`✅ Caché HIT: "${query}" - ${data.results.length} resultados (${formatAge(data.timestamp)})`);
+    trace(`✅ Caché HIT: "${query}" - ${data.results.length} resultados (${formatAge(data.timestamp)})`);
     return data.results;
     
   } catch (error) {
@@ -82,7 +86,7 @@ export function setCachedResults(query, results) {
     manageCacheSize();
     
     localStorage.setItem(key, JSON.stringify(data));
-    console.log(`💾 Caché GUARDADO: "${query}" - ${results.length} resultados`);
+    trace(`💾 Caché GUARDADO: "${query}" - ${results.length} resultados`);
     
     return true;
     
@@ -130,7 +134,7 @@ function clearOldestCache() {
       localStorage.removeItem(entries[i].key);
     }
     
-    console.log(`🗑️ Limpiados ${toRemove} elementos del caché`);
+    trace(`🗑️ Limpiados ${toRemove} elementos del caché`);
     
   } catch (error) {
     console.error('❌ Error limpiando caché:', error);
@@ -182,7 +186,7 @@ export function clearAllCache() {
       count++;
     });
     
-    console.log(`🗑️ Caché limpiado: ${count} entradas eliminadas`);
+    trace(`🗑️ Caché limpiado: ${count} entradas eliminadas`);
     return count;
     
   } catch (error) {
@@ -272,7 +276,7 @@ export function invalidateCache(query) {
     localStorage.removeItem(key);
     
     if (existed) {
-      console.log(`🔄 Caché invalidado: "${query}"`);
+      trace(`🔄 Caché invalidado: "${query}"`);
     }
     
     return existed;
@@ -291,5 +295,5 @@ if (typeof window !== 'undefined') {
     invalidate: invalidateCache
   };
   
-  console.log('🔧 Debug disponible: window.TidolCache.stats() / .clear() / .invalidate(query)');
+  trace('🔧 Debug disponible: window.TidolCache.stats() / .clear() / .invalidate(query)');
 }

@@ -8,6 +8,7 @@ import { TidolAudioEngine } from '../engine/TidolAudioEngine';
 import { resolvePlayback } from '../engine/embedResolver';
 import { extractColorsFromUrl } from '../utils/extractColors';
 import { getCoverSrc, getColorSourceSrc } from '../utils/coverArt';
+import { showToast } from '../utils/toast';
 import YouTubeEmbed, { YouTubeEmbedHandle } from '../components/embeds/YouTubeEmbed';
 import { UnifiedTrack, PlayerState } from '../types/music';
 import { useVoxAudio } from '../hooks/useVoxAudio';
@@ -641,13 +642,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         const artistName = currentTrack.artistName || currentTrack.attributes?.artistName || currentTrack.artist || 'Desconocido';
         const trackTitle = currentTrack.trackName || currentTrack.attributes?.name || currentTrack.title || 'Desconocido';
 
-        const toast = document.createElement('div');
-        toast.className = 'fixed bottom-24 left-1/2 transform -translate-x-1/2 bg-black/80 backdrop-blur-md text-white px-6 py-3 rounded-full border border-[#1db954]/50 shadow-2xl z-[9999] animate-fade-in pointer-events-none transition-all duration-500';
-        toast.innerHTML = `<span class="text-[#1db954] font-bold">Radio Infinita:</span> Buscando música similar a "${trackTitle}"...`;
-        document.body.appendChild(toast);
-        
-        setTimeout(() => { toast.style.opacity = '0'; }, 2500);
-        setTimeout(() => toast.remove(), 3000);
+        showToast(`Buscando música similar a "${trackTitle}"...`, 'info', 'Radio Infinita:');
 
         try {
             const res = await api.get('/radio', {
@@ -764,6 +759,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                     portada: song?.attributes?.artwork?.url || song?.artworkUrl || (song as any)?.portada,
                     duration: song?.attributes?.durationInSeconds || (song as any)?.duration
                 });
+            } else if (isCurrentlyLiked) {
+                await api.delete(`/music/songs/${id}/like`);
             } else {
                 await api.post(`/music/songs/${id}/like`, {});
             }

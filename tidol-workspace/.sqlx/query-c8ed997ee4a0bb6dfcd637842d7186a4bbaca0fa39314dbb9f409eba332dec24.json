@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT IGNORE INTO user_likes (user_id, track_id, source) VALUES (?, ?, 'local')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "c8ed997ee4a0bb6dfcd637842d7186a4bbaca0fa39314dbb9f409eba332dec24"
+}

@@ -10,11 +10,15 @@ export const useLibrary = () => {
     // siendo la solicitada cuando resuelve el fetch (evita carreras entre pestañas).
     const [items, setItems] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
+    // Un fallo de red no es una biblioteca vacía: sin esto, un 500 se veía como
+    // "Aún no tienes playlists".
+    const [error, setError] = useState(null);
     const latestView = useRef(currentView);
 
     const fetchData = useCallback(async (view) => {
         latestView.current = view;
         setIsLoading(true);
+        setError(null);
         setItems([]); // no mostrar contenido de la pestaña anterior
 
         let endpoint = '';
@@ -33,16 +37,20 @@ export const useLibrary = () => {
         try {
             const res = await api.get(endpoint);
             if (latestView.current === view) setItems(res.data || []);
-        } catch (error) {
-            console.error(`Error fetching library data for ${view}:`, error);
-            if (latestView.current === view) setItems([]);
+        } catch (err) {
+            if (latestView.current === view) {
+                setItems([]);
+                setError(err?.response
+                    ? 'El servidor respondió con un error.'
+                    : 'Comprueba tu conexión e inténtalo de nuevo.');
+            }
         } finally {
             if (latestView.current === view) setIsLoading(false);
         }
     }, []);
 
     useEffect(() => {
-        fetchData(currentView);
+        void fetchData(currentView);
     }, [currentView, fetchData]);
 
     return {
@@ -52,6 +60,7 @@ export const useLibrary = () => {
         setLayout,
         data: items,
         isLoading,
+        error,
         refresh: () => fetchData(currentView)
     };
 };

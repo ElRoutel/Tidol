@@ -18,14 +18,18 @@ export default function AddToPlaylistModal() {
     const [showCreateInput, setShowCreateInput] = useState(false);
     // Feedback en el propio modal: "Añadida" cierra solo; "Ya estaba" avisa
     // sin cerrar (antes un duplicado cerraba en silencio y parecía añadido).
-    const [feedback, setFeedback] = useState(null); // { type: 'ok'|'dup', text }
+    const [feedback, setFeedback] = useState(null); // { type: 'ok'|'dup'|'error', text }
 
     const handleAddToPlaylist = async (playlistId, playlistName) => {
         const res = await addSongToPlaylist(playlistId, songToAdd);
-        if (res && res.already) {
+        if (!res) {
+            // El backend rechazó la operación: no cerramos ni fingimos éxito.
+            setFeedback({ type: 'error', text: 'No se pudo añadir. Inténtalo de nuevo.' });
+            setTimeout(() => setFeedback(null), 2600);
+        } else if (res.already) {
             setFeedback({ type: 'dup', text: `Ya está en "${playlistName}"` });
             setTimeout(() => setFeedback(null), 2200);
-        } else if (res) {
+        } else {
             setFeedback({ type: 'ok', text: `Añadida a "${playlistName}"` });
             setTimeout(() => {
                 setFeedback(null);
@@ -38,12 +42,12 @@ export default function AddToPlaylistModal() {
         if (!newPlaylistName.trim()) return;
 
         const newPlaylist = await createPlaylist(newPlaylistName);
-        if (newPlaylist) {
-            await addSongToPlaylist(newPlaylist.id, songToAdd);
-            setNewPlaylistName('');
-            setShowCreateInput(false);
-            closeAddToPlaylistModal();
-        }
+        if (!newPlaylist) return;
+
+        const added = await addSongToPlaylist(newPlaylist.id, songToAdd);
+        setNewPlaylistName('');
+        setShowCreateInput(false);
+        if (added) closeAddToPlaylistModal();
     };
 
     if (!songToAdd) return null;
@@ -109,7 +113,11 @@ export default function AddToPlaylistModal() {
                                     initial={{ opacity: 0, height: 0 }}
                                     animate={{ opacity: 1, height: 'auto' }}
                                     exit={{ opacity: 0, height: 0 }}
-                                    className={`px-4 py-2 text-sm font-medium ${feedback.type === 'dup' ? 'bg-yellow-500/15 text-yellow-300' : 'bg-green-600/15 text-green-400'}`}
+                                    className={`px-4 py-2 text-sm font-medium ${feedback.type === 'dup'
+                                        ? 'bg-yellow-500/15 text-yellow-300'
+                                        : feedback.type === 'error'
+                                            ? 'bg-red-600/15 text-red-400'
+                                            : 'bg-green-600/15 text-green-400'}`}
                                 >
                                     {feedback.text}
                                 </motion.div>
@@ -173,7 +181,7 @@ export default function AddToPlaylistModal() {
                                         type="text"
                                         value={newPlaylistName}
                                         onChange={(e) => setNewPlaylistName(e.target.value)}
-                                        onKeyPress={(e) => e.key === 'Enter' && handleCreateAndAdd()}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleCreateAndAdd()}
                                         placeholder="Nombre de la playlist"
                                         className="flex-1 px-3 py-2 bg-white/10 text-white rounded-lg border border-white/20 focus:border-green-500 focus:outline-none"
                                         autoFocus
