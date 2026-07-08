@@ -1,0 +1,59 @@
+[package]
+name = "tidol-shell"
+version = "0.1.0"
+edition = "2021"
+description = "REPL interactivo de administración para Tidol (modo local y prod)."
+
+[[bin]]
+name = "tidol-shell"
+path = "src/main.rs"
+
+[features]
+# Reenvía el placeholder `local-library` del core. El comando `import` siempre se
+# parsea; su *comportamiento* se habilita con esta feature (ver backend/local.rs).
+# Nota Cargo: `--features tidol-core/local-library` activa la feature del CORE, no
+# esta; el switch real del shell es `--features local-library` (que reenvía a la
+# del core). Ambos builds compilan; ver README.
+local-library = ["tidol-core/local-library"]
+
+[dependencies]
+tidol-core = { path = "../tidol-core" }
+
+# Runtime async (el REPL corre en un hilo bloqueante y usa block_on por comando).
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
+async-trait = "0.1"
+
+# Parsing de la línea: shell-words tokeniza respetando comillas; clap (derive)
+# valida sub-comandos y flags de forma recuperable (try_parse_from, sin exit).
+clap = { version = "4", features = ["derive"] }
+shell-words = "1"
+
+# Línea editable, historial, señales (Ctrl-C / Ctrl-D).
+rustyline = "14"
+
+# Render de tablas y color por modo.
+comfy-table = "7"
+owo-colors = "4"
+
+# HTTP para el RemoteBackend (mismo backend TLS que el core: default-tls).
+reqwest = { version = "0.11", features = ["json"] }
+# Codificación del segmento de ruta en `search/:query` (ya presente en el workspace).
+urlencoding = "2.1"
+# Deserialización de las respuestas HTTP y del caso `{status:error}` de search.
+serde = "1"
+serde_json = "1"
+# Carga de `.env` en modo local (igual que tidol-server).
+dotenvy = "0.15"
+
+# Token de prod desde el keyring del OS (Secret Service: GNOME Keyring / KWallet).
+# `sync-secret-service` usa la crate `dbus-secret-service` (enlaza libdbus, ya
+# presente en el sistema del usuario y requerido de todos modos en runtime por el
+# daemon del keyring); `crypto-rust` cifra la sesión D-Bus en Rust puro. Nota de
+# despliegue: el Dockerfile solo compila `--bin tidol-server`, así que este crate
+# (y libdbus) NO se compilan en la imagen; el deploy no necesita libdbus-dev.
+keyring = { version = "3", features = ["sync-secret-service", "crypto-rust"] }
+
+# Errores tipados y logging.
+thiserror = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
