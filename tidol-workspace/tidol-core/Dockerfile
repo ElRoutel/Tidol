@@ -16,8 +16,10 @@ COPY . .
 ARG DATABASE_URL
 ENV DATABASE_URL=${DATABASE_URL}
 
-# Build the main binary and plugins in release mode
-RUN cargo build --release --bin tidol-core
+# Build the main binary and plugins in release mode.
+# El binario HTTP vive ahora en el crate `tidol-server` (dominio = lib
+# `tidol-core`, HTTP = bin `tidol-server` tras el split de arquitectura).
+RUN cargo build --release --bin tidol-server
 RUN cargo build --release -p provider-archive \
                            -p provider-jamendo \
                            -p provider-lyrics
@@ -36,7 +38,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Main binary
-COPY --from=builder /workspace/target/release/tidol-core /app/tidol-core
+COPY --from=builder /workspace/target/release/tidol-server /app/tidol-server
 
 # Plugin shared libraries
 RUN mkdir -p /app/plugins
@@ -68,4 +70,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
     CMD curl -s --max-time 4 http://localhost:8080/ -o /dev/null && exit 0 || exit 1
 
-ENTRYPOINT ["/app/tidol-core"]
+ENTRYPOINT ["/app/tidol-server"]

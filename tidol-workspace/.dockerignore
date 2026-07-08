@@ -16,10 +16,10 @@ tidol-frontend/
 tidol-tv-lite/
 tidol-tv-lite-backup/
 
-# Datos de usuario y almacenamiento local
+# Datos de usuario y almacenamiento local (viven en la raíz del workspace
+# tras el split core/server; antes colgaban de tidol-core/)
 storage/
-tidol-core/covers/
-tidol-core/storage/
+covers/
 
 # Archivos de desarrollo
 *.py
