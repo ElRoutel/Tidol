@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT INTO user_likes (user_id, track_id, source) VALUES (?, ?, 'local')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "40393f462d939d9f1fbc0a6641153c26b6bec5682cfbdf5a13cb016081fd15cb"
+}

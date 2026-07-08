@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT INTO devices (id, user_id, device_name, device_type) VALUES (?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "ce837a57368e186d4e1d4f74b0dc7480793381bd8719c51d166248a164c1dc08"
+}

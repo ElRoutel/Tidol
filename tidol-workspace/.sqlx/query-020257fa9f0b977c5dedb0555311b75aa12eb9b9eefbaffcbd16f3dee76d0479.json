@@ -1,0 +1,25 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT track_id FROM user_likes WHERE user_id = ? AND track_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "track_id",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 2048
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "020257fa9f0b977c5dedb0555311b75aa12eb9b9eefbaffcbd16f3dee76d0479"
+}

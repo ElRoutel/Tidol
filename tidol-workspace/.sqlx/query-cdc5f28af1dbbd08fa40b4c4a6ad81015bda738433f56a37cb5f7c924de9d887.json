@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT INTO user_likes (user_id, track_id, source) VALUES (?, ?, 'archive')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "cdc5f28af1dbbd08fa40b4c4a6ad81015bda738433f56a37cb5f7c924de9d887"
+}

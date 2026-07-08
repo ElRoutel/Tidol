@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "tidol-core",
+    "tidol-server",
     "plugins/provider-archive",
     "plugins/provider-lyrics",
     "plugins/provider-jamendo"

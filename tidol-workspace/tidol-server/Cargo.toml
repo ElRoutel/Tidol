@@ -1,0 +1,29 @@
+[package]
+name = "tidol-server"
+version = "0.2.0"
+edition = "2021"
+
+[[bin]]
+name = "tidol-server"
+path = "src/main.rs"
+
+[dependencies]
+tidol-core = { path = "../tidol-core" }
+axum = "0.7"
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tower_governor = { version = "0.5", features = ["axum"] }
+tower-http = { version = "0.6.11", features = ["cors"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+dotenvy = "0.15"
+
+[dev-dependencies]
+# test-util expone TidolCore::new_disconnected (núcleo real, pool sin BD viva)
+# para probar el middleware de auth de extremo a extremo sin infraestructura.
+tidol-core = { path = "../tidol-core", features = ["test-util"] }
+tower = { version = "0.4", features = ["util"] }
+jsonwebtoken = "9"
+# Solo para construir sqlx::Error en las pruebas de mapeo de ServerError.
+sqlx = { version = "0.7", default-features = false }

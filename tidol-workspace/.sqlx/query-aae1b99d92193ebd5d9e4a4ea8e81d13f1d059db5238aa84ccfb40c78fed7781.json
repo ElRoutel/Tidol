@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "DELETE FROM playlist_likes WHERE playlist_id = ? AND user_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "aae1b99d92193ebd5d9e4a4ea8e81d13f1d059db5238aa84ccfb40c78fed7781"
+}

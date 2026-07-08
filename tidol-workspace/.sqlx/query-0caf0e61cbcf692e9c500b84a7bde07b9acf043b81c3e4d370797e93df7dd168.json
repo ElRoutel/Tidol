@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "UPDATE trackMetadata SET extractedColors = ? WHERE trackId = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "0caf0e61cbcf692e9c500b84a7bde07b9acf043b81c3e4d370797e93df7dd168"
+}

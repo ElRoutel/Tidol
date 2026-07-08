@@ -1,0 +1,25 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT mbid FROM track_links WHERE title = 'Unknown' OR title IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "mbid",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 144
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "79ee1e12281105b181e2f37c616a96a3203a2c881b6d6d7782ace3e7f39afbc8"
+}

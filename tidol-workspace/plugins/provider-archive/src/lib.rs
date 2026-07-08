@@ -1,3 +1,8 @@
+// Contrato FFI del plugin: los exports deben ser `pub extern "C"` con
+// punteros crudos (los carga tidol-core vía dlopen); el lint pide `unsafe fn`,
+// pero eso no aporta nada a un símbolo dinámico y rompería la simetría del ABI
+// documentado. Preexistente en la línea base (e46be8bb).
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use reqwest::blocking::Client;
 use reqwest::Proxy;
@@ -315,7 +320,6 @@ fn to_json_value(value: &Value) -> *mut c_char {
 
 fn normalize_for_search(input: &str) -> String {
     input
-        .trim()
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
@@ -323,7 +327,7 @@ fn normalize_for_search(input: &str) -> String {
 }
 
 fn escape_ia_query_value(input: &str) -> String {
-    input.replace('\\', " ").replace('"', " ")
+    input.replace(['\\', '"'], " ")
 }
 
 fn get_string(v: &Value, key: &str) -> Option<String> {
@@ -525,8 +529,7 @@ fn sanitize_filename_for_match(name: &str) -> String {
         .unwrap_or(lower);
 
     without_ext
-        .replace('_', " ")
-        .replace('-', " ")
+        .replace(['_', '-'], " ")
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
@@ -537,8 +540,7 @@ fn derive_track_name(file_name: &str, fallback: &str) -> String {
         .rsplit_once('.')
         .map(|(base, _)| base)
         .unwrap_or(file_name)
-        .replace('_', " ")
-        .replace('-', " ")
+        .replace(['_', '-'], " ")
         .trim()
         .to_string();
 

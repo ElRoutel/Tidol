@@ -1,0 +1,36 @@
+{
+  "db_name": "MySQL",
+  "query": "\n                SELECT t.artist, t.title\n                FROM play_history p\n                JOIN track_links t ON p.track_mbid = t.mbid\n                WHERE p.user_id = ?\n                GROUP BY t.artist, t.title\n                ORDER BY COUNT(p.id) DESC\n                LIMIT 1\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "artist",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 1020
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "title",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 1020
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "ca781b2e7405e23ca2bc173779741ee799ef197bfed082c048cf2b643fbce29f"
+}
