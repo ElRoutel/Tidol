@@ -1,3 +1,8 @@
+// Contrato FFI del plugin: los exports deben ser `pub extern "C"` con
+// punteros crudos (los carga tidol-core vía dlopen); el lint pide `unsafe fn`,
+// pero eso no aporta nada a un símbolo dinámico y rompería la simetría del ABI
+// documentado. Preexistente en la línea base (e46be8bb).
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
 use reqwest::blocking::Client;
 use std::ffi::{c_char, CStr, CString};
 use std::time::Duration;

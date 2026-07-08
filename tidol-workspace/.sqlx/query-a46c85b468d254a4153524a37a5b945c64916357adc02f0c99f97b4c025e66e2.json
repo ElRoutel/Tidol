@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "DELETE FROM user_likes WHERE user_id = ? AND track_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "a46c85b468d254a4153524a37a5b945c64916357adc02f0c99f97b4c025e66e2"
+}

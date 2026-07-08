@@ -11,6 +11,11 @@
 // Estrategia de calidad de audio:
 //   FLAC > OGG > MP3 VBR (mp32) > MP3 96 kbps (mp31)
 // ──────────────────────────────────────────────────────────────────────────────
+// Contrato FFI del plugin: los exports deben ser `pub extern "C"` con
+// punteros crudos (los carga tidol-core vía dlopen); el lint pide `unsafe fn`,
+// pero eso no aporta nada a un símbolo dinámico y rompería la simetría del ABI
+// documentado. Preexistente en la línea base (e46be8bb).
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use reqwest::blocking::Client;
 use reqwest::Proxy;
@@ -76,7 +81,7 @@ pub extern "C" fn search_track(
 
     // ── Búsqueda de pistas ───────────────────────────────────────────────
     let response = match client
-        .get(&format!("{}/tracks/", API_BASE))
+        .get(format!("{}/tracks/", API_BASE))
         .query(&[
             ("client_id", client_id.as_str()),
             ("format", "json"),
@@ -136,7 +141,7 @@ pub extern "C" fn search_track(
     let tracks: Vec<Value> = results
         .iter()
         .filter_map(|track| {
-            let track_id = track.get("id")?.as_str().or_else(|| {
+            let track_id = track.get("id")?.as_str().or({
                 // A veces el id llega como número
                 None
             }).map(|s| s.to_string()).or_else(|| {
@@ -166,7 +171,7 @@ pub extern "C" fn search_track(
             let source_link = track
                 .get("shareurl")
                 .and_then(|v| v.as_str())
-                .unwrap_or_else(|| {
+                .unwrap_or({
                     // Construir URL de fallback
                     ""
                 })
@@ -293,7 +298,7 @@ fn resolve_stream_for_format(
     audio_format: &str,
 ) -> Result<Option<String>, String> {
     let response = client
-        .get(&format!("{}/tracks/", API_BASE))
+        .get(format!("{}/tracks/", API_BASE))
         .query(&[
             ("client_id", client_id),
             ("format", "json"),

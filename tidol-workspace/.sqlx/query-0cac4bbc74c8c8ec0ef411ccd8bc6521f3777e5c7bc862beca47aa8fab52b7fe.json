@@ -1,0 +1,102 @@
+{
+  "db_name": "MySQL",
+  "query": "\n            SELECT\n                p.id, p.name, p.created_at,\n                u.username AS owner,\n                (SELECT COUNT(*) FROM playlist_songs ps WHERE ps.playlist_id = p.id) AS song_count,\n                (SELECT CAST(COALESCE(SUM(ps.duration), 0) AS SIGNED) FROM playlist_songs ps WHERE ps.playlist_id = p.id) AS total_duration,\n                (SELECT COUNT(*) FROM playlist_likes pl WHERE pl.playlist_id = p.id) AS likes,\n                (SELECT ps.cover_url FROM playlist_songs ps WHERE ps.playlist_id = p.id ORDER BY ps.position ASC, ps.added_at ASC LIMIT 1) AS cover_url\n            FROM playlists p\n            JOIN users u ON u.id = p.user_id\n            WHERE p.user_id = ?\n            ORDER BY p.created_at DESC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 144
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 1020
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at",
+        "type_info": {
+          "type": "Timestamp",
+          "flags": "UNSIGNED | BINARY | TIMESTAMP",
+          "char_set": 63,
+          "max_size": 19
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "owner",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | UNIQUE_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 256
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "song_count",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "BINARY",
+          "char_set": 63,
+          "max_size": 21
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "total_duration",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "BINARY",
+          "char_set": 63,
+          "max_size": 33
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "likes",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "BINARY",
+          "char_set": 63,
+          "max_size": 21
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "cover_url",
+        "type_info": {
+          "type": "Blob",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 1048560
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "0cac4bbc74c8c8ec0ef411ccd8bc6521f3777e5c7bc862beca47aa8fab52b7fe"
+}

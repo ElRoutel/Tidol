@@ -9,10 +9,15 @@ use reqwest::Client;
 use serde::Deserialize;
 use tracing::info;
 
+// Preexistente (línea base e46be8bb): tipos del contrato JSON de iTunes,
+// hoy sin uso (iTunes bloqueado desde el VPS); los nombres no-snake_case son
+// los campos literales de esa API y renombrarlos rompería el Deserialize.
+#[allow(dead_code)]
 #[derive(Deserialize)]
 struct ItunesSearchResponse {
     results: Vec<ItunesTrack>,
 }
+#[allow(dead_code, non_snake_case)]
 #[derive(Deserialize)]
 struct ItunesTrack {
     artworkUrl100: Option<String>,
@@ -53,6 +58,7 @@ pub struct MetadataOrchestrator {
 }
 
 impl MetadataOrchestrator {
+    #[allow(clippy::new_without_default)] // constructor con configuración, no un Default semántico
     pub fn new() -> Self {
         Self {
             // Timeout obligatorio: sin él, una API externa colgada (iTunes está
@@ -300,6 +306,7 @@ impl MetadataOrchestrator {
             // residuo de un sync que falló y se cacheó: se re-sincroniza.
             if status == "full_discography_synced" && db_name != "Unknown Artist" {
                 // Traer todos los álbumes
+                #[allow(clippy::type_complexity)] // tupla de query_as preexistente
                 let album_rows: Vec<(String, String, Option<i32>, Option<String>, Option<String>)> = sqlx::query_as(
                     "SELECT mbid, title, release_year, cover_url, cover_status FROM albums WHERE artist_mbid = ?"
                 )
@@ -452,6 +459,7 @@ impl MetadataOrchestrator {
         album_mbid: &str,
         db: &sqlx::MySqlPool,
     ) -> Result<crate::models::AlbumDetailsResponse, Box<dyn std::error::Error + Send + Sync>> {
+        #[allow(clippy::type_complexity)] // tupla de query_as preexistente
         let album_row: Option<(
             String,
             Option<String>,

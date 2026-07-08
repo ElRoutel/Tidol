@@ -1,0 +1,47 @@
+{
+  "db_name": "MySQL",
+  "query": "\n            SELECT u.username, d.device_name, d.device_type\n            FROM users u\n            JOIN devices d ON u.id = d.user_id\n            WHERE u.id = ? AND d.id = ?\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "username",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | UNIQUE_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 256
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "device_name",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 480
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "device_type",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 240
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "7a49defa30f66db276de491211a8e539d77c3695acb08510bfa202c16c6c208d"
+}

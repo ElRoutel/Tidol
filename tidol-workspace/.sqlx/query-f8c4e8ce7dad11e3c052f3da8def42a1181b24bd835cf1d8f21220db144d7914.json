@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT INTO searchClicks (queryNormalized, trackId, clicks) VALUES (?, ?, 1)\n            ON DUPLICATE KEY UPDATE clicks = clicks + 1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "f8c4e8ce7dad11e3c052f3da8def42a1181b24bd835cf1d8f21220db144d7914"
+}

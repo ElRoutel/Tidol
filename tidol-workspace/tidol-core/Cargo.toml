@@ -3,9 +3,19 @@ name = "tidol-core"
 version = "0.2.0"
 edition = "2021"
 
+[features]
+# Marcador de posición para futura reproducción desde biblioteca local.
+# Sin implementación detrás por ahora.
+local-library = []
+# Expone TidolCore::new_disconnected para pruebas de otros crates (p.ej. las
+# del middleware de tidol-server): núcleo real con pool perezoso sin BD viva.
+test-util = []
+# Habilita las pruebas de integración contra una BD de prueba dedicada
+# (tests/db_integration.rs). Ver el encabezado de ese fichero para el cómo.
+db-tests = []
+
 [dependencies]
 libloading = "0.8"
-axum = "0.7"
 tokio = { version = "1.0", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -21,12 +31,9 @@ tokio-stream = "0.1"
 jsonwebtoken = "9"
 argon2 = "0.5"
 uuid = { version = "1.8", features = ["v4"] }
-tower_governor = { version = "0.5", features = ["axum"] }
 image = "0.25.10"
-axum-extra = "0.12.6"
 color-thief = "0.2.2"
 tokio-util = "0.7.18"
-tower-http = { version = "0.6.11", features = ["cors"] }
 async-trait = "0.1.89"
 base64 = "0.22"
 thiserror = "1.0"

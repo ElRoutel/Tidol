@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "\n                INSERT INTO trackMetadata (trackId, trackName, artistName, coverArtUrl, durationSeconds, isCached)\n                VALUES (?, ?, ?, ?, ?, 0)\n                ON DUPLICATE KEY UPDATE\n                    trackName       = IF(trackName = '' OR trackName IS NULL, VALUES(trackName), trackName),\n                    artistName      = COALESCE(artistName, VALUES(artistName)),\n                    coverArtUrl     = COALESCE(coverArtUrl, VALUES(coverArtUrl)),\n                    durationSeconds = COALESCE(durationSeconds, VALUES(durationSeconds))\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "fdbd053bc05277fa503703f74e890a0dc35662dec116a026fb25290b958dd3d6"
+}

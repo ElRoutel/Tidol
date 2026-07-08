@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "\n            INSERT INTO playlist_songs\n                (playlist_id, track_id, song_source, title, artist, cover_url, duration, url, position)\n            VALUES (?, ?, ?, ?, ?, ?, ?, ?,\n                (SELECT COALESCE(MAX(ps.position), 0) + 1 FROM playlist_songs ps WHERE ps.playlist_id = ?))\n            ON DUPLICATE KEY UPDATE added_at = added_at\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "743d34cbd737fac28918216c344abcdd8393cb5c715a86b07f2cf607fc0e3418"
+}

@@ -22,6 +22,7 @@ pub struct ArchiveProvider {
 }
 
 impl ArchiveProvider {
+    #[allow(clippy::new_without_default)] // constructor con configuración, no un Default semántico
     pub fn new() -> Self {
         Self {
             http: reqwest::Client::builder()

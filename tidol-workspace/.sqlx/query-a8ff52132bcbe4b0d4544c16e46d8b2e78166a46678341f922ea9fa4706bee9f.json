@@ -1,0 +1,25 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT track_id FROM playlist_songs WHERE playlist_id = ? AND track_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "track_id",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 2048
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a8ff52132bcbe4b0d4544c16e46d8b2e78166a46678341f922ea9fa4706bee9f"
+}

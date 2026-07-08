@@ -1,0 +1,25 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT track_id FROM user_likes WHERE user_id = ? AND source = 'local'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "track_id",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 2048
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "05dc6075f3a36124df38d2ac807b02e7b785e669af67ad7d075342dda6ba5a19"
+}

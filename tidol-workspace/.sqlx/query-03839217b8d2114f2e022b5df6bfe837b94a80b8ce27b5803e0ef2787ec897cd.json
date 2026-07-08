@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT INTO trackMetadata (trackId, trackName, artistName, coverArtUrl, sourceLink, isCached)\n            VALUES (?, ?, ?, ?, ?, 1) ON DUPLICATE KEY UPDATE trackName = VALUES(trackName),\n            artistName = VALUES(artistName), coverArtUrl = VALUES(coverArtUrl), sourceLink = VALUES(sourceLink), isCached = 1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "03839217b8d2114f2e022b5df6bfe837b94a80b8ce27b5803e0ef2787ec897cd"
+}

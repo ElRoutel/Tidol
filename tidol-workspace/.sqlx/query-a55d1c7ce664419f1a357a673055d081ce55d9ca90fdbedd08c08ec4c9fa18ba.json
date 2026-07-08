@@ -1,0 +1,80 @@
+{
+  "db_name": "MySQL",
+  "query": "\n            SELECT\n                ul.track_id,\n                ul.source,\n                ul.liked_at,\n                COALESCE(tl.title, tm.trackName)        AS title,\n                COALESCE(tl.artist, tm.artistName)      AS artist,\n                COALESCE(tl.cover_url, tm.coverArtUrl)  AS cover_url\n            FROM user_likes ul\n            LEFT JOIN track_links   tl ON tl.mbid    = ul.track_id\n            LEFT JOIN trackMetadata tm ON tm.trackId = ul.track_id\n            WHERE ul.user_id = ?\n              AND (? IS NULL\n                   OR (? = 'local'   AND ul.source = 'local')\n                   OR (? = 'archive' AND ul.source != 'local'))\n            ORDER BY ul.liked_at DESC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "track_id",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 2048
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "source",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 200
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "liked_at",
+        "type_info": {
+          "type": "Timestamp",
+          "flags": "UNSIGNED | BINARY | TIMESTAMP",
+          "char_set": 63,
+          "max_size": 19
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "title",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 1020
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "artist",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 1020
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "cover_url",
+        "type_info": {
+          "type": "MediumBlob",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 1048560
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "a55d1c7ce664419f1a357a673055d081ce55d9ca90fdbedd08c08ec4c9fa18ba"
+}

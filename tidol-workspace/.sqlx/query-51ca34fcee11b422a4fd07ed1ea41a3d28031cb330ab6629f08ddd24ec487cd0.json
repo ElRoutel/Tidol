@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "DELETE FROM playlist_songs WHERE playlist_id = ? AND track_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "51ca34fcee11b422a4fd07ed1ea41a3d28031cb330ab6629f08ddd24ec487cd0"
+}

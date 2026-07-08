@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "\n            INSERT INTO track_links (mbid, title, artist, cover_url)\n            VALUES (?, ?, ?, ?)\n            ON DUPLICATE KEY UPDATE\n            title = IF(title = 'Unknown' OR title IS NULL, VALUES(title), title),\n            artist = IF(artist = 'Unknown' OR artist IS NULL, VALUES(artist), artist),\n            cover_url = IF(cover_url = '' OR cover_url IS NULL, VALUES(cover_url), cover_url)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "03a99e877d89f6b28d209ed4c3f27076a83031e09f225a667f79f841ad65cc1c"
+}

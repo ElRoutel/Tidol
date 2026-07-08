@@ -1,0 +1,47 @@
+{
+  "db_name": "MySQL",
+  "query": "\n                SELECT a.mbid, a.name, a.cover_url\n                FROM play_history p\n                JOIN track_links t ON p.track_mbid = t.mbid\n                JOIN artists a ON t.artist = a.name\n                WHERE p.user_id = ?\n                GROUP BY a.mbid, a.name, a.cover_url\n                ORDER BY COUNT(p.id) DESC\n                LIMIT 6\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "mbid",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 144
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 1020
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "cover_url",
+        "type_info": {
+          "type": "Blob",
+          "flags": "BLOB",
+          "char_set": 224,
+          "max_size": 262140
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "0284f974558718727aaed778effb6cf8bbd869ba189b7d561f768d9913443825"
+}
