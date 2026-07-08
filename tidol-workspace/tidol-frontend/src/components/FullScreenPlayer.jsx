@@ -203,7 +203,10 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
         drag: canDrag ? 'y' : false,
         dragConstraints: { top: 0, bottom: 0 },
         dragElastic: { top: 0.025, bottom: 0.8 },
+        dragSnapToOrigin: true, 
+        animate: { y: 0 }, 
         onDragEnd: handleDragEnd
+    
     };
 
     const handleNavigation = (type) => {
@@ -229,18 +232,25 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
 
     // ── piezas compartidas ──────────────────────────────────────────────────
 
-    const scrubberProps = {
-        type: 'range', min: 0, max: duration || 100, step: 0.01,
-        value: isScrubbing ? localProgress : (currentTimeMotion.get() || 0),
-        onPointerDown: () => { setLocalProgress(currentTimeMotion.get() || 0); setIsScrubbing(true); },
-        onChange: (e) => setLocalProgress(parseFloat(e.target.value)),
-        onPointerUp: (e) => { seek(parseFloat(e.target.value)); setIsScrubbing(false); },
-        // Si el navegador cancela el gesto (scroll/gesto del sistema se lo queda),
-        // no llega pointerup e isScrubbing quedaba en true para siempre → la barra
-        // y el tiempo se congelaban. Cancelar sin hacer seek.
-        onPointerCancel: () => setIsScrubbing(false),
-        'aria-label': 'Posición de la canción',
-    };
+  const scrubberProps = {
+    type: 'range', 
+    min: 0, 
+    max: duration || 100, 
+    step: 0.01,
+    value: isScrubbing ? localProgress : (currentTimeMotion.get() || 0),
+    onPointerDown: (e) => {
+        // Bloqueo absoluto: detiene la burbuja en React y los listeners nativos de Framer
+        e.stopPropagation();
+        e.nativeEvent.stopImmediatePropagation(); 
+
+        setLocalProgress(currentTimeMotion.get() || 0);
+        setIsScrubbing(true);
+    },
+    onChange: (e) => setLocalProgress(parseFloat(e.target.value)),
+    onPointerUp: (e) => { seek(parseFloat(e.target.value)); setIsScrubbing(false); },
+    onPointerCancel: () => setIsScrubbing(false),
+    'aria-label': 'Posición de la canción',
+};
 
     const HeartIcon = isLiked ? IoHeart : IoHeartOutline;
 
@@ -486,16 +496,20 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                 <div className="relative z-10 flex flex-col h-full w-full px-[26px] pt-safe-top">
 
                     {/* Grabber */}
-                    <div className="flex justify-center pt-3 pb-2 flex-none">
-                        <button
-                            onClick={closeFullScreenPlayer}
-                            className="w-12 h-6 flex items-center justify-center"
-                            aria-label="Cerrar reproductor"
-                        >
-                            <span className="w-[38px] h-[5px] rounded-[3px] bg-white/35" />
-                        </button>
-                    </div>
-
+<div className="flex justify-center pt-3 pb-4 flex-none">
+    <button
+        onClick={closeFullScreenPlayer}
+        // w-16 h-12 da un área táctil generosa de 64x48px
+        className="group w-16 h-12 flex items-center justify-center focus:outline-none touch-manipulation"
+        aria-label="Cerrar reproductor"
+    >
+        <span 
+            className="w-[38px] h-[5px] rounded-full bg-white/35 transition-colors 
+                       group-active:bg-white/65 group-hover:bg-white/50 
+                       group-focus-visible:ring-2 group-focus-visible:ring-white/50 group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-black" 
+        />
+    </button>
+</div>
                     {/* Portada que respira — arriba, pegada al grabber (estilo Apple Music) */}
                     <div className="flex-none flex justify-center pt-2">
                         <div

@@ -211,10 +211,13 @@ const PlayerBar = memo(function PlayerBar({ isSheetMode = false }) {
   const handlers = isDesktop ? {} : swipeHandlers;
 
   const handleBarClick = (e) => {
-    // Only open full screen player if the click is not on a button or input
-    if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT' && e.target.closest('button') === null) {
-      toggleFullScreenPlayer();
-    }
+    // Abrir el fullscreen al tocar cualquier zona NO interactiva de la barra:
+    // portada, título, artista o el fondo. Los controles (play/next/mute/sliders)
+    // se excluyen con closest() para no abrir el player al usarlos. Es el ÚNICO
+    // punto que abre: portada/título ya no llevan onClick propio (disparaban un
+    // doble toggle al burbujear hasta aquí → abría y cerraba).
+    if (e.target.closest('button, input, a, [role="button"]')) return;
+    toggleFullScreenPlayer();
   };
 
   const quality = useMemo(() => {
@@ -253,11 +256,11 @@ const PlayerBar = memo(function PlayerBar({ isSheetMode = false }) {
 
   // Clases base para el contenedor
   const containerClasses = isSheetMode
-    ? "relative w-full h-full flex items-center bg-transparent px-4 overflow-hidden"
-    : `fixed bottom-0 left-0 right-0 z-[1000] flex items-center justify-between px-4 py-2 ${!isDesktop ? 'pb-2' : 'pb-[env(safe-area-inset-bottom)]'} bg-black/40 backdrop-blur-2xl border-t border-white/10 md:left-64 md:px-6 md:py-0 md:h-24 transition-all duration-300`;
+    ? "relative w-full h-full flex items-center bg-transparent px-4 overflow-hidden cursor-pointer"
+    : `fixed bottom-0 left-0 right-0 z-[1000] flex items-center justify-between px-4 py-2 cursor-pointer ${!isDesktop ? 'pb-2' : 'pb-[env(safe-area-inset-bottom)]'} bg-black/40 backdrop-blur-2xl border-t border-white/10 md:left-64 md:px-6 md:py-0 md:h-24 transition-all duration-300`;
 
   return (
-    <footer className={containerClasses} {...handlers}>
+      <footer className={containerClasses} onClick={handleBarClick} {...handlers}>
       {/* Barra de progreso superior (solo móvil y si no es sheet mode) */}
       {!isDesktop && !isSheetMode && <MobileProgressBar />}
 
@@ -266,11 +269,10 @@ const PlayerBar = memo(function PlayerBar({ isSheetMode = false }) {
         <AlbumCover
           src={getCoverSrc(currentSong, true)}
           alt={currentSong.trackName}
-          onClick={toggleFullScreenPlayer}
           isSheetMode={isSheetMode}
         />
         <div className="flex flex-col min-w-0 overflow-hidden">
-          <span className="text-sm font-semibold text-white truncate hover:underline cursor-pointer" onClick={toggleFullScreenPlayer}>
+          <span className="text-sm font-semibold text-white truncate hover:underline cursor-pointer">
             {currentSong.trackName}
           </span>
           <span className="text-xs text-text-secondary truncate hover:text-white cursor-pointer">

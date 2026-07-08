@@ -13,16 +13,20 @@ const PlayerSheet = () => {
 
     // Función para calcular posiciones según el viewport actual
     const getPositions = useCallback((mobile = isMobile) => {
+        // `y` NUMÉRICO (px), no calc()/dvh. Motivo del bug de la pantalla negra:
+        // framer-motion no puede interpolar entre el número que el gesto de arrastre
+        // deja en `y` y una cadena `calc(100dvh - …)`. Al deslizar para cerrar, la
+        // animación hacia "collapsed" fallaba y la sábana se quedaba en y:0 → fondo
+        // negro (bg-background) con la mini-barra pegada arriba. Con números, el
+        // arrastre y `controls` operan sobre el mismo tipo y la reposición es fiable.
+        // El alto sigue siendo 100dvh (solo animamos `y`); el listener de resize
+        // reajusta la posición colapsada cuando la barra de URL móvil aparece/desaparece.
+        const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
         if (mobile) {
-            // Mobile: Player (64px) only - mobile nav was removed
-            // Usamos dvh (dynamic viewport height) para evitar problemas con la barra de URL.
-            // La altura es SIEMPRE 100dvh y solo se anima `y` (transform): animar height
-            // forzaba un reflow por frame durante el arrastre/spring y el deslizamiento
-            // iba a tirones en móvil. Colapsado, la sábana queda desplazada hacia abajo
-            // y solo asoma la franja superior de 64px (la mini barra).
+            // Mobile: solo asoma el mini-player (64px); el nav móvil se eliminó.
             return {
                 collapsed: {
-                    y: 'calc(100dvh - 64px - env(safe-area-inset-bottom))',
+                    y: vh - 64,
                     height: '100dvh',
                     width: '100%',
                     left: '0%',
@@ -30,7 +34,7 @@ const PlayerSheet = () => {
                     borderRadius: '0px'
                 },
                 expanded: {
-                    y: '0px', // Full screen
+                    y: 0, // Full screen
                     height: '100dvh',
                     width: '100%',
                     left: '0%',
@@ -43,7 +47,7 @@ const PlayerSheet = () => {
             return {
                 collapsed: {
                     // Flotante: 90px altura + 24px margen bottom
-                    y: 'calc(100vh - 114px)',
+                    y: vh - 114,
                     height: '90px',
                     // Centrado tipo cápsula
                     width: '95%',
@@ -71,13 +75,22 @@ const PlayerSheet = () => {
         const handleResize = () => {
             const newIsMobile = window.innerWidth < 768;
             if (newIsMobile !== isMobile) {
+                // Cruce de breakpoint: el effect de sincronización reposiciona.
                 setIsMobile(newIsMobile);
+                return;
+            }
+            // Ahora que `y` es un número fijo en px, hay que reajustar la posición
+            // colapsada cuando cambia el alto del viewport (la barra de URL móvil que
+            // aparece/desaparece), o la mini-barra se despegaría del fondo. Se usa
+            // `set` (instantáneo, sin animación) para que siga al viewport sin tirones.
+            if (!isFullScreenOpen) {
+                controls.set(getPositions(newIsMobile).collapsed);
             }
         };
 
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
-    }, [isMobile]);
+    }, [isMobile, isFullScreenOpen, controls, getPositions]);
 
     // Sincronizar animación con el estado
     useEffect(() => {
@@ -90,21 +103,24 @@ const PlayerSheet = () => {
     // Handler de drag
     const handleDragEnd = useCallback((event, info) => {
         const threshold = 150;
-        const velocityThreshold = -500;
+        const velocityThreshold = 500;
         const positions = getPositions(isMobile);
 
-        // Si arrastra hacia arriba (abrir)
-        if (info.offset.y < -threshold || info.velocity.y < velocityThreshold) {
+        // Tras el gesto disparamos SIEMPRE `controls.start(...)` explícitamente (no solo
+        // el setState → effect): el arrastre deja `y` en un número arbitrario y hay que
+        // reconducirlo a la posición destino en el propio handler. Antes se confiaba en
+        // el effect y el reposicionado no era fiable → la sábana se quedaba en negro.
+        if (info.offset.y < -threshold || info.velocity.y < -velocityThreshold) {
+            // Arrastre hacia arriba → abrir
             setIsFullScreenOpen(true);
-        }
-        // Si arrastra hacia abajo (cerrar)
-        else if (info.offset.y > threshold || info.velocity.y > -velocityThreshold) {
+            controls.start(positions.expanded);
+        } else if (info.offset.y > threshold || info.velocity.y > velocityThreshold) {
+            // Arrastre hacia abajo → cerrar
             setIsFullScreenOpen(false);
-        }
-        // Si no supera umbral, vuelve al estado actual
-        else {
-            const targetPosition = isFullScreenOpen ? positions.expanded : positions.collapsed;
-            controls.start(targetPosition);
+            controls.start(positions.collapsed);
+        } else {
+            // No supera umbral → vuelve al estado actual
+            controls.start(isFullScreenOpen ? positions.expanded : positions.collapsed);
         }
     }, [isMobile, isFullScreenOpen, setIsFullScreenOpen, controls, getPositions]);
 
@@ -117,8 +133,11 @@ const PlayerSheet = () => {
             drag="y"
             dragListener={false}
             dragControls={dragControls}
-            dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={0.2}
+            // Sin dragConstraints: su snap-back al origen (y:0) competía con
+            // `controls.start(collapsed)` y ganaba, dejando la sábana expandida
+            // (pantalla negra) al soltar. Ahora la posición la fija SIEMPRE `controls`
+            // en onDragEnd. `dragMomentum={false}` evita que el impulso siga tras soltar.
+            dragMomentum={false}
             onDragEnd={handleDragEnd}
             animate={controls}
             initial={initialPositions.collapsed}
