@@ -1,17 +1,30 @@
 // src/context/ContextMenuContext.tsx
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 
-export type ContextMenuItemType = 'song' | 'album' | 'artist';
+export type ContextMenuItemType = 'song' | 'ia-song' | 'album' | 'artist' | 'playlist';
+
+// Opción contextual extra que el llamador inyecta al final del menú
+// (p.ej. "Quitar de esta playlist" cuando la fila vive en una playlist propia).
+export interface ContextMenuExtraOption {
+    label: string;
+    icon?: React.ComponentType<{ size?: number }>;
+    destructive?: boolean;
+    onSelect: () => void;
+}
+
+// Acepta también un objeto plano {clientX, clientY} para poder abrir el menú
+// desde un long-press táctil, donde ya no hay MouseEvent real.
+export type MenuAnchor = React.MouseEvent | MouseEvent | { clientX: number; clientY: number };
 
 interface ContextMenuState {
     visible: boolean;
     position: { x: number; y: number };
-    item: { type: ContextMenuItemType; data: any } | null;
+    item: { type: ContextMenuItemType; data: any; extra?: ContextMenuExtraOption[] } | null;
 }
 
 interface ContextMenuContextType {
     menuState: ContextMenuState;
-    openContextMenu: (e: React.MouseEvent | MouseEvent, type: ContextMenuItemType, data: any) => void;
+    openContextMenu: (e: MenuAnchor, type: ContextMenuItemType, data: any, options?: { extra?: ContextMenuExtraOption[] }) => void;
     closeContextMenu: () => void;
 }
 
@@ -30,13 +43,13 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
         item: null,
     });
 
-    const openContextMenu = useCallback((e: React.MouseEvent | MouseEvent, type: ContextMenuItemType, data: any) => {
-        e.preventDefault();
-        e.stopPropagation();
+    const openContextMenu = useCallback((e: MenuAnchor, type: ContextMenuItemType, data: any, options?: { extra?: ContextMenuExtraOption[] }) => {
+        (e as MouseEvent).preventDefault?.();
+        (e as MouseEvent).stopPropagation?.();
         setMenuState({
             visible: true,
-            position: { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY },
-            item: { type, data },
+            position: { x: e.clientX, y: e.clientY },
+            item: { type, data, extra: options?.extra },
         });
     }, []);
 

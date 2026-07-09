@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
 import { useContextMenu } from '../context/ContextMenuContext';
+import { useContextMenuTrigger } from '../hooks/useContextMenuTrigger';
 import useLazyCaching from '../hooks/useLazyCaching';
 import api from '../api/axiosConfig';
 import { normalizeTrackList } from '../utils/trackNormalization';
-import { IoPlaySharp, IoPauseSharp, IoShuffle, IoEllipsisVertical, IoChevronDown, IoChevronUp, IoTimeOutline } from 'react-icons/io5';
+import { IoPlaySharp, IoPauseSharp, IoShuffle, IoEllipsisVertical, IoChevronDown, IoChevronUp, IoTimeOutline, IoAddOutline } from 'react-icons/io5';
 import LikeButton from '../components/LikeButton';
 import AmbientBackground from '../components/AmbientBackground';
 import '../styles/glass.css';
@@ -13,6 +14,69 @@ import '../styles/glass.css';
 const qualityRank = {
   'FLAC': 1, 'WAV': 2, 'M4A': 3, 'MP3': 4, 'OGG': 5, 'unknown': 100
 };
+
+// Fila de canción del álbum IA. Componente propio para poder usar el hook de
+// context menu (long-press/click derecho) por fila.
+function IaTrackRow({ song, index, isPlaying, onPlay, isLiked, onLikeToggle }) {
+  const { triggerProps, open } = useContextMenuTrigger('song', { ...song, type: 'ia-song' });
+
+  return (
+    <div
+      className={`ctx-longpress group relative grid grid-cols-[32px_1fr_40px] md:grid-cols-[50px_1fr_auto_60px_auto] gap-3 md:gap-4 px-0 md:px-6 py-2 md:py-3 items-center hover:bg-white/5 transition-colors cursor-pointer min-h-[64px] border-b border-white/5 md:border-b-0 ${isPlaying ? 'bg-white/10 rounded-lg md:rounded-none' : ''}`}
+      onClick={onPlay}
+      {...triggerProps}
+    >
+      {/* Index / Play Icon */}
+      <div className="text-left md:text-center text-gray-500 font-medium text-sm md:w-8 pl-1 md:pl-0 flex items-center justify-start md:justify-center">
+        {isPlaying ? (
+          <IoPlaySharp className="text-[#1db954]" />
+        ) : (
+          <span className="block group-hover:hidden">{index + 1}</span>
+        )}
+        <IoPlaySharp className={`hidden group-hover:block text-white ${isPlaying ? 'hidden' : ''}`} />
+      </div>
+
+      {/* Title & Artist Stack */}
+      <div className="min-w-0 flex flex-col justify-center">
+        <div className={`text-[16px] font-medium leading-tight truncate mb-0.5 ${isPlaying ? 'text-[#1db954]' : 'text-white'}`}>
+          {song.attributes?.name}
+        </div>
+        {/* Mobile: Hide Artist Name (Redundant) */}
+        <div className="hidden md:block text-[14px] text-gray-400 truncate font-normal">
+          {song.attributes?.artistName}
+        </div>
+      </div>
+
+      {/* Desktop Metadata */}
+      <div className="hidden md:block text-right">
+        <span className="bg-white/10 text-gray-300 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+          {song.rawMetadata?.format}
+        </span>
+      </div>
+
+      <div className="text-sm text-gray-400 font-variant-numeric tabular-nums text-right hidden md:block">
+        {Math.floor((song.attributes?.durationInSeconds || 0) / 60)}:{Math.floor((song.attributes?.durationInSeconds || 0) % 60).toString().padStart(2, '0')}
+      </div>
+
+      {/* Actions / Menu */}
+      <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+        <LikeButton
+          song={song}
+          isLiked={isLiked}
+          onLikeToggle={onLikeToggle}
+          isArchive={true}
+        />
+        <button
+          className="p-3 md:p-2 text-gray-400 hover:text-white transition-colors"
+          onClick={(e) => { e.stopPropagation(); open(e); }}
+          aria-label="Más opciones"
+        >
+          <IoEllipsisVertical size={20} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function InternetArchivePage() {
   const { identifier } = useParams();
@@ -29,7 +93,7 @@ export default function InternetArchivePage() {
   const [availableFormats, setAvailableFormats] = useState([]);
   const [formatFilter, setFormatFilter] = useState('best');
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
-  const { currentSong, toggleLike, isSongLiked } = usePlayer();
+  const { currentSong, toggleLike, isSongLiked, addToQueue } = usePlayer();
   const { openContextMenu } = useContextMenu();
   const { handlePlayList } = useLazyCaching();
 
@@ -147,14 +211,22 @@ export default function InternetArchivePage() {
     toggleLike(songId, song);
   };
 
-  const handleMenuClick = (e, song) => {
-    e.stopPropagation();
-    // Normalizar datos para el menú global
-    const menuData = {
-      ...song,
-      type: 'ia-song' // Identificador especial si es necesario, o usar 'song' genérico
-    };
-    openContextMenu(e, 'song', menuData);
+  // Kebab del header (móvil): acciones a nivel álbum con los tracks ya cargados.
+  const handleAlbumMenu = (e) => {
+    openContextMenu(e, 'album', { ...album, identifier, fromAlbumPage: true }, {
+      extra: [
+        {
+          label: 'Reproducir',
+          icon: IoPlaySharp,
+          onSelect: () => { if (filteredTracks.length) handlePlayList(filteredTracks, 0); },
+        },
+        {
+          label: 'Agregar a la cola',
+          icon: IoAddOutline,
+          onSelect: () => filteredTracks.forEach(addToQueue),
+        },
+      ],
+    });
   };
 
   const formatTotalDuration = (seconds) => {
@@ -198,8 +270,9 @@ export default function InternetArchivePage() {
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
         </button>
         <button
-          onClick={(e) => openContextMenu && openContextMenu(e, 'album', album)}
+          onClick={handleAlbumMenu}
           className="w-10 h-10 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center text-white"
+          aria-label="Más opciones"
         >
           <IoEllipsisVertical size={24} />
         </button>
@@ -293,62 +366,16 @@ export default function InternetArchivePage() {
             const song = (formatFilter === 'best') ? track.best : track.formats.find(f => f.rawMetadata?.format === formatFilter);
             if (!song) return null;
 
-            const isPlaying = currentSong?.id === song.id;
-
             return (
-              <div
+              <IaTrackRow
                 key={song.id}
-                className={`group relative grid grid-cols-[32px_1fr_40px] md:grid-cols-[50px_1fr_auto_60px_auto] gap-3 md:gap-4 px-0 md:px-6 py-2 md:py-3 items-center hover:bg-white/5 transition-colors cursor-pointer min-h-[64px] border-b border-white/5 md:border-b-0 ${isPlaying ? 'bg-white/10 rounded-lg md:rounded-none' : ''}`}
-                onClick={() => handleSongClick(song)}
-              >
-                {/* Index / Play Icon */}
-                <div className="text-left md:text-center text-gray-500 font-medium text-sm md:w-8 pl-1 md:pl-0 flex items-center justify-start md:justify-center">
-                  {isPlaying ? (
-                    <IoPlaySharp className="text-[#1db954]" />
-                  ) : (
-                    <span className="block group-hover:hidden">{index + 1}</span>
-                  )}
-                  <IoPlaySharp className={`hidden group-hover:block text-white ${isPlaying ? 'hidden' : ''}`} />
-                </div>
-
-                {/* Title & Artist Stack */}
-                <div className="min-w-0 flex flex-col justify-center">
-                  <div className={`text-[16px] font-medium leading-tight truncate mb-0.5 ${isPlaying ? 'text-[#1db954]' : 'text-white'}`}>
-                    {song.attributes?.name}
-                  </div>
-                  {/* Mobile: Hide Artist Name (Redundant) */}
-                  <div className="hidden md:block text-[14px] text-gray-400 truncate font-normal">
-                    {song.attributes?.artistName}
-                  </div>
-                </div>
-
-                {/* Desktop Metadata */}
-                <div className="hidden md:block text-right">
-                  <span className="bg-white/10 text-gray-300 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider">
-                    {song.rawMetadata?.format}
-                  </span>
-                </div>
-
-                <div className="text-sm text-gray-400 font-variant-numeric tabular-nums text-right hidden md:block">
-                  {Math.floor((song.attributes?.durationInSeconds || 0) / 60)}:{Math.floor((song.attributes?.durationInSeconds || 0) % 60).toString().padStart(2, '0')}
-                </div>
-
-                {/* Actions / Menu */}
-                <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                  <LikeButton
-                    song={song}
-                    isLiked={isSongLiked(song.id)}
-                    onLikeToggle={handleLikeToggle}
-                    isArchive={true}
-                  />
-                  <button
-                    className="p-3 md:p-2 text-gray-400 hover:text-white transition-colors"
-                    onClick={(e) => handleMenuClick(e, song)}
-                  >
-                    <IoEllipsisVertical size={20} />
-                  </button>
-                </div>
-              </div>
+                song={song}
+                index={index}
+                isPlaying={currentSong?.id === song.id}
+                onPlay={() => handleSongClick(song)}
+                isLiked={isSongLiked(song.id)}
+                onLikeToggle={handleLikeToggle}
+              />
             );
           })}
         </div>

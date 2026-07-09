@@ -90,6 +90,15 @@
   .hover-scrollbar:hover::-webkit-scrollbar-thumb {
     background-color: rgba(255, 255, 255, 0.3);
   }
+
+  /* Elementos con long-press para abrir el context menu: sin callout/lupa de
+     selección en iOS ni highlight de tap. */
+  .ctx-longpress {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
 }
 
 /* Layout Utilities */

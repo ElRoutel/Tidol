@@ -1,17 +1,11 @@
 import React from 'react';
 import { IoPlay } from 'react-icons/io5';
 import MiniVisualizer from '../MiniVisualizer';
-import { useContextMenu } from '../../context/ContextMenuContext';
+import { useContextMenuTrigger } from '../../hooks/useContextMenuTrigger';
 import { getCoverSrc } from '../../utils/coverArt';
 
 export default function QuickSelectionCard({ item, onClick, isActive, isPlaying }) {
-    const { openContextMenu } = useContextMenu();
-
-    const handleContextMenu = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        openContextMenu(e, 'song', item);
-    };
+    const { triggerProps } = useContextMenuTrigger('song', item);
 
     const title = item.title || 'Sin título';
     const artist = item.artist || item.artista || item.artistName || 'Artista desconocido';
@@ -20,8 +14,8 @@ export default function QuickSelectionCard({ item, onClick, isActive, isPlaying 
     return (
         <div
             onClick={onClick}
-            onContextMenu={handleContextMenu}
-            className="group/card flex items-center h-20 pr-4 rounded-xl overflow-hidden cursor-pointer
+            {...triggerProps}
+            className="ctx-longpress group/card flex items-center h-20 pr-4 rounded-xl overflow-hidden cursor-pointer
                        bg-white/[0.04] border border-white/[0.06]
                        hover:bg-white/[0.09] hover:border-white/[0.14] hover:scale-[1.015]
                        active:scale-[0.99] transition-all duration-300"
