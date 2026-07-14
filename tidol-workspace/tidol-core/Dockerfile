@@ -9,12 +9,16 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy the workspace (filtered by .dockerignore)
+# Copy the workspace (filtered por .dockerignore; incluye `.sqlx/`, ver abajo)
 COPY . .
 
-# SQLx compile-time database URL
-ARG DATABASE_URL
-ENV DATABASE_URL=${DATABASE_URL}
+# Los macros `sqlx::query!` se resuelven contra la caché offline commiteada en
+# `.sqlx/`, NO contra una BD viva. Antes el build recibía un `DATABASE_URL` y
+# compilaba online (de ahí el `network: host` del compose y el 3306 publicado):
+# una MariaDB caída o lenta rompía la compilación. Si esta línea falla con
+# "set DATABASE_URL to use query macros online", la caché está desincronizada:
+#   cargo sqlx prepare --workspace   (y commitea `.sqlx/`)
+ENV SQLX_OFFLINE=true
 
 # Build the main binary and plugins in release mode.
 # El binario HTTP vive ahora en el crate `tidol-server` (dominio = lib

@@ -34,8 +34,12 @@ services:
       MARIADB_PASSWORD: ${MARIADB_PASSWORD:-tidol36CY}
     volumes:
       - mariadb-data:/var/lib/mysql
+    # Solo al loopback del VPS: la BD la alcanzan los contenedores por la red
+    # `tidol-net`, y un admin por túnel SSH (ssh -L 3306:127.0.0.1:3306 mi-vps).
+    # Antes era "3306:3306" = MariaDB escuchando en 0.0.0.0 del VPS, expuesta a
+    # internet; lo exigía el build online de SQLx, que ya no existe.
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
@@ -66,12 +70,12 @@ services:
   # Usa "deploy.replicas" para lanzar múltiples instancias
   # ---------------------------------------------------------------------------
   tidol-core:
+    # El build compila SQLx en modo offline (caché `.sqlx/`), así que ya no
+    # necesita `network: host` ni un DATABASE_URL apuntando a la MariaDB del
+    # host: se construye sin BD viva. Ver tidol-core/Dockerfile.
     build:
       context: ./tidol-workspace
       dockerfile: tidol-core/Dockerfile
-      network: host
-      args:
-        - DATABASE_URL=mysql://tidol_admin:${MARIADB_PASSWORD:-tidol36CY}@127.0.0.1/tidol
     image: tidolcore/backend:latest
     restart: unless-stopped
     networks:
@@ -84,7 +88,10 @@ services:
     environment:
       # Base de datos
       DATABASE_URL: mysql://tidol_admin:${MARIADB_PASSWORD:-tidol36CY}@mariadb/tidol
-      DATABASE_MAX_CONNECTIONS: ${DATABASE_MAX_CONNECTIONS:-100}
+      # POR RÉPLICA. El default es 50 (no 100) porque el pool se multiplica por
+      # TIDOL_REPLICAS: con 3 réplicas, 100 daría 300 conexiones contra las 151
+      # de `max_connections` de MariaDB. deploy.sh valida el producto real.
+      DATABASE_MAX_CONNECTIONS: ${DATABASE_MAX_CONNECTIONS:-50}
 
       # Servidor
       PORT: 8080
