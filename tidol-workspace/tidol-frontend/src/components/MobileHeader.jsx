@@ -49,11 +49,13 @@ const MobileHeader = () => {
     }
   };
 
-  if (!user) return <div className="h-16 md:hidden"></div>;
+  if (!user) return <div className="h-[calc(4rem+env(safe-area-inset-top))] md:hidden"></div>;
 
   return (
     <>
-      <header className="md:hidden fixed top-0 left-0 right-0 flex justify-between items-center px-4 h-16 bg-[#030303] z-40 border-b border-white/5">
+      {/* pt-safe-top: el fondo #030303 se extiende bajo la barra de estado
+          (edge-to-edge) manteniendo la fila de contenido en 64px */}
+      <header className="md:hidden fixed top-0 left-0 right-0 flex justify-between items-center px-4 pt-safe-top h-[calc(4rem+env(safe-area-inset-top))] bg-[#030303] z-40 border-b border-white/5">
 
         {/* Left: Hamburger & Logo */}
         <div className="flex items-center gap-4">
@@ -82,7 +84,7 @@ const MobileHeader = () => {
 
       {/* Search Overlay */}
       {isSearchOpen && (
-        <div className="fixed inset-0 z-50 bg-[#030303] flex flex-col animate-fade-in">
+        <div className="fixed inset-0 z-50 bg-[#030303] flex flex-col animate-fade-in pt-safe-top">
           {/* Search Header */}
           <div className="flex items-center gap-2 p-2 border-b border-white/10">
             <button onClick={() => setIsSearchOpen(false)} className="p-3 text-white">

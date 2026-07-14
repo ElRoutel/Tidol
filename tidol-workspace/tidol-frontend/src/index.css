@@ -6,6 +6,15 @@
 @tailwind utilities;
 
 @layer base {
+
+  /* Insets del notch/barra de gestos (requieren viewport-fit=cover en el meta
+     viewport). Como variables para poder leerlos también desde JS
+     (getComputedStyle) donde la posición se calcula en px (PlayerSheet). */
+  :root {
+    --safe-area-top: env(safe-area-inset-top, 0px);
+    --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
   * {
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
@@ -104,8 +113,8 @@
 /* Layout Utilities */
 .tidol-main-content {
   @apply w-full min-h-screen transition-all duration-300;
-  padding-top: 4rem;
-  /* h-16 for Header */
+  /* h-16 del header + inset superior (status bar/notch en PWA edge-to-edge) */
+  padding-top: calc(4rem + var(--safe-area-top));
 }
 
 @media (min-width: 768px) {
