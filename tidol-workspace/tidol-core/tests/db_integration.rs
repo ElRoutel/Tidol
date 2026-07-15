@@ -160,6 +160,81 @@ async fn auth_ciclo_completo_register_login_me_logout() {
 }
 
 #[tokio::test]
+async fn delete_account_borra_todo_y_revoca_tokens() {
+    let core = core().await;
+
+    // Usuario "vecino": no debe verse afectado por el borrado del otro.
+    let (vecino, _tv, _uv) = register_user(&core).await;
+    let vecino_pid = core
+        .create_playlist(vecino, CreatePlaylistPayload { nombre: "Del vecino".into() })
+        .await
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    // Víctima: sembramos datos en TODAS las tablas por-usuario.
+    let (uid, token, _u) = register_user(&core).await;
+    let ctx = core.authenticate(&token).await.expect("authenticate");
+
+    let pid = core
+        .create_playlist(uid, CreatePlaylistPayload { nombre: "Mía".into() })
+        .await
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    core.add_song_to_playlist(uid, &pid, song(&unique("da"), "A"))
+        .await
+        .unwrap();
+    core.toggle_playlist_like(uid, &pid).await.unwrap(); // playlist_likes
+    core.set_local_like(uid, &unique("dl")).await; // user_likes
+    core.log_play(
+        &unique("dmb"),
+        uid,
+        Some(LogPlayPayload {
+            title: Some("H".into()),
+            artist: Some("A".into()),
+            cover_url: None,
+        }),
+    )
+    .await
+    .expect("log_play"); // play_history
+
+    // Precondición: hay datos.
+    assert!(!core.get_playlists(uid).await.is_empty());
+    assert!(!core.get_history(uid).await.is_empty());
+    assert!(!core.get_local_likes(uid).await.is_empty());
+
+    // Borrado.
+    core.delete_account(&ctx).await.expect("delete_account");
+
+    // 1. El token deja de valer: el device cayó por CASCADE.
+    assert!(
+        core.authenticate(&token).await.is_err(),
+        "token debe morir con la cuenta"
+    );
+
+    // 2. Todos los datos por-usuario desaparecen.
+    assert!(core.get_playlists(uid).await.is_empty(), "playlists borradas");
+    assert!(core.get_history(uid).await.is_empty(), "historial borrado");
+    assert!(core.get_local_likes(uid).await.is_empty(), "likes borrados");
+    assert!(core.get_playlist(uid, &pid).await.is_none(), "detalle borrado");
+
+    // 3. Segundo borrado → NotFound (la fila ya no existe).
+    assert!(matches!(
+        core.delete_account(&ctx).await.unwrap_err(),
+        tidol_core::DeleteAccountError::NotFound
+    ));
+
+    // 4. Aislamiento: el vecino conserva intacta su playlist.
+    assert!(
+        core.get_playlist(vecino, &vecino_pid).await.is_some(),
+        "el borrado no debe tocar a otros usuarios"
+    );
+}
+
+#[tokio::test]
 async fn register_username_duplicado_es_conflict() {
     let core = core().await;
     let (_id, _tok, username) = register_user(&core).await;

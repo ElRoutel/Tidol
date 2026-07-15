@@ -13,7 +13,8 @@ use tracing::info;
 use tidol_core::models::{AlbumResponse, ArtistResponse};
 use tidol_core::{
     normalize_query, AddHistoryPayload, AddSongError, AddSongToPlaylistPayload, AuthContext,
-    AuthError, Colors, ColorsResponse, CoverOutcome, CreatePlaylistPayload, ExtractColorsPayload,
+    AuthError, Colors, ColorsResponse, CoverOutcome, CreatePlaylistPayload, DeleteAccountError,
+    ExtractColorsPayload,
     LikesDetailedQuery, LoginError, LoginPayload, LogPlayPayload, LogoutError, LyricsError, MeError,
     OptimizeError, RegisterError, RegisterPayload, RenameError, RenamePlaylistPayload,
     ReorderError, ReorderPlaylistPayload, SearchQuery, ToggleIaLikeError, ToggleLikePayload,
@@ -155,6 +156,19 @@ pub async fn logout_handler(
         let status = match &e {
             LogoutError::Db(_) => StatusCode::INTERNAL_SERVER_ERROR,
             LogoutError::AlreadyClosed => StatusCode::UNAUTHORIZED,
+        };
+        (status, e.to_string())
+    })
+}
+
+pub async fn delete_me_handler(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthContext>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    state.core.delete_account(&auth).await.map(Json).map_err(|e| {
+        let status = match &e {
+            DeleteAccountError::NotFound => StatusCode::UNAUTHORIZED,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
         (status, e.to_string())
     })

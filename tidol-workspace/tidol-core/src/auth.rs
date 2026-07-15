@@ -119,6 +119,18 @@ pub enum LogoutError {
     AlreadyClosed,
 }
 
+#[derive(Debug, Error)]
+pub enum DeleteAccountError {
+    #[error("Error iniciando transacción: {0}")]
+    TxBegin(sqlx::Error),
+    #[error("Error DB: {0}")]
+    Db(sqlx::Error),
+    #[error("Sesión inválida")]
+    NotFound,
+    #[error("Error confirmando transacción: {0}")]
+    TxCommit(sqlx::Error),
+}
+
 // -------------------------------------------------------------------------
 // HELPERS PRIVADOS
 // -------------------------------------------------------------------------
@@ -401,6 +413,42 @@ impl TidolCore {
         Ok(serde_json::json!({
             "status": "success",
             "message": "Logout exitoso"
+        }))
+    }
+
+    // -------------------------------------------------------------------------
+    // BORRADO DE CUENTA (irreversible: usuario + todos sus datos)
+    // -------------------------------------------------------------------------
+    pub async fn delete_account(
+        &self,
+        auth: &AuthContext,
+    ) -> Result<serde_json::Value, DeleteAccountError> {
+        let mut tx = self.db.begin().await.map_err(DeleteAccountError::TxBegin)?;
+
+        // play_history no tiene FK a users → hay que borrarlo manualmente.
+        sqlx::query!("DELETE FROM play_history WHERE user_id = ?", auth.user_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(DeleteAccountError::Db)?;
+
+        // Borrar el usuario dispara ON DELETE CASCADE sobre devices, playlists
+        // (→ playlist_songs, playlist_likes), playlist_likes (por user) y
+        // user_likes. Al caer devices, todos los JWT del usuario quedan muertos
+        // (authenticate verifica el device en BD en cada request).
+        let result = sqlx::query!("DELETE FROM users WHERE id = ?", auth.user_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(DeleteAccountError::Db)?;
+
+        if result.rows_affected() == 0 {
+            return Err(DeleteAccountError::NotFound);
+        }
+
+        tx.commit().await.map_err(DeleteAccountError::TxCommit)?;
+
+        Ok(serde_json::json!({
+            "status": "success",
+            "message": "Cuenta eliminada"
         }))
     }
 }

@@ -37,8 +37,8 @@ use proxy::ProxyRotator;
 
 // ── Re-exports públicos que consume el binario (tidol-server) ──
 pub use auth::{
-    AuthContext, AuthError, Claims, LoginError, LoginPayload, LogoutError, MeError, RegisterError,
-    RegisterPayload,
+    AuthContext, AuthError, Claims, DeleteAccountError, LoginError, LoginPayload, LogoutError,
+    MeError, RegisterError, RegisterPayload,
 };
 pub use catalog::{normalize_query, LogPlayPayload, LyricsError, TrackClickPayload};
 pub use library::SearchQuery;

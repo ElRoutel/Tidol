@@ -138,7 +138,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/api/v1/tracks/:mbid/log-play",
             post(handlers::log_play_handler),
         )
-        .route("/api/v1/auth/me", get(handlers::me_handler))
+        .route(
+            "/api/v1/auth/me",
+            get(handlers::me_handler).delete(handlers::delete_me_handler),
+        )
         .route("/api/v1/search/:query", get(handlers::search_handler))
         .route(
             "/api/v1/artists/:mbid",
