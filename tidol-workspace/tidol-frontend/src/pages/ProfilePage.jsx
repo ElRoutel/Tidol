@@ -1,16 +1,43 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { IoLogOutOutline, IoPersonCircleOutline, IoSettingsOutline } from "react-icons/io5";
+import {
+  IoLogOutOutline,
+  IoPersonCircleOutline,
+  IoSettingsOutline,
+  IoTrashOutline,
+} from "react-icons/io5";
+import api from "../api/axiosConfig";
 import "../styles/glass.css";
 
 function ProfilePage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
   const handleLogout = () => {
     logout();
     navigate("/login");
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await api.delete("/auth/me");
+      logout();
+      navigate("/login");
+    } catch (err) {
+      const message =
+        err?.response?.data?.message ||
+        err?.response?.data ||
+        "No se pudo eliminar la cuenta. Inténtalo de nuevo.";
+      setDeleteError(typeof message === "string" ? message : JSON.stringify(message));
+      setDeleting(false);
+      setConfirmingDelete(false);
+    }
   };
 
   if (!user) return null;
@@ -40,16 +67,52 @@ function ProfilePage() {
         </div>
 
         {/* Actions */}
-        <div className="relative z-10 flex gap-4">
+        <div className="relative z-10 flex flex-col sm:flex-row gap-4">
           <button
             onClick={handleLogout}
-            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 font-medium transition-all hover:scale-105"
+            className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 font-medium transition-all hover:scale-105"
           >
             <IoLogOutOutline size={20} />
             Cerrar Sesión
           </button>
+          {confirmingDelete ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleting}
+                className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold transition-all disabled:opacity-60"
+              >
+                <IoTrashOutline size={18} />
+                {deleting ? "Eliminando…" : "Confirmar"}
+              </button>
+              <button
+                onClick={() => setConfirmingDelete(false)}
+                disabled={deleting}
+                className="px-4 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-gray-200 font-medium transition-all disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                setDeleteError(null);
+                setConfirmingDelete(true);
+              }}
+              className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-transparent hover:bg-red-500/10 border border-red-500/30 text-red-400/80 font-medium transition-all hover:scale-105"
+            >
+              <IoTrashOutline size={20} />
+              Eliminar cuenta
+            </button>
+          )}
         </div>
       </div>
+
+      {deleteError && (
+        <div className="mb-8 -mt-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-300">
+          {deleteError}
+        </div>
+      )}
 
       {/* Aún no implementado: sin `cursor-pointer` ni hover, que prometían un clic
           que no existe. Cuando haya destino, devolverle la interactividad. */}

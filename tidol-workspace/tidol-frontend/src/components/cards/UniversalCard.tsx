@@ -2,7 +2,7 @@
 import React, { useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePlayer } from '../../context/PlayerContext';
-import { useContextMenu } from '../../context/ContextMenuContext';
+import { useContextMenuTrigger } from '../../hooks/useContextMenuTrigger';
 import { IoPlaySharp } from 'react-icons/io5';
 import { FaEllipsisH } from 'react-icons/fa';
 import { UnifiedTrack } from '../../types/music';
@@ -29,7 +29,6 @@ const UniversalCard: React.FC<UniversalCardProps> = ({
     onPlay
 }) => {
     const { currentTrack } = usePlayer();
-    const { openContextMenu } = useContextMenu();
     const navigate = useNavigate();
 
     // Map data to UnifiedTrack if it's not already (best effort)
@@ -103,19 +102,31 @@ const UniversalCard: React.FC<UniversalCardProps> = ({
         }
     }, [onPlay, track]);
 
+    // El menú necesita campos que el fallback legacy no garantiza (id/title):
+    // sin ellos el header sale vacío y toggleLike recibe undefined.
+    const menuPayload = useMemo(() => ({
+        ...track,
+        id: track.trackId,
+        title: track.trackName,
+        titulo: track.trackName,
+        artista: track.artistName,
+        portada: track.coverArtUrl,
+    }), [track]);
+
+    const { triggerProps, open } = useContextMenuTrigger(type, menuPayload);
+
     const handleMenu = useCallback((e: React.MouseEvent) => {
-        e.preventDefault();
         e.stopPropagation();
-        openContextMenu(e, type as any, track);
-    }, [openContextMenu, type, track]);
+        open(e);
+    }, [open]);
 
     // Render Helpers
     if (variant === 'shelf') {
         return (
             <div
-                className={`group relative flex-shrink-0 w-36 md:w-48 flex flex-col gap-3 cursor-pointer ${type}-item`}
+                className={`ctx-longpress group relative flex-shrink-0 w-36 md:w-48 flex flex-col gap-3 cursor-pointer ${type}-item`}
                 onClick={handleClick}
-                onContextMenu={handleMenu}
+                {...triggerProps}
             >
                 <div className={`relative aspect-square w-full ${type === 'artist' ? 'rounded-full' : 'rounded-xl'} overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-xl`}>
                     <img
@@ -161,8 +172,9 @@ const UniversalCard: React.FC<UniversalCardProps> = ({
     // Default to simplest list view or other variants
     return (
         <div
-            className={`flex items-center gap-4 p-2 rounded-md hover:bg-white/5 cursor-pointer ${isCurrent ? 'bg-white/10' : ''}`}
+            className={`ctx-longpress flex items-center gap-4 p-2 rounded-md hover:bg-white/5 cursor-pointer ${isCurrent ? 'bg-white/10' : ''}`}
             onClick={handleClick}
+            {...triggerProps}
         >
             <img
                 src={coverSrc}

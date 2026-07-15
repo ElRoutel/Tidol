@@ -4,9 +4,9 @@ import { Reorder, useDragControls } from 'framer-motion';
 import api from '../api/axiosConfig';
 import { usePlayer } from '../context/PlayerContext';
 import { usePlaylist } from '../context/PlaylistContext';
-import { useContextMenu } from '../context/ContextMenuContext';
+import { useContextMenuTrigger } from '../hooks/useContextMenuTrigger';
 import { getCoverSrc } from '../utils/coverArt';
-import { IoPlaySharp, IoShuffle, IoEllipsisHorizontal, IoTrashOutline, IoTimeOutline, IoPencilOutline, IoHeart, IoHeartOutline, IoReorderThreeOutline } from 'react-icons/io5';
+import { IoPlaySharp, IoShuffle, IoEllipsisHorizontal, IoTrashOutline, IoTimeOutline, IoPencilOutline, IoHeart, IoHeartOutline, IoReorderThreeOutline, IoMusicalNotesOutline } from 'react-icons/io5';
 import { normalizeTrackList } from '../utils/trackNormalization';
 import PlaylistNameModal from '../components/PlaylistNameModal';
 import ConfirmModal from '../components/ConfirmModal';
@@ -17,12 +17,20 @@ import './ImmersiveLayout.css'; // Mantener estilos específicos de layout inmer
 // ignora `children`/`index`/variante list: ni numeración, ni duración, ni el
 // botón de quitar llegaban a renderizarse. La fila propia además soporta
 // reordenación drag & drop (solo el dueño, desde el asa ≡).
-function PlaylistSongRow({ song, index, isOwner, isCurrent, onPlay, onDelete, onDragEnd, formatDuration }) {
+function PlaylistSongRow({ song, index, isOwner, isCurrent, onPlay, onRequestRemove, onDragEnd, formatDuration }) {
     const dragControls = useDragControls();
-    const { openContextMenu } = useContextMenu();
     // Al soltar un arrastre, el navegador dispara también un click sobre la
     // fila; sin esta guarda cada reordenación reproducía la canción movida.
     const dragEndAtRef = useRef(0);
+
+    const { triggerProps, open } = useContextMenuTrigger('song', song, {
+        extra: isOwner ? [{
+            label: 'Quitar de esta playlist',
+            icon: IoTrashOutline,
+            destructive: true,
+            onSelect: () => onRequestRemove(song),
+        }] : undefined,
+    });
 
     return (
         <Reorder.Item
@@ -31,9 +39,9 @@ function PlaylistSongRow({ song, index, isOwner, isCurrent, onPlay, onDelete, on
             dragListener={false}
             dragControls={dragControls}
             onDragEnd={() => { dragEndAtRef.current = Date.now(); onDragEnd(); }}
-            className={`group grid grid-cols-[2rem_1fr_auto_auto] gap-4 items-center px-4 md:px-6 py-2.5 cursor-pointer border-b border-white/5 last:border-0 transition-colors hover:bg-white/5 ${isCurrent ? 'bg-white/10' : ''}`}
+            className={`ctx-longpress group grid grid-cols-[2rem_1fr_auto_auto] gap-4 items-center px-4 md:px-6 py-2.5 cursor-pointer border-b border-white/5 last:border-0 transition-colors hover:bg-white/5 ${isCurrent ? 'bg-white/10' : ''}`}
             onClick={() => { if (Date.now() - dragEndAtRef.current > 250) onPlay(); }}
-            onContextMenu={(e) => { e.preventDefault(); openContextMenu(e, 'song', song); }}
+            {...triggerProps}
         >
             {/* nº / asa de arrastre (el asa sustituye al número al hacer hover si eres dueño) */}
             <div className="w-8 flex items-center justify-center text-sm text-gray-400">
@@ -41,6 +49,7 @@ function PlaylistSongRow({ song, index, isOwner, isCurrent, onPlay, onDelete, on
                     <>
                         <span className="group-hover:hidden">{index + 1}</span>
                         <button
+                            data-no-longpress
                             onPointerDown={(e) => { e.stopPropagation(); dragControls.start(e); }}
                             onClick={(e) => e.stopPropagation()}
                             className="hidden group-hover:flex items-center justify-center text-white/60 hover:text-white cursor-grab active:cursor-grabbing p-1"
@@ -78,19 +87,64 @@ function PlaylistSongRow({ song, index, isOwner, isCurrent, onPlay, onDelete, on
                 {formatDuration(song.durationInSeconds || song.duracion || song.duration)}
             </div>
 
-            <div className="w-8 flex justify-end">
-                {isOwner && (
-                    <button
-                        className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2"
-                        onClick={onDelete}
-                        title="Quitar de playlist"
-                        aria-label="Quitar de playlist"
-                    >
-                        <IoTrashOutline size={18} />
-                    </button>
-                )}
+            <div className="w-10 flex justify-end">
+                <button
+                    className="w-10 h-10 flex items-center justify-center rounded-full text-gray-400 hover:text-white hover:bg-white/10 transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                    onClick={(e) => { e.stopPropagation(); open(e); }}
+                    title="Más opciones"
+                    aria-label="Más opciones"
+                >
+                    <IoEllipsisHorizontal size={18} />
+                </button>
             </div>
         </Reorder.Item>
+    );
+}
+
+/**
+ * Portada de la playlist: mosaico 2x2 con las primeras portadas si hay ≥4
+ * canciones, portada única con 1-3, placeholder si está vacía.
+ */
+function PlaylistCover({ songs, name }) {
+    const covers = [];
+    const seen = new Set();
+    for (const song of songs) {
+        const src = getCoverSrc(song, true);
+        if (src && !seen.has(src)) {
+            seen.add(src);
+            covers.push(src);
+        }
+        if (covers.length === 4) break;
+    }
+
+    return (
+        <div className="w-44 h-44 md:w-64 md:h-64 shrink-0 rounded-xl overflow-hidden shadow-2xl glass-card bg-white/5 mx-auto md:mx-0">
+            {covers.length >= 4 ? (
+                <div className="grid grid-cols-2 grid-rows-2 w-full h-full">
+                    {covers.map((src, i) => (
+                        <img
+                            key={i}
+                            src={src}
+                            alt=""
+                            loading="lazy"
+                            onError={(e) => { e.currentTarget.src = '/default-album.png'; }}
+                            className="w-full h-full object-cover"
+                        />
+                    ))}
+                </div>
+            ) : covers.length > 0 ? (
+                <img
+                    src={covers[0]}
+                    alt={name}
+                    onError={(e) => { e.currentTarget.src = '/default-album.png'; }}
+                    className="w-full h-full object-cover"
+                />
+            ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-white/10 to-white/[0.02]">
+                    <span className="text-5xl md:text-6xl">🎵</span>
+                </div>
+            )}
+        </div>
     );
 }
 
@@ -119,6 +173,7 @@ export default function PlaylistPage() {
     const [showMenu, setShowMenu] = useState(false);
     const [isRenameOpen, setIsRenameOpen] = useState(false);
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+    const [songToRemove, setSongToRemove] = useState(null);
 
     // Solo el dueño manda: si el backend no lo afirma, no ofrecemos sus acciones.
     const isOwner = playlist?.isOwner === true;
@@ -223,13 +278,14 @@ export default function PlaylistPage() {
         playSongList(songs, index);
     };
 
-    const handleDeleteSong = async (e, songId) => {
-        e.stopPropagation();
-        if (window.confirm("¿Quitar canción de la playlist?")) {
-            const success = await removeSongFromPlaylist(id, songId);
-            if (success) {
-                setSongs(prev => prev.filter(s => s.id !== songId));
-            }
+    // window.confirm está bloqueado en PWA; se confirma con ConfirmModal.
+    const confirmRemoveSong = async () => {
+        const song = songToRemove;
+        setSongToRemove(null);
+        if (!song) return;
+        const success = await removeSongFromPlaylist(id, song.id);
+        if (success) {
+            setSongs(prev => prev.filter(s => s.id !== song.id));
         }
     };
 
@@ -260,34 +316,26 @@ export default function PlaylistPage() {
     );
 
     return (
-        <div className="relative min-h-screen pb-40">
-            {/* Ambient Background */}
-            <div
-                className="fixed inset-0 z-0 bg-cover bg-center blur-3xl opacity-30 scale-110 pointer-events-none transition-all duration-1000"
-                style={{ backgroundImage: `url(${songs[0]?.portada || songs[0]?.cover_url || '/default_cover.png'})` }}
-            />
-            <div className="fixed inset-0 z-0 bg-gradient-to-b from-black/20 via-[#0a0a0a]/80 to-[#0a0a0a] pointer-events-none" />
+        <div className="relative min-h-screen pb-40 bg-[#0a0a0a]">
+            {/* Blurred cover glow (mismo patrón que AlbumPage) */}
+            <div className="absolute top-0 left-0 w-full h-[60vh] z-0 pointer-events-none overflow-hidden">
+                <div
+                    className="w-full h-full bg-cover bg-center blur-[100px] opacity-50 scale-150 transition-all duration-1000"
+                    style={{ backgroundImage: `url(${getCoverSrc(songs[0], true) || '/default-album.png'})` }}
+                />
+            </div>
+            <div className="absolute top-0 left-0 w-full h-[60vh] z-[1] pointer-events-none bg-gradient-to-b from-black/30 via-[#0a0a0a]/70 to-[#0a0a0a]" />
 
-            <div className="relative z-10 px-8 pt-24 max-w-7xl mx-auto">
+            <div className="relative z-10 px-4 md:px-8 pt-24 max-w-7xl mx-auto">
                 {/* Hero Section */}
-                <div className="flex flex-col md:flex-row gap-8 items-end mb-12 animate-fade-in">
-                    <div className="w-64 h-64 shadow-2xl rounded-xl overflow-hidden glass-card flex items-center justify-center bg-white/5">
-                        {songs.length > 0 ? (
-                            <img
-                                src={songs[0]?.portada || songs[0]?.cover_url}
-                                alt={playlist?.nombre}
-                                className="w-full h-full object-cover"
-                            />
-                        ) : (
-                            <span className="text-6xl">🎵</span>
-                        )}
-                    </div>
+                <div className="flex flex-col items-center text-center md:flex-row md:items-end md:text-left gap-6 md:gap-8 mb-8 md:mb-12 animate-fade-in">
+                    <PlaylistCover songs={songs} name={playlist?.nombre} />
 
-                    <div className="flex-1">
+                    <div className="flex-1 w-full min-w-0">
                         <h5 className="uppercase tracking-widest text-xs font-bold mb-2 text-white/80">Playlist</h5>
-                        <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 tracking-tight">{playlist?.nombre}</h1>
+                        <h1 className="text-3xl sm:text-4xl md:text-6xl lg:text-7xl font-bold text-white mb-4 md:mb-6 tracking-tight break-words">{playlist?.nombre}</h1>
 
-                        <div className="flex items-center flex-wrap gap-2 text-sm text-gray-300 mb-6">
+                        <div className="flex items-center justify-center md:justify-start flex-wrap gap-2 text-sm text-gray-300 mb-6">
                             <span className="font-medium text-white">
                                 {playlist?.owner ? `Creada por ${playlist.owner}` : 'Playlist'}
                             </span>
@@ -309,7 +357,7 @@ export default function PlaylistPage() {
                             )}
                         </div>
 
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center justify-center md:justify-start gap-4">
                             <button
                                 onClick={() => playSongList(songs, 0)}
                                 className="w-14 h-14 rounded-full bg-white text-black flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
@@ -378,14 +426,23 @@ export default function PlaylistPage() {
                         <div className="w-8 text-center">#</div>
                         <div>Título</div>
                         <div className="hidden md:block"><IoTimeOutline size={18} /></div>
-                        <div className="w-8"></div>
+                        <div className="w-10"></div>
                     </div>
 
                     {/* Songs */}
                     {songs.length === 0 ? (
-                        <div className="text-center py-16 text-gray-500">
-                            <p className="text-lg mb-2">Esta playlist está vacía</p>
-                            <p className="text-sm">Agrega canciones desde el menú contextual</p>
+                        <div className="flex flex-col items-center text-center py-16 px-6">
+                            <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-5">
+                                <IoMusicalNotesOutline size={36} className="text-white/40" />
+                            </div>
+                            <p className="text-lg font-semibold text-white mb-1">Esta playlist está vacía</p>
+                            <p className="text-sm text-gray-500 mb-6">Busca canciones y agrégalas desde su menú de opciones</p>
+                            <button
+                                onClick={() => navigate('/search')}
+                                className="px-6 py-2.5 rounded-full bg-white text-black text-sm font-semibold hover:scale-105 active:scale-95 transition-transform"
+                            >
+                                Buscar canciones
+                            </button>
                         </div>
                     ) : (
                         <Reorder.Group as="div" axis="y" values={songs} onReorder={handleReorder}>
@@ -397,7 +454,7 @@ export default function PlaylistPage() {
                                     isOwner={isOwner}
                                     isCurrent={currentSong && (currentSong.id === song.id || currentSong.trackId === song.trackId)}
                                     onPlay={() => handleSongClick(index)}
-                                    onDelete={(e) => handleDeleteSong(e, song.id)}
+                                    onRequestRemove={setSongToRemove}
                                     onDragEnd={persistOrder}
                                     formatDuration={formatDuration}
                                 />
@@ -423,6 +480,15 @@ export default function PlaylistPage() {
                 confirmLabel="Eliminar"
                 onConfirm={handleDeletePlaylist}
                 onClose={() => setIsDeleteOpen(false)}
+            />
+
+            <ConfirmModal
+                isOpen={!!songToRemove}
+                title="Quitar canción"
+                message={`¿Quitar “${songToRemove?.trackName || songToRemove?.titulo || songToRemove?.title || 'esta canción'}” de la playlist?`}
+                confirmLabel="Quitar"
+                onConfirm={confirmRemoveSong}
+                onClose={() => setSongToRemove(null)}
             />
         </div>
     );

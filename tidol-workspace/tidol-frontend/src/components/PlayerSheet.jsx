@@ -22,11 +22,18 @@ const PlayerSheet = () => {
         // El alto sigue siendo 100dvh (solo animamos `y`); el listener de resize
         // reajusta la posición colapsada cuando la barra de URL móvil aparece/desaparece.
         const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+        // Inset inferior (barra de gestos, PWA edge-to-edge). Se lee la var CSS
+        // de index.css porque `y` se calcula en px, no en CSS.
+        const safeBottom = typeof window !== 'undefined'
+            ? parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--safe-area-bottom')) || 0
+            : 0;
         if (mobile) {
-            // Mobile: solo asoma el mini-player (64px); el nav móvil se eliminó.
+            // Mobile: solo asoma el mini-player (64px) + el inset inferior, que
+            // queda relleno por el bg-background de la sábana bajo la barra de
+            // gestos; el nav móvil se eliminó.
             return {
                 collapsed: {
-                    y: vh - 64,
+                    y: vh - 64 - safeBottom,
                     height: '100dvh',
                     width: '100%',
                     left: '0%',

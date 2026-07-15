@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
-import { IoPlay } from 'react-icons/io5';
+import { IoPlay, IoEllipsisHorizontal } from 'react-icons/io5';
 import api from '../../api/axiosConfig';
+import { useContextMenuTrigger } from '../../hooks/useContextMenuTrigger';
 
 interface AlbumCardProps {
   id: string;
@@ -9,6 +10,7 @@ interface AlbumCardProps {
   coverUrl?: string;
   releaseYear?: number;
   type?: string;
+  artistId?: string;
 }
 
 /**
@@ -23,8 +25,18 @@ export default function AlbumCard({
   coverUrl,
   releaseYear,
   type,
+  artistId,
 }: AlbumCardProps) {
   const navigate = useNavigate();
+  const { triggerProps, open } = useContextMenuTrigger('album', {
+    id,
+    title,
+    artistName,
+    coverUrl,
+    portada: coverUrl,
+    releaseYear,
+    artistId,
+  });
 
   const label = type?.toLowerCase().includes('album')
     ? 'Álbum'
@@ -34,8 +46,9 @@ export default function AlbumCard({
 
   return (
     <div
-      className="group/card flex flex-col gap-3 cursor-pointer flex-shrink-0 transition-all duration-200"
+      className="ctx-longpress group/card flex flex-col gap-3 cursor-pointer flex-shrink-0 transition-all duration-200"
       onClick={() => navigate(`/album/${id}`)}
+      {...triggerProps}
     >
       {/* Cover */}
       <div className="relative aspect-square w-full overflow-hidden rounded-xl shadow-lg shadow-black/40">
@@ -59,6 +72,16 @@ export default function AlbumCard({
             <IoPlay className="text-black ml-0.5" size={22} />
           </div>
         </div>
+
+        {/* Kebab: en móvil el long-press cubre el acceso */}
+        <button
+          className="absolute top-2 right-2 p-2 rounded-full bg-black/60 text-white opacity-0 group-hover/card:opacity-100 transition-opacity hover:bg-black/80"
+          onClick={(e) => { e.stopPropagation(); open(e); }}
+          aria-label="Más opciones"
+          title="Más opciones"
+        >
+          <IoEllipsisHorizontal size={16} />
+        </button>
       </div>
 
       {/* Text */}

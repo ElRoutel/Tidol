@@ -9,7 +9,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       workbox: {
         cleanupOutdatedCaches: true,
       },
@@ -17,8 +17,8 @@ export default defineConfig({
         name: 'Tidol Music',
         short_name: 'Tidol',
         description: 'Tu plataforma de música en streaming',
-        theme_color: '#000000',
-        background_color: '#000000',
+        theme_color: '#030303',
+        background_color: '#030303',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',

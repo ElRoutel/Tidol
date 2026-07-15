@@ -1,7 +1,7 @@
 import React from 'react';
 import { IoPlay } from 'react-icons/io5';
 import MiniVisualizer from '../MiniVisualizer';
-import { useContextMenu } from '../../context/ContextMenuContext';
+import { useContextMenuTrigger } from '../../hooks/useContextMenuTrigger';
 import { getCoverSrc } from '../../utils/coverArt';
 
 // Helper function for robust data binding
@@ -27,7 +27,7 @@ const getSubtitle = (item) => {
 };
 
 export default function ListenAgainCard({ item, onClick, onPlay, isActive, isPlaying }) {
-    const { openContextMenu } = useContextMenu();
+    const { triggerProps } = useContextMenuTrigger('song', item);
 
     // Data Mapping: Now relying on trackNormalization fields
     const title = item.title || 'Sin Título';
@@ -39,17 +39,11 @@ export default function ListenAgainCard({ item, onClick, onPlay, isActive, isPla
         if (onPlay) onPlay();
     };
 
-    const handleContextMenu = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        openContextMenu(e, 'song', item);
-    };
-
     return (
         <div
             onClick={onClick}
-            onContextMenu={handleContextMenu}
-            className="group/card flex flex-col gap-3 w-[160px] md:w-[200px] cursor-pointer flex-shrink-0 transition-all duration-200"
+            {...triggerProps}
+            className="ctx-longpress group/card flex flex-col gap-3 w-[160px] md:w-[200px] cursor-pointer flex-shrink-0 transition-all duration-200"
         >
             {/* Image Container */}
             <div className="relative aspect-square w-full overflow-hidden rounded-xl ring-1 ring-white/[0.08] shadow-[0_8px_24px_-8px_rgba(0,0,0,.5)] group-hover/card:shadow-[0_16px_36px_-8px_rgba(0,0,0,.6)] transition-shadow duration-300">

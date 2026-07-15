@@ -6,6 +6,7 @@ import { useContextMenu } from "../context/ContextMenuContext";
 import Portal from "./Portal";
 import { useNavigate } from "react-router-dom";
 import {
+  IoPlayOutline,
   IoPlaySkipForwardOutline,
   IoAddOutline,
   IoHeartOutline,
@@ -14,6 +15,7 @@ import {
   IoAlbumsOutline,
   IoPersonOutline
 } from "react-icons/io5";
+import { normalizeAlbumTracks, fetchAlbumTracks } from "../utils/albumTracks";
 
 export default function ContextMenu() {
   const { menuState, closeContextMenu } = useContextMenu();
@@ -24,10 +26,10 @@ export default function ContextMenu() {
     if (!rawData) return {};
     return {
       id: rawData.id || rawData.identifier,
-      titulo: rawData.titulo || rawData.title || rawData.name,
-      artista: rawData.artista || rawData.artist || rawData.creator || 'Desconocido',
-      album: rawData.album || rawData.collection,
-      portada: rawData.portada || rawData.cover || rawData.image || rawData.thumb,
+      titulo: rawData.titulo || rawData.title || rawData.trackName || rawData.name,
+      artista: rawData.artista || rawData.artist || rawData.artistName || rawData.creator || 'Desconocido',
+      album: rawData.album || rawData.albumName || rawData.collection,
+      portada: rawData.portada || rawData.cover || rawData.coverArtUrl || rawData.coverUrl || rawData.image || rawData.thumb,
       url: rawData.url || (rawData.identifier ? `https://archive.org/download/${rawData.identifier}/${rawData.name}` : null),
       duration: rawData.duracion || rawData.duration || rawData.length,
       source: rawData.source || (rawData.identifier ? 'internet_archive' : 'local'),
@@ -38,8 +40,9 @@ export default function ContextMenu() {
   };
 
   const data = normalizeData(item?.data);
+  const extra = item?.extra || [];
   const { openAddToPlaylistModal } = usePlaylist();
-  const { addToQueue, playNext, toggleLike, isSongLiked } = usePlayer();
+  const { addToQueue, playNext, toggleLike, isSongLiked, playSongList } = usePlayer();
   const navigate = useNavigate();
 
   const menuRef = useRef(null);
@@ -72,9 +75,7 @@ export default function ContextMenu() {
 
   if (!visible || !item) return null;
 
-  console.log("📍 Rendering ContextMenu at:", adjustedPosition, "Original:", position);
-
-  const handleAction = (action) => {
+  const handleAction = async (action) => {
     switch (action) {
       case 'addToQueue':
         addToQueue(data);
@@ -88,12 +89,36 @@ export default function ContextMenu() {
       case 'addToPlaylist':
         openAddToPlaylistModal(data);
         break;
-      case 'goAlbum':
-        if (data.albumId) navigate(`/album/${data.albumId}`);
+      case 'goAlbum': {
+        const targetAlbumId = data.albumId || (item.type === 'album' ? data.id : null);
+        if (targetAlbumId) navigate(`/album/${targetAlbumId}`);
         break;
+      }
       case 'goArtist':
         if (data.artistId) navigate(`/artist/${data.artistId}`);
         break;
+      case 'goIaAlbum':
+        navigate(`/ia-album/${data.identifier || data.id}`);
+        break;
+      case 'albumPlay':
+      case 'albumPlayNext':
+      case 'albumAddToQueue': {
+        // Cerrar ya: si las canciones no vienen en data (cards), el fetch sigue
+        // en background y encola/reproduce al llegar.
+        closeContextMenu();
+        try {
+          const tracks = data.tracks?.length
+            ? normalizeAlbumTracks(data, data.id)
+            : await fetchAlbumTracks(data.id);
+          if (!tracks.length) return;
+          if (action === 'albumPlay') playSongList(tracks, 0);
+          else if (action === 'albumPlayNext') [...tracks].reverse().forEach(playNext);
+          else tracks.forEach(addToQueue);
+        } catch (err) {
+          console.error('No se pudieron cargar las canciones del álbum:', err);
+        }
+        return;
+      }
     }
     closeContextMenu();
   };
@@ -117,6 +142,28 @@ export default function ContextMenu() {
 
     if (data.artistId && !isInternetArchive) {
       options.push({ label: "Ir al artista", action: "goArtist", icon: IoPersonOutline });
+    }
+  }
+
+  if (item.type === "album") {
+    const isInternetArchive = data.source === 'internet_archive' || data.identifier;
+
+    if (isInternetArchive) {
+      if (!data.fromAlbumPage) {
+        options.push({ label: "Ir al álbum", action: "goIaAlbum", icon: IoAlbumsOutline });
+      }
+    } else {
+      options.push(
+        { label: "Reproducir", action: "albumPlay", icon: IoPlayOutline },
+        { label: "Reproducir siguiente", action: "albumPlayNext", icon: IoPlaySkipForwardOutline },
+        { label: "Agregar a la cola", action: "albumAddToQueue", icon: IoAddOutline }
+      );
+      if (!data.fromAlbumPage) {
+        options.push({ label: "Ir al álbum", action: "goAlbum", icon: IoAlbumsOutline });
+      }
+      if (data.artistId) {
+        options.push({ label: "Ir al artista", action: "goArtist", icon: IoPersonOutline });
+      }
     }
   }
 
@@ -157,6 +204,19 @@ export default function ContextMenu() {
                 onClick={() => handleAction(opt.action)}
               />
             ))}
+            {extra.length > 0 && (
+              <div className={options.length > 0 ? 'border-t border-white/5 mt-1 pt-1' : ''}>
+                {extra.map((opt, index) => (
+                  <MenuItem
+                    key={`extra-${index}`}
+                    icon={opt.icon ? <opt.icon size={20} /> : null}
+                    label={opt.label}
+                    labelClassName={opt.destructive ? 'text-red-400' : ''}
+                    onClick={() => { opt.onSelect(); closeContextMenu(); }}
+                  />
+                ))}
+              </div>
+            )}
           </ul>
         </div>
       </div>
@@ -164,12 +224,12 @@ export default function ContextMenu() {
   );
 }
 
-const MenuItem = ({ icon, label, onClick, className = '' }) => (
+const MenuItem = ({ icon, label, onClick, className = '', labelClassName = '' }) => (
   <li
     className={`flex items-center gap-3 px-4 py-3 hover:bg-white/10 cursor-pointer transition-colors active:scale-[0.98] ${className}`}
     onClick={onClick}
   >
-    <span className="opacity-70 text-white">{icon}</span>
-    <span className="font-medium text-sm text-white/90">{label}</span>
+    <span className={`opacity-70 ${labelClassName || 'text-white'}`}>{icon}</span>
+    <span className={`font-medium text-sm ${labelClassName || 'text-white/90'}`}>{label}</span>
   </li>
 );

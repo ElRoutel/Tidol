@@ -6,6 +6,7 @@ import { useMotionValue, MotionValue } from 'framer-motion';
 import api from '../api/axiosConfig';
 import { TidolAudioEngine } from '../engine/TidolAudioEngine';
 import { resolvePlayback } from '../engine/embedResolver';
+import { startKeepAlive, stopKeepAlive } from '../engine/backgroundKeepAlive';
 import { extractColorsFromUrl } from '../utils/extractColors';
 import { getCoverSrc, getColorSourceSrc } from '../utils/coverArt';
 import { showToast } from '../utils/toast';
@@ -288,12 +289,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
             navigator.mediaSession.setActionHandler('play', () => {
                 intendedPlayingRef.current = true;
-                if (playbackModeRef.current === 'youtube') ytRef.current?.play();
+                if (playbackModeRef.current === 'youtube') {
+                    ytRef.current?.play();
+                    startKeepAlive();
+                }
                 else engineRef.current?.resume();
                 setIsPlaying(true);
             });
             navigator.mediaSession.setActionHandler('pause', () => {
                 intendedPlayingRef.current = false;
+                stopKeepAlive();
                 if (playbackModeRef.current === 'youtube') ytRef.current?.pause();
                 else engineRef.current?.pause();
                 setIsPlaying(false);
@@ -302,11 +307,37 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             // ✅ FIX 4: usar refs para evitar closures stale en mediaSession
             navigator.mediaSession.setActionHandler('previoustrack', () => previousSongRef.current());
             navigator.mediaSession.setActionHandler('nexttrack', () => nextSongRef.current());
+            const doSeek = (time: number) => {
+                if (playbackModeRef.current === 'youtube') ytRef.current?.seek(time);
+                else engineRef.current?.seek(time);
+                updatePositionState(time, durationRef.current);
+            };
             navigator.mediaSession.setActionHandler('seekto', (details) => {
                 if (details.seekTime == null) return;
-                if (playbackModeRef.current === 'youtube') ytRef.current?.seek(details.seekTime);
-                else engineRef.current?.seek(details.seekTime);
-                updatePositionState(details.seekTime, durationRef.current);
+                doSeek(details.seekTime);
+            });
+
+            // Acciones opcionales: algunos navegadores lanzan ante acciones no
+            // soportadas, por eso cada registro va aislado en try/catch.
+            const trySetHandler = (
+                action: MediaSessionAction,
+                handler: MediaSessionActionHandler
+            ) => {
+                try { navigator.mediaSession.setActionHandler(action, handler); } catch { /* no soportada */ }
+            };
+            trySetHandler('seekbackward', (details) => {
+                doSeek(Math.max(0, progressRef.current - (details.seekOffset || 10)));
+            });
+            trySetHandler('seekforward', (details) => {
+                const limit = durationRef.current || Infinity;
+                doSeek(Math.min(limit, progressRef.current + (details.seekOffset || 10)));
+            });
+            trySetHandler('stop', () => {
+                intendedPlayingRef.current = false;
+                stopKeepAlive();
+                if (playbackModeRef.current === 'youtube') ytRef.current?.pause();
+                else engineRef.current?.pause();
+                setIsPlaying(false);
             });
 
             navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
@@ -353,11 +384,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
     // Estado de reproducción siempre sincronizado con los controles del sistema
     // (antes solo se fijaba al cambiar de pista, y el lockscreen quedaba desfasado).
+    // La posición se refresca aquí mismo: el update throttled (cada ~5s) del
+    // timeupdate dejaba la barra del lockscreen desfasada justo tras play/pause.
     useEffect(() => {
         if ('mediaSession' in navigator) {
             navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
         }
-    }, [isPlaying]);
+        updatePositionState(progressRef.current, durationRef.current);
+    }, [isPlaying, updatePositionState]);
 
     // ── Engine event listeners ───────────────────────────────────
     useEffect(() => {
@@ -435,19 +469,22 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             setIsPlaying(false);
             // Reproducción en segundo plano: el navegador móvil pausa el <video>
             // del IFrame al ocultar la página. Si el usuario NO pidió pausar,
-            // reanudamos de inmediato (la pestaña sigue "audible" y no se
-            // congela). Límite de intentos para no pelear con una pausa real.
+            // reanudamos: primero SÍNCRONO (en background los timers van
+            // congelados/clampados y un setTimeout puede no correr jamás) y un
+            // reintento diferido como respaldo. Límite de intentos para no
+            // pelear con una pausa real.
             if (
                 intendedPlayingRef.current &&
                 document.hidden &&
                 bgResumeAttemptsRef.current < 10
             ) {
                 bgResumeAttemptsRef.current += 1;
+                ytRef.current?.play();
                 setTimeout(() => {
                     if (intendedPlayingRef.current && playbackModeRef.current === 'youtube' && document.hidden) {
                         ytRef.current?.play();
                     }
-                }, 200);
+                }, 300);
             }
         }
         else if (s === 'buffering') { setIsLoading(true); }
@@ -519,6 +556,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             if (resolved.mode === 'youtube' && resolved.videoId) {
                 playbackModeRef.current = 'youtube';
                 engineRef.current.pause(); // silencia audio nativo previo
+                // Arranca dentro del gesto del usuario (autoplay policy): mantiene
+                // la pestaña audible para que el IFrame sobreviva al background.
+                startKeepAlive();
                 pendingYtPlayRef.current = true;
 
                 if (resolved.videoId === ytVideoIdRef.current && ytRef.current) {
@@ -534,12 +574,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             } else if (resolved.mode === 'archive' && resolved.audioUrl) {
                 playbackModeRef.current = 'archive';
                 ytRef.current?.pause(); // pausa YouTube si estaba activo
+                stopKeepAlive(); // el audio nativo ya mantiene viva la pestaña
                 await engineRef.current.playTrack({ ...track, playbackUrl: resolved.audioUrl });
             }
         } catch (err) {
             if (seq !== playbackSeqRef.current) return;
             console.error('[PlayerContext] startPlayback:', err);
             intendedPlayingRef.current = false;
+            stopKeepAlive();
             setIsLoading(false);
             setIsPlaying(false);
         }
@@ -550,9 +592,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     // los timers en background (el reintento diferido nunca llegó a correr).
     useEffect(() => {
         const onVisibilityChange = () => {
+            // Presupuesto fresco de reintentos en CADA cambio de visibilidad:
+            // cada pantalla apagada / vuelta a primer plano parte de cero.
+            bgResumeAttemptsRef.current = 0;
             if (document.hidden) return;
             if (intendedPlayingRef.current && playbackModeRef.current === 'youtube') {
-                bgResumeAttemptsRef.current = 0;
                 ytRef.current?.play();
             }
         };
@@ -566,8 +610,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const togglePlayPause = useCallback(() => {
         intendedPlayingRef.current = !isPlaying;
         if (playbackModeRef.current === 'youtube') {
-            if (isPlaying) ytRef.current?.pause();
-            else ytRef.current?.play();
+            if (isPlaying) {
+                ytRef.current?.pause();
+                stopKeepAlive();
+            } else {
+                ytRef.current?.play();
+                startKeepAlive();
+            }
             return;
         }
         if (isPlaying) {
@@ -675,12 +724,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                 startPlayback(normalizedNewTracks[0]);
             } else {
                 intendedPlayingRef.current = false;
+                stopKeepAlive();
                 engineRef.current.pause();
                 setIsPlaying(false);
             }
         } catch (error) {
             console.error("Fallo al obtener la Radio Infinita:", error);
             intendedPlayingRef.current = false;
+            stopKeepAlive();
             engineRef.current.pause();
             setIsPlaying(false);
         }

@@ -53,6 +53,24 @@
 
 .fsp-container {
   overscroll-behavior-y: contain;
+
+  /* Altura de la barra de controles. La barra va en position:absolute sobre el
+     contenido, así que la columna izquierda, el panel de letras/cola y el menú
+     de opciones reservan este mismo hueco: una sola fuente de verdad. */
+  --fsp-bar-h: 112px;
+
+  /* Lado de la portada (y ancho del bloque de título). Acotado también por la
+     altura disponible para que en ventanas bajas no empuje el título bajo la barra. */
+  --fsp-art-size: min(32vw, calc(100vh - var(--fsp-bar-h) - 190px), 560px);
+}
+
+/* Escritorios de poca altura: la barra se compacta en vez de invadir la portada. */
+@media (min-width: 1024px) and (max-height: 860px) {
+  .fsp-container { --fsp-bar-h: 96px; }
+}
+
+@media (min-width: 1024px) and (max-height: 700px) {
+  .fsp-container { --fsp-bar-h: 88px; }
 }
 
 /* Marquee Animation */

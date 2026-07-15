@@ -133,6 +133,7 @@ export default function ArtistPage() {
                   coverUrl={album.coverUrl || '/default-artwork.png'}
                   releaseYear={album.releaseYear}
                   type={album.type}
+                  artistId={album.artistId || artist.id}
                 />
               </div>
             );

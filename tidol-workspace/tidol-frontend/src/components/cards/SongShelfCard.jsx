@@ -10,7 +10,7 @@ export default function SongShelfCard({ song, onClick, onPlay }) {
   const handleContextMenu = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    openContextMenu(e, song, 'song');
+    openContextMenu(e, 'song', song);
   };
 
   return (

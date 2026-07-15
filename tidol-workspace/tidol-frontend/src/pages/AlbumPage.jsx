@@ -1,9 +1,67 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { usePlayer } from '../context/PlayerContext';
+import { useContextMenu } from '../context/ContextMenuContext';
+import { useContextMenuTrigger } from '../hooks/useContextMenuTrigger';
+import { normalizeAlbumTracks } from '../utils/albumTracks';
 import { IoPlaySharp, IoTimeOutline, IoShuffle, IoHeartOutline, IoDownloadOutline, IoEllipsisHorizontal } from 'react-icons/io5';
 import '../styles/glass.css';
+
+// Fila de track del álbum. Componente propio para poder usar hooks
+// (context menu por long-press/click derecho) por fila.
+function AlbumTrackRow({ track, index, album, albumId, isPlaying, onPlay, formatDuration }) {
+  const menuData = {
+    id: track.trackId,
+    trackId: track.trackId,
+    title: track.title,
+    titulo: track.title,
+    artista: album.artistName,
+    artistName: album.artistName,
+    album: album.title,
+    portada: album.coverUrl,
+    duration: track.duration,
+    albumId,
+    sourceType: 'musicbrainz',
+  };
+  const { triggerProps, open } = useContextMenuTrigger('song', menuData);
+
+  return (
+    <div
+      className={`ctx-longpress group grid grid-cols-[auto_1fr_auto_auto] gap-2 md:gap-4 px-2 md:px-4 py-2 items-center hover:bg-white/10 transition-colors cursor-pointer rounded-md mb-1 ${isPlaying ? 'bg-white/10' : ''}`}
+      onClick={onPlay}
+      {...triggerProps}
+    >
+      <div className="w-8 flex items-center justify-end text-gray-400 font-medium text-base group-hover:text-white transition-colors">
+        <span className={`block group-hover:hidden ${isPlaying ? 'text-[#1db954]' : ''}`}>{track.trackNumber || index + 1}</span>
+        <IoPlaySharp className="hidden group-hover:block text-white" size={18} />
+      </div>
+
+      <div className="min-w-0 flex flex-col justify-center">
+        <div className={`text-base md:text-lg font-medium leading-tight truncate ${isPlaying ? 'text-[#1db954]' : 'text-white'}`}>
+          {track.title}
+        </div>
+        <div className="text-sm text-gray-400 truncate mt-1">
+          {album.artistName}
+        </div>
+      </div>
+
+      <div className="text-sm text-gray-400 font-variant-numeric tabular-nums text-right group-hover:text-white transition-colors flex justify-end items-center gap-2">
+        {isPlaying && <span className="text-[#1db954] font-bold text-xs">✓</span>}
+        {formatDuration(track.duration)}
+      </div>
+
+      <button
+        className="w-10 h-10 flex items-center justify-center rounded-full text-gray-400 hover:text-white hover:bg-white/10 transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100"
+        onClick={(e) => { e.stopPropagation(); open(e); }}
+        aria-label="Más opciones"
+        title="Más opciones"
+      >
+        <IoEllipsisHorizontal size={20} />
+      </button>
+    </div>
+  );
+}
 
 export default function AlbumPage() {
   const { id } = useParams();
@@ -12,6 +70,7 @@ export default function AlbumPage() {
   const [error, setError] = useState(null);
 
   const { playSongList, currentSong } = usePlayer();
+  const { openContextMenu } = useContextMenu();
 
   useEffect(() => {
     const fetchAlbum = async () => {
@@ -30,26 +89,33 @@ export default function AlbumPage() {
     if (id) fetchAlbum();
   }, [id]);
 
+  const normalizedTracks = useMemo(
+    () => (album ? normalizeAlbumTracks(album, id) : []),
+    [album, id]
+  );
+
   const handleTrackClick = (index) => {
-    if (!album || !album.tracks) return;
-    const normalizedSongs = album.tracks.map((t) => ({
-      id: t.trackId,
-      trackId: t.trackId,
-      trackName: t.title,
+    if (!normalizedTracks.length) return;
+    playSongList(normalizedTracks, index);
+  };
+
+  const handleShuffle = () => {
+    if (!normalizedTracks.length) return;
+    playSongList([...normalizedTracks].sort(() => Math.random() - 0.5), 0);
+  };
+
+  const handleAlbumMenu = (e) => {
+    openContextMenu(e, 'album', {
+      id,
+      mbid: album.mbid,
+      title: album.title,
       artistName: album.artistName,
-      albumName: album.title,
-      coverArtUrl: album.coverUrl,
-      sourceType: 'musicbrainz',
-      type: 'songs',
-      attributes: {
-        name: t.title,
-        artistName: album.artistName,
-        albumName: album.title,
-        durationInSeconds: t.duration || 0,
-        artwork: { url: album.coverUrl }
-      }
-    }));
-    playSongList(normalizedSongs, index);
+      coverUrl: album.coverUrl,
+      portada: album.coverUrl,
+      releaseYear: album.releaseYear,
+      tracks: album.tracks,
+      fromAlbumPage: true,
+    });
   };
 
   const formatDuration = (seconds) => {
@@ -159,7 +225,7 @@ export default function AlbumPage() {
             >
               <IoPlaySharp size={28} className="ml-0.5" />
             </button>
-            <button className="text-gray-400 hover:text-white transition-colors p-1">
+            <button onClick={handleShuffle} className="text-gray-400 hover:text-white transition-colors p-1" aria-label="Reproducir en aleatorio" title="Reproducir en aleatorio">
                 <IoShuffle size={24} />
             </button>
             <button className="text-gray-400 hover:text-white transition-colors p-1">
@@ -168,50 +234,33 @@ export default function AlbumPage() {
             <button className="text-gray-400 hover:text-white transition-colors p-1">
                 <IoDownloadOutline size={22} />
             </button>
-            <button className="text-gray-400 hover:text-white transition-colors p-1">
+            <button onClick={handleAlbumMenu} className="text-gray-400 hover:text-white transition-colors p-1" aria-label="Más opciones" title="Más opciones">
                 <IoEllipsisHorizontal size={24} />
             </button>
         </div>
 
         {/* Tracks Table */}
         <div className="animate-slide-up">
-          <div className="grid grid-cols-[auto_1fr_auto] gap-4 px-4 py-2 border-b border-white/10 text-xs text-gray-500 font-medium uppercase tracking-widest mb-2">
+          <div className="grid grid-cols-[auto_1fr_auto_auto] gap-2 md:gap-4 px-2 md:px-4 py-2 border-b border-white/10 text-xs text-gray-500 font-medium uppercase tracking-widest mb-2">
             <div className="w-8 text-center">#</div>
             <div>Título</div>
-            <div className="text-right flex justify-end"><IoTimeOutline size={16} /></div>
+            <div className="text-right flex justify-end items-center"><IoTimeOutline size={16} /></div>
+            <div className="w-10"></div>
           </div>
 
           <div className="flex flex-col pb-2">
-            {album.tracks?.map((track, index) => {
-              const isPlaying = currentSong?.id === track.trackId;
-              
-              return (
-                <div
-                  key={track.trackId}
-                  className={`group grid grid-cols-[auto_1fr_auto] gap-4 px-4 py-3 items-center hover:bg-white/10 transition-colors cursor-pointer rounded-md mb-1 ${isPlaying ? 'bg-white/10' : ''}`}
-                  onClick={() => handleTrackClick(index)}
-                >
-                  <div className="w-8 flex items-center justify-end text-gray-400 font-medium text-base group-hover:text-white transition-colors">
-                    <span className={`block group-hover:hidden ${isPlaying ? 'text-[#1db954]' : ''}`}>{track.trackNumber || index + 1}</span>
-                    <IoPlaySharp className="hidden group-hover:block text-white" size={18} />
-                  </div>
-
-                  <div className="min-w-0 flex flex-col justify-center">
-                    <div className={`text-base md:text-lg font-medium leading-tight truncate ${isPlaying ? 'text-[#1db954]' : 'text-white'}`}>
-                      {track.title}
-                    </div>
-                    <div className="text-sm text-gray-400 truncate mt-1">
-                      {album.artistName}
-                    </div>
-                  </div>
-
-                  <div className="text-sm text-gray-400 font-variant-numeric tabular-nums text-right w-16 group-hover:text-white transition-colors flex justify-end items-center gap-2">
-                    {isPlaying && <span className="text-[#1db954] font-bold text-xs">✓</span>}
-                    {formatDuration(track.duration)}
-                  </div>
-                </div>
-              );
-            })}
+            {album.tracks?.map((track, index) => (
+              <AlbumTrackRow
+                key={track.trackId}
+                track={track}
+                index={index}
+                album={album}
+                albumId={id}
+                isPlaying={currentSong?.id === track.trackId}
+                onPlay={() => handleTrackClick(index)}
+                formatDuration={formatDuration}
+              />
+            ))}
           </div>
         </div>
       </div>

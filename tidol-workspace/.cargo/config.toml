@@ -1,0 +1,6 @@
+# Las macros de SQLx validan el SQL contra la caché commiteada en .sqlx/ y no
+# contra una BD viva: compilar no requiere MariaDB levantada. `cargo sqlx prepare`
+# fija SQLX_OFFLINE=false en su propio entorno y esta entrada no lo pisa: las
+# variables de [env] no fuerzan sobre las que ya vienen del entorno.
+[env]
+SQLX_OFFLINE = "true"

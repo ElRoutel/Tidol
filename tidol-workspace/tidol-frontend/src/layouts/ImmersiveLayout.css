@@ -3,7 +3,10 @@
 .tidol-app-container {
     display: flex;
     width: 100%;
+    /* dvh sigue a la barra de URL móvil (100vh dejaba un hueco); fallback
+       para navegadores sin dvh */
     height: 100vh;
+    height: 100dvh;
     overflow: hidden;
     position: relative;
 }
