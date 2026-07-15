@@ -301,8 +301,8 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 10 }}
                         transition={{ duration: 0.15, ease: 'easeOut' }}
-                        className="absolute bottom-28 right-6 z-[200] w-[232px] rounded-2xl p-1.5 border border-white/10 shadow-[0_24px_50px_rgba(0,0,0,.5)]"
-                        style={{ background: 'rgba(28,28,30,.86)', backdropFilter: 'blur(30px)', WebkitBackdropFilter: 'blur(30px)' }}
+                        className="absolute right-6 z-[200] w-[232px] rounded-2xl p-1.5 border border-white/10 shadow-[0_24px_50px_rgba(0,0,0,.5)]"
+                        style={{ bottom: 'var(--fsp-bar-h)', background: 'rgba(28,28,30,.86)', backdropFilter: 'blur(30px)', WebkitBackdropFilter: 'blur(30px)' }}
                     >
                         <button onClick={() => handleNavigation('artist')} className="flex items-center gap-3.5 w-full px-3.5 py-3 rounded-xl text-white text-[15px] font-medium hover:bg-white/10 active:bg-white/15 transition-colors">
                             <IoPersonSharp className="text-white/50" size={18} /> Ir al artista
@@ -353,8 +353,12 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
             {isDesktop ? (
                 // ═══════════════ DESKTOP (≥1024px) ═══════════════
                 <div className="relative z-10 w-full h-full grid grid-cols-[44%_56%]">
-                    {/* Izquierda: portada + identidad */}
-                    <div className="h-full flex flex-col items-center justify-center relative px-[4vw]">
+                    {/* Izquierda: portada + identidad. El padding inferior reserva el
+                        hueco de la barra flotante para que el título no quede debajo. */}
+                    <div
+                        className="h-full flex flex-col items-center justify-center relative px-[4vw]"
+                        style={{ paddingBottom: 'var(--fsp-bar-h)' }}
+                    >
                         <button
                             onClick={closeFullScreenPlayer}
                             className="absolute top-8 left-8 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all active:scale-90"
@@ -365,7 +369,7 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
 
                         <div
                             className="fsp-art aspect-square"
-                            style={{ width: 'min(32vw, 560px)', transform: isPlaying ? 'scale(1)' : 'scale(0.86)' }}
+                            style={{ width: 'var(--fsp-art-size)', transform: isPlaying ? 'scale(1)' : 'scale(0.86)' }}
                         >
                             <div className="relative w-full h-full rounded-[18px] overflow-hidden shadow-[0_40px_80px_-20px_rgba(0,0,0,.7)]">
                                 <img
@@ -378,7 +382,7 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                             </div>
                         </div>
 
-                        <div className="mt-7 flex items-center gap-4" style={{ width: 'min(32vw, 560px)' }}>
+                        <div className="mt-7 flex items-center gap-4" style={{ width: 'var(--fsp-art-size)' }}>
                             <div className="min-w-0 flex-1">
                                 <div className="text-[26px] font-bold tracking-[-.4px] text-white truncate">{songTitle}</div>
                                 <button
@@ -416,15 +420,19 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                                 );
                             })}
                         </div>
-                        <div className="no-scrollbar flex-1 overflow-y-auto overscroll-contain pt-6 pr-12 pl-2 pb-40 min-h-0">
+                        <div
+                            className="no-scrollbar flex-1 overflow-y-auto overscroll-contain pt-6 pr-12 pl-2 min-h-0"
+                            style={{ paddingBottom: 'calc(var(--fsp-bar-h) + 48px)' }}
+                        >
                             {viewMode === 'queue' ? queuePanel : lyricsPanel}
                         </div>
                     </div>
 
                     {/* Barra de control inferior */}
                     <div
-                        className="absolute bottom-0 left-0 right-0 z-50 h-28 grid grid-cols-[1fr_auto_1fr] items-center px-12"
+                        className="absolute bottom-0 left-0 right-0 z-50 grid grid-cols-[1fr_minmax(0,560px)_1fr] items-center px-6 xl:px-12"
                         style={{
+                            height: 'var(--fsp-bar-h)',
                             background: 'linear-gradient(to top, rgba(5,5,5,.9), rgba(5,5,5,0))',
                             backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)'
                         }}
@@ -434,7 +442,7 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                         <div />
 
                         {/* Centro: transporte + progreso */}
-                        <div className="flex flex-col items-center gap-2 w-[560px]">
+                        <div className="flex flex-col items-center gap-2 w-full">
                             <div className="flex items-center gap-9 text-white">
                                 <button onClick={previousSong} className="hover:text-white/80 active:scale-90 transition-transform" aria-label="Anterior">
                                     <IoPlaySkipBackSharp size={28} />
@@ -465,7 +473,7 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
                         </div>
 
                         {/* Derecha: cola + volumen */}
-                        <div className="flex items-center justify-end gap-5">
+                        <div className="flex items-center justify-end gap-5 min-w-0">
                             <button
                                 onClick={() => setViewMode(viewMode === 'queue' ? 'cover' : 'queue')}
                                 className="transition-colors active:scale-90"
