@@ -7,7 +7,7 @@ import {
     IoPlaySkipForwardSharp, IoEllipsisHorizontal, IoVolumeHigh, IoVolumeLow,
     IoText, IoList, IoDisc, IoPersonSharp, IoHeart, IoHeartOutline
 } from 'react-icons/io5';
-import KaraokeView from './KaraokeView';
+import AmLyricsView from './AmLyricsView';
 import { motion, useTransform, AnimatePresence } from 'framer-motion';
 import { getCoverSrc } from '../utils/coverArt';
 import './FullScreenPlayer.css';
@@ -284,7 +284,7 @@ export default function FullScreenPlayer({ isEmbedded = false }) {
             <p className="text-white/30 text-[13px] mt-1">Vuelve a intentarlo en un momento</p>
         </div>
     ) : (
-        <KaraokeView lyricsPayload={lyricsData} accent={accent} />
+        <AmLyricsView currentSong={currentSong} accent={accent} />
     );
 
     const optionsMenu = (
