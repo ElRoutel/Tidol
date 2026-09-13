@@ -14,8 +14,6 @@
 #                   (docker system prune -af). Útil cuando / se llena.
 #
 # Orden deliberado: se CONSTRUYE antes de tocar la BD. El build ya no depende
-# de una MariaDB viva (SQLx compila offline desde `.sqlx/`), así que un build
-# roto ya no deja producción a medias.
 # =============================================================================
 set -euo pipefail
 

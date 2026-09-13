@@ -13,7 +13,7 @@ build/
 *.so.*
 *.rlib
 *.rs.bk
-
+deploy.sh
 # ── Modelos de IA / binarios pesados ──────────────────────────
 plugins/provider-ai/models/
 **/models/
