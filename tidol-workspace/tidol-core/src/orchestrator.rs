@@ -1111,17 +1111,51 @@ impl MetadataOrchestrator {
                 }
             }
 
-            let random_tracks = sqlx::query!(
+            // Muestra aleatoria SIN `ORDER BY RAND()`: aquello generaba un valor por
+            // fila y ordenaba TODA `track_links` en cada carga de la Home de un usuario
+            // sin historial (coste O(n log n) que crece con el catálogo). Los mbid son
+            // UUID v4 (uniformes), así que un UUID aleatorio como pivote cae en un
+            // punto uniforme del índice de la PK: se leen las 10 filas siguientes por
+            // rango (O(log n)) y, si el pivote cae cerca del final, se completa desde
+            // el principio (vuelta circular). El orden de un UUID no guarda relación
+            // con el contenido, así que 10 filas contiguas son una muestra aleatoria.
+            const RANDOM_SAMPLE: i64 = 10;
+            let pivot = uuid::Uuid::new_v4().to_string();
+            let mut random_tracks = sqlx::query_as!(
+                RandomTrackRow,
                 r#"
                 SELECT mbid, title, artist, cover_url
                 FROM track_links
-                ORDER BY RAND()
-                LIMIT 10
-                "#
+                WHERE mbid >= ?
+                ORDER BY mbid
+                LIMIT ?
+                "#,
+                pivot,
+                RANDOM_SAMPLE
             )
             .fetch_all(db)
             .await
             .map_err(|e| e.to_string())?;
+
+            let missing = RANDOM_SAMPLE - random_tracks.len() as i64;
+            if missing > 0 {
+                let wrapped = sqlx::query_as!(
+                    RandomTrackRow,
+                    r#"
+                    SELECT mbid, title, artist, cover_url
+                    FROM track_links
+                    WHERE mbid < ?
+                    ORDER BY mbid
+                    LIMIT ?
+                    "#,
+                    pivot,
+                    missing
+                )
+                .fetch_all(db)
+                .await
+                .map_err(|e| e.to_string())?;
+                random_tracks.extend(wrapped);
+            }
 
             let mut mapped = Vec::new();
             for r in random_tracks {
@@ -1152,6 +1186,16 @@ impl MetadataOrchestrator {
             recommendations,
         })
     }
+}
+
+/// Fila de la muestra aleatoria de `track_links` (recomendaciones de reserva de
+/// la Home). Struct propio para que las dos consultas de la vuelta circular
+/// compartan tipo.
+struct RandomTrackRow {
+    mbid: String,
+    title: String,
+    artist: String,
+    cover_url: Option<String>,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]

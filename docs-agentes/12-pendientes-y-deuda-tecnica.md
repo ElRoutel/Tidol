@@ -100,8 +100,10 @@ fecha y el commit**. Las prioridades son una propuesta; el dueño del proyecto d
   backfill de `playlist_songs.position` solo si hace falta; prefetch de `bad_engine` sin coste
   cuando no hay binario.
 - Rendimiento pendiente: `[profile.release]` sin LTO (valorar `lto = "thin"` frente al tiempo de
-  build en el VPS); `ORDER BY RAND()` en las recomendaciones de reserva de la Home; las cachés
-  siguen siendo por réplica.
+  build en el VPS); las cachés siguen siendo por réplica; sin limitador global de MusicBrainz
+  para las llamadas directas.
+- ✅ *2026-11-22*: `ORDER BY RAND()` de las recomendaciones de reserva de la Home sustituido por
+  un pivote UUID aleatorio sobre la PK (rango por índice + vuelta circular).
 
 ### Base de datos
 - **Tres mecanismos de migración** (arranque del core, `migrations/`, SQL manual) sin tabla de

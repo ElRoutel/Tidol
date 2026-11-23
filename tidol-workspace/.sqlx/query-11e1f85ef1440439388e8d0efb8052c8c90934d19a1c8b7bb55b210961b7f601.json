@@ -1,6 +1,6 @@
 {
   "db_name": "MySQL",
-  "query": "\n                SELECT mbid, title, artist, cover_url\n                FROM track_links\n                ORDER BY RAND()\n                LIMIT 10\n                ",
+  "query": "\n                    SELECT mbid, title, artist, cover_url\n                    FROM track_links\n                    WHERE mbid < ?\n                    ORDER BY mbid\n                    LIMIT ?\n                    ",
   "describe": {
     "columns": [
       {
@@ -45,7 +45,7 @@
       }
     ],
     "parameters": {
-      "Right": 0
+      "Right": 2
     },
     "nullable": [
       false,
@@ -54,5 +54,5 @@
       true
     ]
   },
-  "hash": "4bde96f2354e3ce5c7b729e4e9e37d53c51cc196dcd5af779a7e6f77e77502f0"
+  "hash": "11e1f85ef1440439388e8d0efb8052c8c90934d19a1c8b7bb55b210961b7f601"
 }
