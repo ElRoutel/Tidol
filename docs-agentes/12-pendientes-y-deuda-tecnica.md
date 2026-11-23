@@ -67,7 +67,9 @@ fecha y el commit**. Las prioridades son una propuesta; el dueño del proyecto d
 9. **Spotify/SoundCloud**: código listo, sin credenciales, y sus widgets no son controlables
    desde la UI. Decidir si se ofrecen como "abrir en la plataforma" o se retiran.
 10. **iTunes bloqueado desde el VPS**: las portadas de artista y el paso 3 de `get_cover` fallan
-    siempre en prod (con timeout). Sustituir por fuentes que funcionen (Wikidata/Fanart.tv/CAA) o quitarlo.
+    siempre en prod. ✅ *Mitigado 2026-11-22*: ya no cuesta un timeout por llamada (cortacircuitos
+    en `net.rs` + `ITUNES_ENABLED`). Sigue pendiente sustituirlo por fuentes que funcionen
+    (Wikidata/Fanart.tv/CAA) para tener portadas de artista.
 11. **`report-cover-404`**: `UniversalCard.tsx` lo llama con `track.id` (pistas), pero solo
     actualiza la tabla `albums`; para pistas no hace nada.
 
@@ -93,6 +95,13 @@ fecha y el commit**. Las prioridades son una propuesta; el dueño del proyecto d
 - **Versiones de `reqwest` mezcladas**: 0.11 (core, lyrics, shell), 0.12 (archive, jamendo), 0.13 (bad_engine).
 - **Healthcheck**: añadir `GET /health` (que toque la BD) y usar `curl -f` en el `Dockerfile`.
 - `DATABASE_MAX_CONNECTIONS` default 100 en el binario y en el `Dockerfile` vs 50 en compose.
+- ✅ *2026-11-22 (rendimiento)*: cliente HTTP compartido (`net.rs`) en vez de uno por petición;
+  caché de 6 h para `get_similar_tracks` (Home); CAA en paralelo acotado en `get_cover`;
+  backfill de `playlist_songs.position` solo si hace falta; prefetch de `bad_engine` sin coste
+  cuando no hay binario.
+- Rendimiento pendiente: `[profile.release]` sin LTO (valorar `lto = "thin"` frente al tiempo de
+  build en el VPS); `ORDER BY RAND()` en las recomendaciones de reserva de la Home; las cachés
+  siguen siendo por réplica.
 
 ### Base de datos
 - **Tres mecanismos de migración** (arranque del core, `migrations/`, SQL manual) sin tabla de

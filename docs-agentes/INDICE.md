@@ -105,6 +105,7 @@ Rutas: todas las rutas son relativas a la raíz del repo git
 - **Playlists** → [03](03-backend-tidol-core.md#user_datars) · `user_data.rs`; front `context/PlaylistContext.tsx`, `pages/PlaylistPage.jsx`
 - **Pool de conexiones × réplicas** → [10](10-infraestructura-y-deploy.md#trampas-conocidas)
 - **Prefetch de `bad_engine`** → [06](06-proveedores-plugins-y-workers.md#bad_engine) · `orchestrator.rs::trigger_bad_engine_prefetch`
+- **Cliente HTTP compartido / cortacircuitos iTunes** → [03](03-backend-tidol-core.md#netrs) · `tidol-core/src/net.rs`
 - **Proxy pool (salida)** → [03](03-backend-tidol-core.md#proxyrs) · `tidol-core/src/proxy.rs`
 - **PWA / service worker** → [07](07-frontend.md#build-y-pwa) · `tidol-frontend/vite.config.ts`
 

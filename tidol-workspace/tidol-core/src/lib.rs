@@ -10,6 +10,7 @@ pub mod config;
 pub mod error;
 pub mod lyrics;
 pub mod models;
+pub(crate) mod net;
 pub mod orchestrator;
 pub mod providers;
 pub mod proxy;
@@ -104,8 +105,19 @@ impl TidolCore {
         )
         .execute(&pool)
         .await?;
-        sqlx::query(
-            "UPDATE playlist_songs ps
+        // El backfill solo corre si queda alguna fila sin posición: el UPDATE con
+        // ROW_NUMBER() recalcula la ventana sobre TODA la tabla aunque no haya nada
+        // que tocar, y se ejecutaba en cada arranque de cada réplica (y del shell).
+        let needs_backfill: bool = sqlx::query_scalar::<_, i64>(
+            "SELECT EXISTS(SELECT 1 FROM playlist_songs WHERE position = 0)",
+        )
+        .fetch_one(&pool)
+        .await
+        .map(|v| v != 0)
+        .unwrap_or(true);
+        if needs_backfill {
+            sqlx::query(
+                "UPDATE playlist_songs ps
              JOIN (
                  SELECT playlist_id, track_id,
                         ROW_NUMBER() OVER (PARTITION BY playlist_id ORDER BY added_at ASC) AS rn
@@ -113,9 +125,10 @@ impl TidolCore {
              ) x ON ps.playlist_id = x.playlist_id AND ps.track_id = x.track_id
              SET ps.position = x.rn
              WHERE ps.position = 0",
-        )
-        .execute(&pool)
-        .await?;
+            )
+            .execute(&pool)
+            .await?;
+        }
 
         // Proxy rotator (still useful for outbound API calls)
         let rotator = Arc::new(
@@ -202,8 +215,7 @@ impl TidolCore {
             .expect("connect_lazy no valida la conexión; solo puede fallar por URL malformada");
 
         let rotator = Arc::new(
-            ProxyRotator::new(config.proxy_pool.clone())
-                .expect("proxy_pool de prueba no vacío"),
+            ProxyRotator::new(config.proxy_pool.clone()).expect("proxy_pool de prueba no vacío"),
         );
 
         Self {

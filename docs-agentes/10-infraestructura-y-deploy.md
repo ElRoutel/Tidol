@@ -91,6 +91,7 @@ El `.env` real vive **solo** en `/mnt/storage/.env` del VPS.
 | `PROXY_POOL` | proxies de salida (sin uso real) |
 | `DUCKDNS_API_TOKEN` | DNS challenge (solo el Caddy de dev lo necesitaría) |
 | (no en la plantilla) `LASTFM_API_KEY`, `JAMENDO_CLIENT_ID`, `BAD_ENGINE_BIN` | los leen core/plugins; tienen fallbacks hardcodeados |
+| (no en la plantilla) `ITUNES_ENABLED` | `false`/`0` desactiva iTunes en el core (recomendado en el VPS, donde está bloqueado); sin ella, un cortacircuitos lo omite 10 min tras cada fallo |
 
 En local, `tidol-workspace/.env` (git-ignorado) aporta `DATABASE_URL` y demás.
 

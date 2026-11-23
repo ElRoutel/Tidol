@@ -121,13 +121,17 @@ El fichero más grande (~1 270 líneas).
 - `resolve_full_track(mbid)`: `track_links` local o MusicBrainz; auto-repara portadas
   inválidas (vacías, placeholders muertos). Devuelve `TrackProfile`.
 - `get_similar_tracks`: **Last.fm** `track.getsimilar` (clave `LASTFM_API_KEY` con un
-  **literal hardcodeado como fallback**) y resoluciones a MB en paralelo.
+  **literal hardcodeado como fallback**). Resultado cacheado en memoria (`moka`, 6 h, solo
+  si no está vacío) porque la Home lo pide en cada carga. Usa el `mbid` que trae Last.fm
+  cuando existe (si no resuelve, busca en MB) y limita los lookups a 4 simultáneos
+  (`buffered`, conserva el orden) para no provocar 503 de MusicBrainz.
 - `get_listen_again` (más reproducidas) y `get_home_dashboard` (recientes, top
   artistas — join por **nombre** de artista, frágil —, recomendaciones vía similares).
 - `trigger_bad_engine_prefetch`: dedupe en memoria (`PREFETCH_INFLIGHT`) y lanza el
   binario `bad_engine` (`BAD_ENGINE_BIN` o `target/release/bad_engine`) para las 3
   primeras pistas de "Volver a escuchar". Tiene un **path absoluto de la máquina del
-  dev** como fallback de `current_dir`. En Docker el binario no existe → se omite.
+  dev** como fallback de `current_dir`. La ubicación del binario se resuelve **una vez por
+  proceso** (`bad_engine_location`); en Docker no existe y el prefetch sale sin tocar la BD.
 - **Código muerto:** `get_radio_tracks` (consulta columnas legado `provisional_audio_path`
   / `premium_audio_path`), `search_tracks_m3u`, `get_album_tracks_m3u`, tipos
   `ItunesSearchResponse`/`ItunesTrack`. Nadie los llama.
@@ -148,6 +152,8 @@ El fichero más grande (~1 270 líneas).
   Valida el id (anti path-traversal), caché en disco `covers/<mbid>.jpg` (relativa al
   CWD; en Docker `/app/covers`, volumen `tidol-covers`), caché negativa en memoria 30 min
   (`COVER_MISSES`), cascada CAA → MusicBrainz (puntuando releases) → iTunes → `fallback`.
+  Las dos variantes CAA del paso 1 van en paralelo y los candidatos del paso 2 se piden con
+  concurrencia 4 en orden de puntuación (gana el mismo que antes, pero sin 12 peticiones en serie).
 
 ### `user_data.rs`
 Playlists, historial y likes (todo filtrado por `user_id`).
@@ -169,6 +175,15 @@ Playlists, historial y likes (todo filtrado por `user_id`).
 `DynamicLyricsProvider`: carga un `.so` con `libloading` y resuelve los símbolos C
 `get_provider_name`, `fetch_lyrics`, `free_plugin_string`. **Se carga en `new()` pero
 ningún camino lo invoca** (campo marcado `#[allow(dead_code)]`); `get_lyrics` va directo a LRCLIB.
+
+### `net.rs`
+- `shared_client()`: **un único `reqwest::Client`** (UA `TidolMusic/0.2`, timeout 8 s,
+  connect 4 s) para `get_lyrics`, `get_cover` y `extract_colors`. Antes cada petición
+  construía su cliente y pagaba DNS+TLS desde cero.
+- **Cortacircuitos de iTunes** (`itunes_available` / `itunes_report_failure`): tras un
+  fallo de transporte o un 403/429/5xx, iTunes se omite 10 min. `ITUNES_ENABLED=false`
+  lo desactiva del todo. Motivo: desde el VPS está bloqueado y cada intento costaba el
+  timeout completo en Home, búsqueda y portadas.
 
 ### `proxy.rs`
 `ProxyRotator`: round-robin sobre `PROXY_POOL` (`"direct"` por defecto) y

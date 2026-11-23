@@ -87,6 +87,20 @@ fn cover_miss_store(mbid: &str) {
     }
 }
 
+/// Peticiones simultáneas a Cover Art Archive al probar releases candidatos.
+const COVER_CAA_CONCURRENCY: usize = 4;
+
+/// Descarga una imagen: `Some(bytes)` solo con status 2xx y más de 100 bytes
+/// (CAA a veces responde cuerpos mínimos que no son una imagen).
+async fn fetch_image(client: &reqwest::Client, url: &str) -> Option<Vec<u8>> {
+    let res = client.get(url).send().await.ok()?;
+    if !res.status().is_success() {
+        return None;
+    }
+    let bytes = res.bytes().await.ok()?;
+    (bytes.len() > 100).then(|| bytes.to_vec())
+}
+
 /// Lee la portada por defecto (`covers/default.jpg`) si existe.
 async fn read_default_cover(covers_dir: &std::path::Path) -> Option<Vec<u8>> {
     tokio::fs::read(covers_dir.join("default.jpg")).await.ok()
@@ -140,11 +154,8 @@ impl TidolCore {
     pub async fn extract_colors(&self, payload: ExtractColorsPayload) -> Colors {
         let image_url = payload.image_url.clone();
         let bytes_opt = if image_url.starts_with("http") {
-            let client = reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(8))
-                .build()
-                .unwrap_or_default();
-            if let Ok(res) = client.get(&image_url).send().await {
+            // Cliente compartido (crate::net): antes se creaba uno por petición.
+            if let Ok(res) = crate::net::shared_client().get(&image_url).send().await {
                 res.bytes().await.ok().map(|b| b.to_vec())
             } else {
                 None
@@ -241,28 +252,27 @@ impl TidolCore {
             return CoverOutcome::Default(read_default_cover(&covers_dir).await);
         }
 
-        // Cliente con User-Agent (MusicBrainz lo exige) y seguimiento de redirecciones
-        // (Cover Art Archive redirige a archive.org).
-        let client = reqwest::Client::builder()
-            .user_agent("TidolMusic/0.2 (https://tidol.duckdns.org)")
-            .timeout(std::time::Duration::from_secs(8))
-            .connect_timeout(std::time::Duration::from_secs(4))
-            .build()
-            .unwrap_or_default();
+        // Cliente compartido con User-Agent (MusicBrainz lo exige) y seguimiento de
+        // redirecciones (Cover Art Archive redirige a archive.org). Antes se creaba
+        // uno por petición: cada portada pagaba DNS+TLS de nuevo en cada salto.
+        let client = crate::net::shared_client();
 
         // ── 1. Cover Art Archive directo por mbid (si es release / release-group) ──
-        for kind in ["release", "release-group"] {
-            let caa = format!("https://coverartarchive.org/{}/{}/front-500", kind, mbid);
-            if let Ok(res) = client.get(&caa).send().await {
-                if res.status().is_success() {
-                    if let Ok(bytes) = res.bytes().await {
-                        if bytes.len() > 100 {
-                            let _ = tokio::fs::write(&file_path, &bytes).await;
-                            return CoverOutcome::Image(bytes.to_vec());
-                        }
-                    }
-                }
-            }
+        //    Las dos variantes van en paralelo (antes en serie: para un mbid de
+        //    grabación, el caso habitual, eran dos 404 encadenados antes de seguir).
+        //    Se respeta la preferencia release > release-group.
+        let release_url = format!("https://coverartarchive.org/release/{}/front-500", mbid);
+        let group_url = format!(
+            "https://coverartarchive.org/release-group/{}/front-500",
+            mbid
+        );
+        let (as_release, as_group) = tokio::join!(
+            fetch_image(client, &release_url),
+            fetch_image(client, &group_url),
+        );
+        if let Some(bytes) = as_release.or(as_group) {
+            let _ = tokio::fs::write(&file_path, &bytes).await;
+            return CoverOutcome::Image(bytes);
         }
 
         // ── 2. MusicBrainz: si el mbid es un recording, elige el release "canónico" ──
@@ -307,7 +317,11 @@ impl TidolCore {
                             .unwrap_or("");
                         // Preferimos la fecha con más información; para ordenar por más
                         // antigua tratamos "" como muy futuro.
-                        let d = if !rel_date.is_empty() { rel_date } else { rg_date };
+                        let d = if !rel_date.is_empty() {
+                            rel_date
+                        } else {
+                            rg_date
+                        };
                         if d.is_empty() {
                             "9999".to_string()
                         } else {
@@ -335,7 +349,10 @@ impl TidolCore {
                             .unwrap_or_default();
 
                         // Excluir releases con tipos secundarios no deseados.
-                        if secondary.iter().any(|s| BAD_SECONDARY.contains(&s.as_str())) {
+                        if secondary
+                            .iter()
+                            .any(|s| BAD_SECONDARY.contains(&s.as_str()))
+                        {
                             continue;
                         }
 
@@ -382,42 +399,44 @@ impl TidolCore {
                     // Orden: mayor score primero; a igualdad, fecha más antigua.
                     scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
 
+                    // Antes: hasta 12 peticiones a CAA en SERIE (release y release-group
+                    // de los 6 mejores releases) → una portada difícil tardaba >10 s.
+                    // Ahora se piden con concurrencia acotada; `buffered` mantiene el
+                    // orden de puntuación, así que gana el mejor candidato con portada
+                    // (mismo resultado que antes) y al soltar el stream se cancela el resto.
+                    let mut candidates: Vec<String> = Vec::new();
                     for (_score, _date, rel) in scored.iter().take(6) {
-                        // Intento por release directo.
                         if let Some(rid) = rel.get("id").and_then(|v| v.as_str()) {
-                            let caa =
-                                format!("https://coverartarchive.org/release/{}/front-500", rid);
-                            if let Ok(r2) = client.get(&caa).send().await {
-                                if r2.status().is_success() {
-                                    if let Ok(bytes) = r2.bytes().await {
-                                        if bytes.len() > 100 {
-                                            let _ = tokio::fs::write(&file_path, &bytes).await;
-                                            return CoverOutcome::Image(bytes.to_vec());
-                                        }
-                                    }
-                                }
-                            }
+                            candidates.push(format!(
+                                "https://coverartarchive.org/release/{}/front-500",
+                                rid
+                            ));
                         }
-                        // Intento por release-group (a veces solo el grupo tiene arte).
+                        // A veces solo el release-group tiene arte.
                         if let Some(rgid) = rel
                             .get("release-group")
                             .and_then(|rg| rg.get("id"))
                             .and_then(|v| v.as_str())
                         {
-                            let caa = format!(
+                            let url = format!(
                                 "https://coverartarchive.org/release-group/{}/front-500",
                                 rgid
                             );
-                            if let Ok(r2) = client.get(&caa).send().await {
-                                if r2.status().is_success() {
-                                    if let Ok(bytes) = r2.bytes().await {
-                                        if bytes.len() > 100 {
-                                            let _ = tokio::fs::write(&file_path, &bytes).await;
-                                            return CoverOutcome::Image(bytes.to_vec());
-                                        }
-                                    }
-                                }
+                            // Varios releases suelen compartir release-group.
+                            if !candidates.contains(&url) {
+                                candidates.push(url);
                             }
+                        }
+                    }
+
+                    use futures::stream::StreamExt;
+                    let mut stream = futures::stream::iter(candidates)
+                        .map(|url| async move { fetch_image(client, &url).await })
+                        .buffered(COVER_CAA_CONCURRENCY);
+                    while let Some(found) = stream.next().await {
+                        if let Some(bytes) = found {
+                            let _ = tokio::fs::write(&file_path, &bytes).await;
+                            return CoverOutcome::Image(bytes);
                         }
                     }
                 }
@@ -429,14 +448,27 @@ impl TidolCore {
             .await
             .unwrap_or(None);
 
-        if let Some(t) = track {
+        // iTunes solo si el cortacircuitos lo permite: desde el VPS está bloqueado y
+        // cada intento costaba el timeout completo (ver crate::net).
+        if let Some(t) = track.filter(|_| crate::net::itunes_available()) {
             let term = format!("{} {}", t.artist, t.title);
             let url = format!(
                 "https://itunes.apple.com/search?term={}&media=music&limit=1",
                 urlencoding::encode(&term)
             );
 
-            if let Ok(res) = client.get(&url).send().await {
+            let res = match client.get(&url).send().await {
+                Ok(res) if crate::net::itunes_status_is_failure(res.status()) => {
+                    crate::net::itunes_report_failure();
+                    None
+                }
+                Ok(res) => Some(res),
+                Err(_) => {
+                    crate::net::itunes_report_failure();
+                    None
+                }
+            };
+            if let Some(res) = res {
                 if let Ok(json) = res.json::<serde_json::Value>().await {
                     if let Some(results) = json.get("results").and_then(|r| r.as_array()) {
                         if let Some(first) = results.first() {
@@ -552,7 +584,10 @@ mod tests {
             "",
         ] {
             assert!(
-                matches!(c.optimize_image(path, None).await, Err(OptimizeError::InvalidPath)),
+                matches!(
+                    c.optimize_image(path, None).await,
+                    Err(OptimizeError::InvalidPath)
+                ),
                 "ruta {path:?} debía ser InvalidPath (→400)"
             );
         }
@@ -590,7 +625,10 @@ mod tests {
     async fn optimize_redimensiona_al_ancho_pedido() {
         let c = core();
         let (_guard, rel) = TempUpload::new("resize.png", &png_bytes(16, 16));
-        let bytes = c.optimize_image(&rel, Some(8)).await.expect("debía optimizar");
+        let bytes = c
+            .optimize_image(&rel, Some(8))
+            .await
+            .expect("debía optimizar");
         let img = image::load_from_memory(&bytes).expect("jpeg decodificable");
         assert_eq!((img.width(), img.height()), (8, 8));
     }
@@ -607,7 +645,10 @@ mod tests {
             );
         }
         let long = "a".repeat(65);
-        assert!(matches!(c.get_cover(&long, None).await, CoverOutcome::InvalidId));
+        assert!(matches!(
+            c.get_cover(&long, None).await,
+            CoverOutcome::InvalidId
+        ));
     }
 
     // ── extract_colors: fallback y extracción real ──
@@ -649,7 +690,10 @@ mod tests {
             assert!(hex.is_match(v), "{name} no es hex: {v}");
         }
         // De una imagen roja/azul no puede salir el verde por defecto.
-        assert_ne!(colors.dominant, "#1db954", "cayó en el fallback por defecto");
+        assert_ne!(
+            colors.dominant, "#1db954",
+            "cayó en el fallback por defecto"
+        );
     }
 
     #[test]

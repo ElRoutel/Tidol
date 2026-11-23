@@ -53,8 +53,20 @@ pub fn is_valid_match(query_artist: &str, result_artist: &str) -> bool {
     r_norm.contains(&q_norm) || q_norm.contains(&r_norm)
 }
 
+/// TTL de la caché de pistas similares. Last.fm cambia poco sus similares y la
+/// Home los pide en CADA carga (Last.fm + 10 lookups a MusicBrainz + resoluciones):
+/// sin caché la Home tardaba varios segundos y disparaba 503 de MusicBrainz.
+const SIMILAR_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(6 * 60 * 60);
+
+/// Máximo de lookups simultáneos a MusicBrainz al resolver similares. Antes eran
+/// 10 a la vez: MusicBrainz limita a ~1 req/s por IP y respondía 503 a casi todos,
+/// así que la radio/recomendaciones salían con huecos.
+const SIMILAR_LOOKUP_CONCURRENCY: usize = 4;
+
 pub struct MetadataOrchestrator {
     http_client: Client,
+    /// (artista, título, límite) normalizados → pistas similares ya resueltas.
+    similar_cache: moka::future::Cache<String, Vec<TrackProfile>>,
 }
 
 impl MetadataOrchestrator {
@@ -69,6 +81,10 @@ impl MetadataOrchestrator {
                 .connect_timeout(std::time::Duration::from_secs(4))
                 .build()
                 .unwrap_or_else(|_| Client::new()),
+            similar_cache: moka::future::Cache::builder()
+                .max_capacity(5_000)
+                .time_to_live(SIMILAR_CACHE_TTL)
+                .build(),
         }
     }
 
@@ -631,13 +647,30 @@ impl MetadataOrchestrator {
             result
         }
 
+        // Cortacircuitos: en el VPS iTunes está bloqueado y cada intento costaba el
+        // timeout entero (ver crate::net).
+        if !crate::net::itunes_available() {
+            return None;
+        }
+
         let term = format!("{} {}", artist, title);
         let url = format!(
             "https://itunes.apple.com/search?term={}&entity=song&limit=20",
             urlencoding::encode(&term)
         );
 
-        if let Ok(res) = self.http_client.get(&url).send().await {
+        let res = match self.http_client.get(&url).send().await {
+            Ok(res) if crate::net::itunes_status_is_failure(res.status()) => {
+                crate::net::itunes_report_failure();
+                return None;
+            }
+            Ok(res) => res,
+            Err(_) => {
+                crate::net::itunes_report_failure();
+                return None;
+            }
+        };
+        {
             if let Ok(json) = res.json::<serde_json::Value>().await {
                 if let Some(results) = json.get("results").and_then(|r| r.as_array()) {
                     let expected_artist = normalize_string(artist);
@@ -794,6 +827,32 @@ impl MetadataOrchestrator {
         limit: u8,
         db: &sqlx::MySqlPool,
     ) -> Result<Vec<TrackProfile>, String> {
+        let cache_key = format!(
+            "{}\u{1f}{}\u{1f}{}",
+            artist.trim().to_lowercase(),
+            title.trim().to_lowercase(),
+            limit
+        );
+        if let Some(hit) = self.similar_cache.get(&cache_key).await {
+            return Ok(hit);
+        }
+
+        let result = self.fetch_similar_tracks(artist, title, limit, db).await?;
+        // Solo se cachean resultados con contenido: un vacío suele ser un fallo
+        // transitorio (Last.fm/MB caídos) y no debe "envenenar" la Home 6 horas.
+        if !result.is_empty() {
+            self.similar_cache.insert(cache_key, result.clone()).await;
+        }
+        Ok(result)
+    }
+
+    async fn fetch_similar_tracks(
+        &self,
+        artist: &str,
+        title: &str,
+        limit: u8,
+        db: &sqlx::MySqlPool,
+    ) -> Result<Vec<TrackProfile>, String> {
         // Clave por env; el literal queda solo como fallback de desarrollo.
         let lastfm_api_key = std::env::var("LASTFM_API_KEY")
             .unwrap_or_else(|_| "27ef86c506629a10c7378bd848149f2e".to_string());
@@ -820,8 +879,11 @@ impl MetadataOrchestrator {
 
         // Antes: por cada pista similar, 1 lookup MB + resolve_full_track en SERIE
         // (10 pistas ≈ 20-30 requests encadenados → la radio tardaba >10s).
-        // Ahora las resoluciones corren en paralelo.
-        let lookup_futures: Vec<_> = similar_tracks
+        // Luego pasó a 10 en paralelo sin tope, y MusicBrainz respondía 503 a casi
+        // todos. Ahora: concurrencia acotada (`buffered` conserva el orden de
+        // Last.fm) y, si Last.fm ya trae el mbid de la grabación, se ahorra la
+        // búsqueda en MusicBrainz por completo.
+        let candidates: Vec<(Option<String>, String, String)> = similar_tracks
             .map(|tracks| {
                 tracks
                     .iter()
@@ -831,45 +893,65 @@ impl MetadataOrchestrator {
                         if track_name.is_empty() || artist_name.is_empty() {
                             return None;
                         }
-                        Some((track_name.to_string(), artist_name.to_string()))
-                    })
-                    .map(|(track_name, artist_name)| async move {
-                        let query = format!(
-                            "recording:\"{}\" AND artist:\"{}\"",
-                            track_name, artist_name
-                        );
-                        let mb_url = format!(
-                            "https://musicbrainz.org/ws/2/recording?query={}&fmt=json&limit=1",
-                            urlencoding::encode(&query)
-                        );
-
-                        let mb_res = self
-                            .http_client
-                            .get(&mb_url)
-                            .header("User-Agent", "TidolCore/1.0")
-                            .send()
-                            .await
-                            .ok()?;
-                        let mb_json = mb_res.json::<serde_json::Value>().await.ok()?;
-                        let mbid = mb_json
-                            .get("recordings")
-                            .and_then(|r| r.as_array())
-                            .and_then(|arr| arr.first())
-                            .and_then(|first| first.get("id"))
-                            .and_then(|id| id.as_str())?;
-                        self.resolve_full_track(mbid, db).await.ok()
+                        let lastfm_mbid = track["mbid"]
+                            .as_str()
+                            .map(str::trim)
+                            .filter(|m| m.len() == 36)
+                            .map(str::to_string);
+                        Some((lastfm_mbid, track_name.to_string(), artist_name.to_string()))
                     })
                     .collect()
             })
             .unwrap_or_default();
 
-        let result_tracks = futures::future::join_all(lookup_futures)
-            .await
-            .into_iter()
-            .flatten()
-            .collect();
+        use futures::stream::StreamExt;
+        let result_tracks = futures::stream::iter(candidates)
+            .map(|(lastfm_mbid, track_name, artist_name)| async move {
+                // El mbid de Last.fm puede estar obsoleto (fusionado/borrado en MB):
+                // si no resuelve, caemos a la búsqueda por texto de siempre.
+                if let Some(mbid) = lastfm_mbid {
+                    if let Ok(profile) = self.resolve_full_track(&mbid, db).await {
+                        return Some(profile);
+                    }
+                }
+                let mbid = self
+                    .mb_search_recording_id(&track_name, &artist_name)
+                    .await?;
+                self.resolve_full_track(&mbid, db).await.ok()
+            })
+            .buffered(SIMILAR_LOOKUP_CONCURRENCY)
+            .filter_map(|t| async move { t })
+            .collect::<Vec<_>>()
+            .await;
 
         Ok(result_tracks)
+    }
+
+    /// Primer mbid de grabación de MusicBrainz para (título, artista).
+    async fn mb_search_recording_id(&self, track_name: &str, artist_name: &str) -> Option<String> {
+        let query = format!(
+            "recording:\"{}\" AND artist:\"{}\"",
+            track_name, artist_name
+        );
+        let mb_url = format!(
+            "https://musicbrainz.org/ws/2/recording?query={}&fmt=json&limit=1",
+            urlencoding::encode(&query)
+        );
+        let mb_res = self
+            .http_client
+            .get(&mb_url)
+            .header("User-Agent", "TidolCore/1.0")
+            .send()
+            .await
+            .ok()?;
+        let mb_json = mb_res.json::<serde_json::Value>().await.ok()?;
+        mb_json
+            .get("recordings")
+            .and_then(|r| r.as_array())
+            .and_then(|arr| arr.first())
+            .and_then(|first| first.get("id"))
+            .and_then(|id| id.as_str())
+            .map(str::to_string)
     }
 
     pub async fn get_listen_again(
@@ -1087,12 +1169,49 @@ pub struct TrackProfile {
 static PREFETCH_INFLIGHT: std::sync::OnceLock<std::sync::Mutex<std::collections::HashSet<String>>> =
     std::sync::OnceLock::new();
 
+/// Ubicación del binario `bad_engine` (directorio de trabajo, ruta), resuelta UNA
+/// vez por proceso. En la imagen Docker no existe: antes cada carga de la Home
+/// lanzaba 3 tareas que consultaban `track_links` en BD solo para acabar en un
+/// `warn` de "no encontrado". Ahora, sin binario, el prefetch no cuesta nada.
+fn bad_engine_location() -> Option<&'static (std::path::PathBuf, String)> {
+    static LOCATION: std::sync::OnceLock<Option<(std::path::PathBuf, String)>> =
+        std::sync::OnceLock::new();
+    LOCATION
+        .get_or_init(|| {
+            let workspace_dir = std::env::current_dir().unwrap_or_else(|_| {
+                std::path::PathBuf::from("/home/routel/TidolCore/tidol-workspace")
+            });
+            // Ejecutar el BINARIO precompilado, nunca `cargo run`: compilar en el
+            // servidor por cada prefetch bloqueaba CPU y llenaba el disco raíz de
+            // 20GB con artefactos de build (los builds de Docker/Rust ya lo saturan).
+            let engine_bin = std::env::var("BAD_ENGINE_BIN").unwrap_or_else(|_| {
+                workspace_dir
+                    .join("target/release/bad_engine")
+                    .to_string_lossy()
+                    .into_owned()
+            });
+            if std::path::Path::new(&engine_bin).exists() {
+                Some((workspace_dir, engine_bin))
+            } else {
+                tracing::warn!(
+                    "[Prefetch] bad_engine no encontrado en '{}' (define BAD_ENGINE_BIN); prefetch desactivado",
+                    engine_bin
+                );
+                None
+            }
+        })
+        .as_ref()
+}
+
 pub fn trigger_bad_engine_prefetch(
     mbid: String,
     artist: String,
     title: String,
     db: sqlx::MySqlPool,
 ) {
+    let Some((workspace_dir, engine_bin)) = bad_engine_location() else {
+        return;
+    };
     {
         let set = PREFETCH_INFLIGHT.get_or_init(Default::default);
         let mut guard = match set.lock() {
@@ -1136,31 +1255,10 @@ pub fn trigger_bad_engine_prefetch(
                 "[Prefetch] 🚀 Pre-calentando Bad Engine para: {} - {} ({})",
                 artist, title, mbid
             );
-            let workspace_dir = std::env::current_dir().unwrap_or_else(|_| {
-                std::path::PathBuf::from("/home/routel/TidolCore/tidol-workspace")
-            });
-
             let ai_plugin_path = workspace_dir.join("plugins/provider-ai/target/release");
 
-            // Ejecutar el BINARIO precompilado, nunca `cargo run`: compilar en el
-            // servidor por cada prefetch bloqueaba CPU y llenaba el disco raíz de
-            // 20GB con artefactos de build (los builds de Docker/Rust ya lo saturan).
-            let engine_bin = std::env::var("BAD_ENGINE_BIN").unwrap_or_else(|_| {
-                workspace_dir
-                    .join("target/release/bad_engine")
-                    .to_string_lossy()
-                    .into_owned()
-            });
-            if !std::path::Path::new(&engine_bin).exists() {
-                tracing::warn!(
-                    "[Prefetch] bad_engine no encontrado en '{}' (define BAD_ENGINE_BIN); se omite el prefetch",
-                    engine_bin
-                );
-                return;
-            }
-
-            let _ = tokio::process::Command::new(&engine_bin)
-                .current_dir(&workspace_dir)
+            let _ = tokio::process::Command::new(engine_bin)
+                .current_dir(workspace_dir)
                 .env("TARGET_MBID", &mbid)
                 .env("TARGET_ARTIST", &artist)
                 .env("TARGET_TITLE", &title)

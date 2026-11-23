@@ -161,19 +161,17 @@ impl TidolCore {
             .await
     }
 
-    pub async fn get_home_dashboard(
-        &self,
-        user_id: i64,
-    ) -> Result<HomeDashboardDTO, String> {
-        self.orchestrator.get_home_dashboard(&self.db, user_id).await
+    pub async fn get_home_dashboard(&self, user_id: i64) -> Result<HomeDashboardDTO, String> {
+        self.orchestrator
+            .get_home_dashboard(&self.db, user_id)
+            .await
     }
 
-    pub async fn get_listen_again(
-        &self,
-        user_id: i64,
-    ) -> Result<Vec<TrackResponse>, String> {
+    pub async fn get_listen_again(&self, user_id: i64) -> Result<Vec<TrackResponse>, String> {
         // El endpoint siempre pide 20 (idéntico al comportamiento previo).
-        self.orchestrator.get_listen_again(&self.db, 20, user_id).await
+        self.orchestrator
+            .get_listen_again(&self.db, 20, user_id)
+            .await
     }
 
     // -------------------------------------------------------------------------
@@ -348,12 +346,10 @@ impl TidolCore {
             urlencoding::encode(&title)
         );
 
-        // Timeout explícito: sin él, un LRCLIB caído dejaba la petición colgada.
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(8))
-            .build()
-            .unwrap_or_default();
-        let lrclib_response = client.get(&lrclib_url).send().await;
+        // Timeout explícito: sin él, un LRCLIB caído dejaba la petición colgada. El
+        // cliente compartido (crate::net) ya lo trae (8 s) y reutiliza la conexión
+        // con lrclib.net; antes se construía un cliente nuevo por petición.
+        let lrclib_response = crate::net::shared_client().get(&lrclib_url).send().await;
         let mut lrclib_answered = false;
 
         if let Ok(resp) = lrclib_response {
@@ -417,10 +413,11 @@ impl TidolCore {
         // Un fallo transitorio (timeout/red/rate-limit) deja el estado en 'pending'
         // para reintentar luego (antes cualquier fallo cacheaba un 404 permanente).
         if lrclib_answered {
-            let _ = sqlx::query("UPDATE track_links SET lyrics_status = 'not_found' WHERE mbid = ?")
-                .bind(track_id)
-                .execute(&self.db)
-                .await;
+            let _ =
+                sqlx::query("UPDATE track_links SET lyrics_status = 'not_found' WHERE mbid = ?")
+                    .bind(track_id)
+                    .execute(&self.db)
+                    .await;
         }
 
         Err(LyricsError::NotAvailable)
@@ -460,7 +457,10 @@ mod tests {
     }
 
     fn word_of(line: &serde_json::Value) -> String {
-        line.get("word").and_then(|v| v.as_str()).unwrap().to_string()
+        line.get("word")
+            .and_then(|v| v.as_str())
+            .unwrap()
+            .to_string()
     }
 
     #[test]
@@ -499,7 +499,11 @@ mod tests {
                    [xx:yy.zz] no numérico\n\
                    [00:20.00] Válida";
         let out = parse_lrc(lrc);
-        assert_eq!(out.len(), 1, "solo la línea válida debe sobrevivir: {out:?}");
+        assert_eq!(
+            out.len(),
+            1,
+            "solo la línea válida debe sobrevivir: {out:?}"
+        );
         assert_eq!(cs_of(&out[0]), 2000);
         assert_eq!(word_of(&out[0]), "Válida");
     }
@@ -536,6 +540,9 @@ mod tests {
             LyricsError::CachedNegative.to_string(),
             "Lyrics not found (cached negative)"
         );
-        assert_eq!(LyricsError::NotAvailable.to_string(), "Lyrics not available");
+        assert_eq!(
+            LyricsError::NotAvailable.to_string(),
+            "Lyrics not available"
+        );
     }
 }
