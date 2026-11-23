@@ -38,3 +38,9 @@ scratch/
 # Logs y temporales
 *.log
 tmp/
+
+# Los Dockerfile no los necesita la compilación (Docker los lee aparte aunque
+# estén ignorados). Sin esto, cambiar tidol-core/Dockerfile (p.ej. el
+# HEALTHCHECK) invalidaba el `COPY . .` y recompilaba todos los crates propios.
+**/Dockerfile
+**/Dockerfile.*

@@ -109,7 +109,11 @@ En local, `tidol-workspace/.env` (git-ignorado) aporta `DATABASE_URL` y demás.
   invalida si cambian `Cargo.toml`/`Cargo.lock`; un cambio de código ya no recompila las ~200
   dependencias. Se eligió cargo-chef (capas normales) y no `RUN --mount=type=cache` porque este
   exige BuildKit/buildx, que no está en todas las máquinas. `cargo-chef` fijado a 0.1.72 (anterior a
-  Rust 1.89): no subirlo sin probar el build.
+  Rust 1.89): no subirlo sin probar el build. `cook` va con `-p` de los paquetes desplegados: sin
+  ello compila también `tidol-shell` (keyring → libdbus) y falla. Medido en local (8 núcleos): build
+  en frío 392 s; tras cambiar código, 223 s (−43 %; lo que queda es compilar `tidol-core`/`tidol-server`
+  y el enlazado con LTO). `.dockerignore` excluye los `Dockerfile`: tocar el HEALTHCHECK ya no recompila.
+  Healthcheck verificado: `healthy` con BD viva y `unhealthy` a los ~10 s de pararla (`/health` → 503).
 - **Sin `JWT_SECRET`** el servidor arranca y responde, pero toda ruta autenticada da 500.
 - **Perfil de release**: `lto = "thin"` en el `Cargo.toml` del workspace (los perfiles de los
   miembros se ignoran). El build del VPS usa Rust 1.89: `tidol-core` declara `rust-version = "1.89"`

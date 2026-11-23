@@ -45,11 +45,18 @@ FROM chef AS builder
 #   cargo sqlx prepare --workspace   (y commitea `.sqlx/`)
 ENV SQLX_OFFLINE=true
 
-# Dependencias de TODO el workspace (servidor y plugins) con el mismo perfil de
-# release (lto = "thin") que el build final. Esta capa solo cambia si cambia
-# recipe.json, es decir, si cambian las dependencias.
+# Dependencias de los paquetes que se DESPLIEGAN (servidor y plugins) con el
+# mismo perfil de release (lto = "thin") que el build final. Esta capa solo
+# cambia si cambia recipe.json, es decir, si cambian las dependencias.
+# Paquetes explícitos: sin -p, cook compila TODO el workspace, incluido
+# tidol-shell (keyring → libdbus-sys), y falla por no tener libdbus-dev en la
+# imagen (verificado en el primer build). El shell nunca se despliega.
 COPY --from=planner /workspace/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json \
+        -p tidol-server \
+        -p provider-archive \
+        -p provider-jamendo \
+        -p provider-lyrics
 
 # Código propio (filtrado por .dockerignore; incluye `.sqlx/`).
 COPY . .
@@ -114,7 +121,9 @@ EXPOSE 8080
 # app rota. Con -f, un 503 (BD inalcanzable) o un 5xx = unhealthy.
 # (La prueba de vida de deploy.sh —auth/me sin token → 401— sigue aparte: esa
 # comprueba el enrutado y el middleware de auth desde fuera.)
+# Usa $PORT (no 8080 fijo): si se cambia el puerto, el healthcheck lo sigue
+# (detectado al probar la imagen con PORT=3002: salía unhealthy con la app sana).
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD ["curl", "-fsS", "--max-time", "4", "-o", "/dev/null", "http://localhost:8080/api/v1/health"]
+    CMD ["sh", "-c", "curl -fsS --max-time 4 -o /dev/null http://localhost:${PORT:-8080}/api/v1/health"]
 
 ENTRYPOINT ["/app/tidol-server"]
