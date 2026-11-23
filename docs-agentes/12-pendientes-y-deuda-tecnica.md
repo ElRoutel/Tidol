@@ -21,14 +21,23 @@ fecha y el commit**. Las prioridades son una propuesta; el dueño del proyecto d
    metadatos del proveedor cloud del VPS…). Arreglo: lista blanca de hosts (`i.ytimg.com`,
    `*.mzstatic.com`, `archive.org`, `coverartarchive.org`…), sin redirecciones a hosts fuera
    de la lista, comprobar `Content-Type: image/*`, límite de tamaño.
-2. **Secretos en ficheros versionados** (el historial se aplastó en jun-2026, pero estos
-   están en el árbol actual). **Rotarlos** y sacarlos del repo:
-   - `Caddyfile` (raíz): token de la API de DuckDNS en claro.
-   - `tidol-workspace/test_security.py`: `JWT_SECRET` y contraseña de la BD (de desarrollo, quizá reutilizados).
-   - `compose.yaml`: valores *fallback* de `MARIADB_ROOT_PASSWORD` / `MARIADB_PASSWORD`
-     (`${VAR:-valor}`); el de usuario coincide con el de desarrollo. Mejor `${VAR:?error}`.
-   - `tidol-core/src/orchestrator.rs::get_similar_tracks`: clave de Last.fm como literal fallback.
-   - `plugins/provider-jamendo`: client_id de demo como fallback (menor).
+2. **Secretos en ficheros versionados** — ✅ *fuera del árbol 2026-11-23*; ⚠️ **ROTACIÓN PENDIENTE**
+   (siguen en el historial de git; hay que darlos por comprometidos):
+   - `Caddyfile` (raíz): token de DuckDNS → ahora `{env.DUCKDNS_API_TOKEN}`. **Regenerar en duckdns.org.**
+   - `tidol-workspace/test_security.py`: `JWT_SECRET` y credenciales de BD → ahora `os.environ`
+     (`DB_URL`, `JWT_SECRET`). **Rotar el `JWT_SECRET`** donde se use (si era el de prod, invalida
+     todas las sesiones al cambiarlo: es lo correcto).
+   - `compose.yaml`: valores por defecto de `MARIADB_ROOT_PASSWORD` / `MARIADB_PASSWORD` → ahora
+     `${VAR:?error}` (obligatorias). La de usuario coincidía con la de desarrollo. **Cambiarlas con
+     `ALTER USER` en MariaDB y actualizar el `.env`** (antes de desplegar, comprobar que el `.env` del
+     VPS define ambas o el deploy fallará con un mensaje claro).
+   - `orchestrator.rs::get_similar_tracks`: clave de Last.fm literal, que era **la que usaba prod**
+     (compose no pasaba `LASTFM_API_KEY`) y además viajaba por `http://`. Ahora solo por entorno, por
+     HTTPS, y compose la pasa. **Crear una clave nueva y ponerla en el `.env` del VPS** o la radio
+     saldrá vacía.
+   - `tidol-tv-lite-backup/src/api/axiosConfig.js`: JWT de respaldo escrito en el código → eliminado.
+   - `plugins/provider-jamendo`: el client_id de respaldo es el **id de demo público** que documenta
+     Jamendo, no una credencial; se deja (el plugin además no se carga).
 3. **`/api/v1/embed/search` pública y sin rate limit** → cualquiera puede agotar la cuota diaria
    de YouTube (≈100 búsquedas) y dejar la app sin reproducción. Moverla a rutas protegidas o
    limitarla por usuario/IP.

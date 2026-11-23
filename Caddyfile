@@ -4,7 +4,7 @@ http://tidol.lan {
 
 tidol.duckdns.org {
 	tls {
-		dns duckdns 765a816e-31c6-40ae-b814-4facc626b40c
+		dns duckdns {env.DUCKDNS_API_TOKEN}
 	}
 	reverse_proxy 127.0.0.1:5173
 }

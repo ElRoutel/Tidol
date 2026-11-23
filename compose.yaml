@@ -28,10 +28,13 @@ services:
     networks:
       - tidol-net
     environment:
-      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-rootpass123}
+      # Obligatorias (`:?`): antes tenían un valor por defecto en este fichero,
+      # versionado en git; si faltaban en el .env, la BD arrancaba en silencio con
+      # una contraseña conocida. Ahora el deploy falla con un mensaje claro.
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?define MARIADB_ROOT_PASSWORD en el .env}
       MARIADB_DATABASE: tidol
       MARIADB_USER: tidol_admin
-      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-tidol36CY}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:?define MARIADB_PASSWORD en el .env}
     volumes:
       - mariadb-data:/var/lib/mysql
     # Solo al loopback del VPS: la BD la alcanzan los contenedores por la red
@@ -87,7 +90,7 @@ services:
         condition: service_healthy
     environment:
       # Base de datos
-      DATABASE_URL: mysql://tidol_admin:${MARIADB_PASSWORD:-tidol36CY}@mariadb/tidol
+      DATABASE_URL: mysql://tidol_admin:${MARIADB_PASSWORD:?define MARIADB_PASSWORD en el .env}@mariadb/tidol
       # POR RÉPLICA. El default es 50 (no 100) porque el pool se multiplica por
       # TIDOL_REPLICAS: con 3 réplicas, 100 daría 300 conexiones contra las 151
       # de `max_connections` de MariaDB. deploy.sh valida el producto real.
@@ -106,6 +109,10 @@ services:
 
       # Proveedores externos oficiales (APIs legales — embeds / metadata)
       YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
+      # Last.fm (radio y recomendaciones de la Home). Antes no se pasaba y el core
+      # usaba una clave escrita en el código (versionada → rotada). Sin ella, la
+      # radio sale vacía y la Home cae a recomendaciones aleatorias.
+      LASTFM_API_KEY: ${LASTFM_API_KEY:-}
       SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
       SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
       SOUNDCLOUD_CLIENT_ID: ${SOUNDCLOUD_CLIENT_ID:-}

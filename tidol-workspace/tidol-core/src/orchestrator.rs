@@ -878,11 +878,25 @@ impl MetadataOrchestrator {
         limit: u8,
         db: &sqlx::MySqlPool,
     ) -> Result<Vec<TrackProfile>, String> {
-        // Clave por env; el literal queda solo como fallback de desarrollo.
-        let lastfm_api_key = std::env::var("LASTFM_API_KEY")
-            .unwrap_or_else(|_| "27ef86c506629a10c7378bd848149f2e".to_string());
+        // Solo por entorno. Antes había una clave escrita aquí como "fallback de
+        // desarrollo": estaba versionada y era la que usaba producción (compose no
+        // pasaba LASTFM_API_KEY). Sin clave, la radio sale vacía y la Home cae a
+        // recomendaciones aleatorias; se avisa una vez.
+        let Some(lastfm_api_key) = std::env::var("LASTFM_API_KEY")
+            .ok()
+            .filter(|k| !k.trim().is_empty())
+        else {
+            static WARNED: std::sync::Once = std::sync::Once::new();
+            WARNED.call_once(|| {
+                tracing::warn!(
+                    "[Last.fm] LASTFM_API_KEY no definida: radio y recomendaciones desactivadas"
+                )
+            });
+            return Err("LASTFM_API_KEY no definida".to_string());
+        };
+        // HTTPS: antes era http:// y la clave viajaba en claro en cada petición.
         let url = format!(
-            "http://ws.audioscrobbler.com/2.0/?method=track.getsimilar&artist={}&track={}&api_key={}&format=json&limit={}",
+            "https://ws.audioscrobbler.com/2.0/?method=track.getsimilar&artist={}&track={}&api_key={}&format=json&limit={}",
             urlencoding::encode(artist),
             urlencoding::encode(title),
             lastfm_api_key,

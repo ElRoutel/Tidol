@@ -12,7 +12,7 @@ api.interceptors.request.use((config) => {
 
   // Solo agregamos el token si la petición va a NUESTRO backend
   if (!isExternal) {
-    const token = localStorage.getItem("token") || "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjMsImRldmljZV9pZCI6IjE2MjRkYjY1LTMzMjctNDQ1Zi05NWJkLTViYThhMjNmYzdkYSIsImV4cCI6MTc4MjAwNjIwOSwiaWF0IjoxNzgxNDAxNDA5fQ.FokKAXVZK0xq4n2wbCxCyF1URyvfPCQbC6SHfpUTzWs";
+    const token = localStorage.getItem("token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

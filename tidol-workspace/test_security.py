@@ -5,15 +5,21 @@ import requests
 import time
 import uuid
 
-DB_URL = "mysql://tidol_admin:tidol36CY@localhost/tidol"
-JWT_SECRET = "FdqK/A2Vt2UriBuoWKhY5SUxwBm6gETuHUcI/g2uLqg="
+# Credenciales desde el entorno (antes estaban escritas aquí y se versionaron;
+# hubo que rotarlas). Ejemplo: DB_URL=mysql://usuario:clave@127.0.0.1/tidol
+DB_URL = os.environ["DB_URL"]
+JWT_SECRET = os.environ["JWT_SECRET"]
 
 def setup_data():
+    # Credenciales desde DB_URL (antes usuario y contraseña escritos aquí).
+    from urllib.parse import urlparse, unquote
+    u = urlparse(DB_URL)
     conn = pymysql.connect(
-        host='localhost',
-        user='tidol_admin',
-        password='tidol36CY',
-        database='tidol'
+        host=u.hostname or 'localhost',
+        port=u.port or 3306,
+        user=unquote(u.username or ''),
+        password=unquote(u.password or ''),
+        database=(u.path or '/tidol').lstrip('/') or 'tidol'
     )
     cursor = conn.cursor()
 
