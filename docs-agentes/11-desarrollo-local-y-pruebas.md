@@ -10,6 +10,23 @@
 - `tidol-workspace/.env` (git-ignorado) con al menos `DATABASE_URL` y `JWT_SECRET`;
   opcionalmente `YOUTUBE_API_KEY` para poder reproducir.
 
+## Arranque rápido: `dev.sh` (raíz del repo)
+
+```bash
+./dev.sh            # backend + frontend; Ctrl-C para todo
+./dev.sh backend    # solo tidol-server (compila y ejecuta el binario desde tidol-workspace/)
+./dev.sh frontend   # solo Vite
+./dev.sh check      # .env, MariaDB y puertos, sin arrancar nada
+```
+Comprueba `.env` y que MariaDB responda (no la arranca: `sudo systemctl start mariadb`),
+espera la misma prueba de vida que el deploy (`/auth/me` → 401) y deja el log en
+`tidol-workspace/target/dev-logs/backend.log`. `PORT`, `VITE_PORT` y `RELEASE=1` opcionales.
+
+**Trampa:** con MariaDB ≥ 11.4 en local, `cargo sqlx prepare` puede fallar con
+*"Transport endpoint is not connected (os error 107)"* (negociación TLS de sqlx-cli). Solución
+sin tocar el `.env`: `DATABASE_URL="${DATABASE_URL}?ssl-mode=disabled" cargo sqlx prepare --workspace`.
+El servidor (sqlx 0.7) conecta sin problema.
+
 ## Backend
 
 ```bash

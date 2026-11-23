@@ -67,6 +67,8 @@ Rutas: todas las rutas son relativas a la raíz del repo git
 - **Devices (sesiones por dispositivo)** → [03](03-backend-tidol-core.md#authrs), [05](05-base-de-datos.md)
 - **Docs legales (ToS, privacidad, DMCA)** → `tidol-workspace/docs/` · [13](13-archivos-legado-y-sueltos.md)
 
+- **dev.sh (arranque local backend + frontend)** → [11](11-desarrollo-local-y-pruebas.md#arranque-rápido-devsh-raíz-del-repo) · `dev.sh`
+
 ### E
 - **Embeds (YouTube/Spotify/SoundCloud/IA)** → [06](06-proveedores-plugins-y-workers.md#proveedores-de-embed-en-proceso) · `tidol-core/src/providers/`
 - **embedResolver (pista → videoId de YouTube)** → [08](08-flujos-reproduccion-portadas-letras.md#1-reproducción) · `tidol-frontend/src/engine/embedResolver.ts`

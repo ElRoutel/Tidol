@@ -40,6 +40,7 @@ TidolCore/                     ← raíz del repo git
 ├── Caddyfile.prod             reverse proxy de producción
 ├── Caddyfile, Dockerfile.caddy  Caddy de desarrollo (LAN + DuckDNS DNS-challenge)
 ├── deploy.sh                  despliegue al VPS (rsync + build remoto + verificación)
+├── dev.sh                     arranque LOCAL (backend + Vite) con prueba de vida → doc 11
 ├── schema_full.sql            esquema completo (bootstrap de BD vacía)
 ├── migrations/                migraciones idempotentes 001..003
 ├── cleanup_legacy_tables.sql  DROPs manuales de tablas legado (una vez)
