@@ -476,16 +476,22 @@ impl TidolCore {
     pub async fn extract_colors(&self, payload: ExtractColorsPayload) -> Colors {
         let image_url = payload.image_url.clone();
         let bytes_opt = if image_url.starts_with("http") {
-            // Cliente compartido (crate::net): antes se creaba uno por petición.
-            if let Ok(res) = crate::net::shared_client().get(&image_url).send().await {
-                res.bytes().await.ok().map(|b| b.to_vec())
-            } else {
-                None
-            }
+            // Anti-SSRF (antes descargaba cualquier URL "http…"): ver net.rs.
+            crate::net::fetch_external_image(&image_url).await
         } else {
+            // Anti path-traversal: antes leía CUALQUIER ruta relativa al CWD
+            // (`../../...`). Solo las cachés de imágenes propias.
             let clean_path = image_url.trim_start_matches('/');
-            let path = PathBuf::from(".").join(clean_path);
-            tokio::fs::read(path).await.ok()
+            if clean_path.contains("..")
+                || clean_path.contains('\\')
+                || !(clean_path.starts_with("uploads/") || clean_path.starts_with("covers/"))
+            {
+                None
+            } else {
+                tokio::fs::read(PathBuf::from(".").join(clean_path))
+                    .await
+                    .ok()
+            }
         };
 
         let colors = match bytes_opt {
@@ -759,18 +765,12 @@ impl TidolCore {
 
         // ── 4. URL de respaldo (miniatura de YouTube u otra) — descargar y cachear
         //        para servir same-origin (permite extracción de color en el cliente) ──
+        //        Con las restricciones anti-SSRF de `net::fetch_external_image`
+        //        (antes descargaba CUALQUIER URL "http…", ruta pública).
         if let Some(fallback) = fallback.as_deref() {
-            if fallback.starts_with("http") {
-                if let Ok(res) = client.get(fallback).send().await {
-                    if res.status().is_success() {
-                        if let Ok(bytes) = res.bytes().await {
-                            if bytes.len() > 100 {
-                                // No se cachea el fallback (miniatura YT): que MB reintente.
-                                return CoverOutcome::Fallback(bytes.to_vec());
-                            }
-                        }
-                    }
-                }
+            if let Some(bytes) = crate::net::fetch_external_image(fallback).await {
+                // No se cachea el fallback (miniatura YT): que MB reintente.
+                return CoverOutcome::Fallback(bytes);
             }
         }
 

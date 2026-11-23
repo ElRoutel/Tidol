@@ -66,7 +66,7 @@ validar mbid (charset seguro, anti path-traversal)            → 400 si no
    en orden de puntuación (si la candidata ya está en covers/art se usa sin red)
    → primer acierto: covers/art/<art_key>.jpg (atómico, una vez por portada) + cover_map
 3. iTunes (texto fuzzy; NO se cachea en disco)               ← cortacircuitos; bloqueado desde el VPS
-4. fallback=<url> (p.ej. miniatura de YouTube) descargada y servida same-origin (NO se cachea)
+4. fallback=<url> (p.ej. miniatura de YouTube) — SOLO lista blanca HTTPS, image/*, ≤ 5 MB (anti-SSRF, net.rs) — servida same-origin (NO se cachea)
 nada → registrar miss en memoria y en cover_map (salvo si MB dio 503) → covers/default.jpg o 404
 ```
 

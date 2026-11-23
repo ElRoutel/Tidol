@@ -32,6 +32,112 @@ pub(crate) fn shared_client() -> &'static reqwest::Client {
     })
 }
 
+// ── Descarga de imágenes externas indicadas por el CLIENTE ──────────────────
+//
+// SSRF: `/api/v1/covers/:mbid?fallback=<url>` (pública) y `/api/v1/colors/extract`
+// descargaban CUALQUIER URL que empezara por "http", seguían redirecciones y
+// devolvían el cuerpo. Cualquiera podía hacer que el servidor pidiera URLs
+// internas (otros contenedores de tidol-net, Redis/MariaDB por HTTP, el endpoint
+// de metadatos del proveedor cloud) y leer la respuesta.
+// Ahora solo: HTTPS, hosts de una lista blanca (sin IPs literales, sin
+// credenciales en la URL, puerto 443), redirecciones solo hacia la lista,
+// `Content-Type: image/*` y un máximo de bytes leído por trozos.
+
+/// Dominios de imágenes que el frontend manda como fallback (medido en la BD:
+/// portadas de iTunes, Cover Art Archive / archive.org; más las miniaturas de
+/// YouTube y las de Spotify/SoundCloud de los proveedores de embed). Se admite el
+/// dominio y cualquier subdominio (`is1-ssl.mzstatic.com`, `ia800.us.archive.org`).
+const IMAGE_HOSTS: &[&str] = &[
+    "ytimg.com",
+    "mzstatic.com",
+    "coverartarchive.org",
+    "archive.org",
+    "scdn.co",
+    "sndcdn.com",
+];
+/// Máximo de una imagen externa (las portadas de 500-600 px pesan < 500 KB).
+pub(crate) const MAX_EXTERNAL_IMAGE: usize = 5 * 1024 * 1024;
+
+/// ¿Se permite descargar esta URL? (esquema, host, puerto y credenciales).
+pub(crate) fn external_image_allowed(url: &reqwest::Url) -> bool {
+    if url.scheme() != "https" || !url.username().is_empty() || url.password().is_some() {
+        return false;
+    }
+    if url.port().is_some_and(|p| p != 443) {
+        return false;
+    }
+    // `domain()` es None para IPs literales (v4 y v6).
+    let Some(host) = url.domain() else {
+        return false;
+    };
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    IMAGE_HOSTS
+        .iter()
+        .any(|d| host == *d || host.ends_with(&format!(".{d}")))
+}
+
+static IMAGE_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+
+fn image_client() -> &'static reqwest::Client {
+    IMAGE_CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .user_agent(USER_AGENT)
+            .timeout(Duration::from_secs(8))
+            .connect_timeout(Duration::from_secs(4))
+            // Cada salto se valida con la misma lista blanca: sin esto, un host
+            // permitido que redirija a una IP interna reabriría el SSRF.
+            .redirect(reqwest::redirect::Policy::custom(|attempt| {
+                if attempt.previous().len() >= 5 || !external_image_allowed(attempt.url()) {
+                    attempt.stop()
+                } else {
+                    attempt.follow()
+                }
+            }))
+            .build()
+            .unwrap_or_default()
+    })
+}
+
+/// Descarga una imagen externa indicada por el cliente con todas las
+/// restricciones anti-SSRF. `None` ante cualquier incumplimiento o fallo.
+pub(crate) async fn fetch_external_image(raw_url: &str) -> Option<Vec<u8>> {
+    let url = reqwest::Url::parse(raw_url).ok()?;
+    if !external_image_allowed(&url) {
+        tracing::debug!(
+            "[SSRF] URL externa rechazada: {}",
+            url.host_str().unwrap_or("?")
+        );
+        return None;
+    }
+    let mut res = image_client().get(url).send().await.ok()?;
+    if !res.status().is_success() {
+        return None;
+    }
+    let is_image = res
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|ct| ct.trim().to_ascii_lowercase().starts_with("image/"));
+    if !is_image {
+        return None;
+    }
+    if res
+        .content_length()
+        .is_some_and(|n| n as usize > MAX_EXTERNAL_IMAGE)
+    {
+        return None;
+    }
+    // Lectura por trozos con tope: Content-Length puede faltar o mentir.
+    let mut body = Vec::new();
+    while let Some(chunk) = res.chunk().await.ok()? {
+        if body.len() + chunk.len() > MAX_EXTERNAL_IMAGE {
+            return None;
+        }
+        body.extend_from_slice(&chunk);
+    }
+    (body.len() > 100).then_some(body)
+}
+
 // ── Cortacircuitos de iTunes ─────────────────────────────────────────────────
 //
 // iTunes Search está bloqueado desde la IP del VPS: cada llamada esperaba el
@@ -298,6 +404,28 @@ mod tests {
         itunes_report_failure();
         assert!(!itunes_available());
         ITUNES_OPEN_UNTIL_MS.store(0, Ordering::Relaxed);
+    }
+
+    #[test]
+    fn lista_blanca_de_imagenes_externas() {
+        let ok = |u: &str| external_image_allowed(&reqwest::Url::parse(u).unwrap());
+        // Permitidas: dominios de la lista y sus subdominios, por HTTPS.
+        assert!(ok("https://i.ytimg.com/vi/abc/hqdefault.jpg"));
+        assert!(ok("https://is1-ssl.mzstatic.com/image/x/600x600bb.jpg"));
+        assert!(ok("https://ia800.us.archive.org/1/items/x/cover.jpg"));
+        assert!(ok("https://coverartarchive.org/release/x/front-500"));
+        // SSRF: red interna, metadatos cloud, IPs, otros esquemas/puertos, trucos de dominio.
+        assert!(!ok("http://i.ytimg.com/vi/abc/hqdefault.jpg")); // http
+        assert!(!ok("https://169.254.169.254/latest/meta-data/"));
+        assert!(!ok("https://127.0.0.1/"));
+        assert!(!ok("https://[::1]/"));
+        assert!(!ok("https://redis:6379/"));
+        assert!(!ok("https://mariadb/"));
+        assert!(!ok("https://i.ytimg.com:8443/x.jpg"));
+        assert!(!ok("https://user:pass@i.ytimg.com/x.jpg"));
+        assert!(!ok("https://evilytimg.com/x.jpg")); // sufijo sin punto
+        assert!(!ok("https://ytimg.com.evil.net/x.jpg"));
+        assert!(!ok("file:///etc/passwd"));
     }
 
     #[test]

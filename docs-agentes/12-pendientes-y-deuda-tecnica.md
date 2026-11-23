@@ -14,13 +14,12 @@ fecha y el commit**. Las prioridades son una propuesta; el dueño del proyecto d
 
 ## P0 — Seguridad
 
-1. **SSRF en `GET /api/v1/covers/:mbid?fallback=<url>`** (`tidol-core/src/media.rs`, paso 4
-   de `get_cover`). Ruta **pública**, acepta cualquier URL que empiece por `http`, sigue
-   redirecciones y devuelve el cuerpo como imagen si pesa > 100 bytes. Permite que cualquiera
-   haga que el servidor pida URLs internas (otros contenedores de `tidol-net`, el endpoint de
-   metadatos del proveedor cloud del VPS…). Arreglo: lista blanca de hosts (`i.ytimg.com`,
-   `*.mzstatic.com`, `archive.org`, `coverartarchive.org`…), sin redirecciones a hosts fuera
-   de la lista, comprobar `Content-Type: image/*`, límite de tamaño.
+1. ✅ *2026-11-23* **SSRF en `/covers?fallback=` y `/colors/extract`** — `net::fetch_external_image`:
+   solo HTTPS a una lista blanca (`ytimg.com`, `mzstatic.com`, `coverartarchive.org`, `archive.org`,
+   `scdn.co`, `sndcdn.com` y subdominios), sin IPs literales/credenciales/puertos ≠ 443, cada
+   redirección revalidada, `image/*` y ≤ 5 MB leído por trozos. `/colors/extract` además solo lee
+   rutas locales bajo `uploads/` o `covers/` (antes cualquier ruta, `../` incluido). Verificado con un
+   listener: 0 conexiones del servidor a 127.0.0.1/::1/169.254.169.254; el fallback de YouTube sigue.
 2. **Secretos en ficheros versionados** — ✅ *fuera del árbol 2026-11-23*; ⚠️ **ROTACIÓN PENDIENTE**
    (siguen en el historial de git; hay que darlos por comprometidos):
    - `Caddyfile` (raíz): token de DuckDNS → ahora `{env.DUCKDNS_API_TOKEN}`. **Regenerar en duckdns.org.**
