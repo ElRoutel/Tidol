@@ -81,7 +81,7 @@ Rutas: todas las rutas son relativas a la raíz del repo git
 - **FullScreenPlayer** → [07](07-frontend.md#reproductor-ui), [08](08-flujos-reproduccion-portadas-letras.md) · `components/FullScreenPlayer.jsx`
 
 ### H
-- **Healthcheck que miente** → [10](10-infraestructura-y-deploy.md#trampas-conocidas)
+- **Healthcheck (`/api/v1/health`, antes "el que mentía")** → [10](10-infraestructura-y-deploy.md#trampas-conocidas) · `tidol-core/Dockerfile`, `handlers::health_handler`
 - **Historial de reproducción (`play_history`)** → [05](05-base-de-datos.md), [03](03-backend-tidol-core.md#catalogrs) · `catalog.rs::log_play`, `user_data.rs::get_history`
 - **Home (dashboard, "Volver a escuchar")** → [03](03-backend-tidol-core.md#orchestratorrs) · `orchestrator.rs::get_home_dashboard`, `get_listen_again`; front `hooks/useHome.js`, `components/home/views/HomeAllView.jsx`
 - **hydrate_unknown_tracks ("Ghost Cleaner")** → [03](03-backend-tidol-core.md#librs)

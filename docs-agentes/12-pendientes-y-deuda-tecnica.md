@@ -95,16 +95,16 @@ fecha y el commit**. Las prioridades son una propuesta; el dueño del proyecto d
 - **Errores tragados**: varios métodos devuelven `Vec` vacío ante error de BD
   (`get_album_songs`, `get_artist_songs`, `get_local_likes`…) — el front no distingue fallo de vacío.
 - **Versiones de `reqwest` mezcladas**: 0.11 (core, lyrics, shell), 0.12 (archive, jamendo), 0.13 (bad_engine).
-- **Healthcheck**: añadir `GET /health` (que toque la BD) y usar `curl -f` en el `Dockerfile`.
-- `DATABASE_MAX_CONNECTIONS` default 100 en el binario y en el `Dockerfile` vs 50 en compose.
+- ✅ *2026-11-23*: `GET /api/v1/health` (toca la BD) + `curl -f` en el HEALTHCHECK del `Dockerfile`.
+- `DATABASE_MAX_CONNECTIONS` default 100 en el binario (el `Dockerfile` ya usa 50 como compose, 2026-11-23).
 - ✅ *2026-11-22 (rendimiento)*: cliente HTTP compartido (`net.rs`) en vez de uno por petición;
   caché de 6 h para `get_similar_tracks` (Home); CAA en paralelo acotado en `get_cover`;
   backfill de `playlist_songs.position` solo si hace falta; prefetch de `bad_engine` sin coste
   cuando no hay binario.
 - ✅ *2026-11-23*: `[profile.release] lto = "thin"` en `tidol-workspace/Cargo.toml` (+2–3,5 % req/s
   en todas las rutas medidas; build limpio 204 → 206 s). `strip` descartado (backtraces legibles).
-- Rendimiento pendiente: el `Dockerfile` recompila todas las dependencias en cada deploy (no hay capa
-  de caché de dependencias, p.ej. `cargo-chef`); es lo que más tarda del deploy; el limitador de MusicBrainz ya es global vía Redis
+- ✅ *2026-11-23*: `Dockerfile` con cargo-chef (capa de dependencias cacheada).
+- Rendimiento pendiente: el limitador de MusicBrainz ya es global vía Redis
   (verificado: 2 réplicas en carga → exactamente 1 req/s en total).
 - ✅ *2026-11-22*: limitador común de MusicBrainz con prioridades (`net.rs`) + pistas de portada
   desde la búsqueda. Benchmark local (20 portadas sin caché + búsqueda simultánea): antes la

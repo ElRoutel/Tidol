@@ -487,6 +487,34 @@ pub async fn get_cover_handler(
 }
 
 // =========================================================================
+// HEALTH
+// =========================================================================
+/// `GET /api/v1/health` (pública): 200 si la BD responde, 503 si no. Es el
+/// HEALTHCHECK de la imagen Docker (`curl -f`). `cache` es informativo: Redis
+/// es opcional y su caída no hace al backend "unhealthy".
+pub async fn health_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let db_ok = state.core.health_check().await;
+    let cache = if tidol_core::cache::is_connected() {
+        "redis"
+    } else {
+        "memory"
+    };
+    let status = if db_ok {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+    (
+        status,
+        Json(json!({
+            "status": if db_ok { "ok" } else { "degraded" },
+            "db": if db_ok { "ok" } else { "unreachable" },
+            "cache": cache,
+        })),
+    )
+}
+
+// =========================================================================
 // PLAYLISTS
 // =========================================================================
 pub async fn get_playlists_handler(
@@ -808,6 +836,23 @@ mod tests {
                 redis_url: None,
             })),
         }
+    }
+
+    #[tokio::test]
+    async fn health_con_bd_caida_da_503() {
+        let app = Router::new()
+            .route("/health", get(health_handler))
+            .with_state(test_state());
+        let res = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/health")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
     }
 
     /// Router mínimo con la MISMA construcción que main.rs: ruta protegida por

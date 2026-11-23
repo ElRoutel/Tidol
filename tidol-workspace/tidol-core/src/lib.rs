@@ -249,6 +249,20 @@ impl TidolCore {
         }
     }
 
+    /// ¿Responde la BD? (`SELECT 1` con timeout de 2 s). Lo usa `GET /api/v1/health`,
+    /// el HEALTHCHECK de la imagen Docker: antes el healthcheck hacía `curl` a `/`
+    /// (404) sin `-f` y el contenedor salía "healthy" aunque nada funcionara.
+    pub async fn health_check(&self) -> bool {
+        matches!(
+            tokio::time::timeout(
+                std::time::Duration::from_secs(2),
+                sqlx::query("SELECT 1").execute(&self.db),
+            )
+            .await,
+            Ok(Ok(_))
+        )
+    }
+
     /// Tarea de fondo: rellena pistas "Unknown" en track_links resolviéndolas
     /// contra el orquestador de metadatos (con throttling).
     pub async fn hydrate_unknown_tracks(&self) {

@@ -126,6 +126,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/v1/lyrics/:track_id", get(handlers::get_lyrics_handler))
         .route("/api/v1/covers/:mbid", get(handlers::get_cover_handler))
         // Embed endpoints (public so frontend can use without auth for search preview)
+        // Healthcheck de Docker: 200 si la BD responde, 503 si no.
+        .route("/api/v1/health", get(handlers::health_handler))
         .route("/api/v1/embed/search", get(handlers::embed_search_handler))
         .route(
             "/api/v1/embed/resolve/:platform_id",

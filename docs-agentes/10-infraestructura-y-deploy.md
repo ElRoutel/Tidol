@@ -97,9 +97,16 @@ En local, `tidol-workspace/.env` (git-ignorado) aporta `DATABASE_URL` y demás.
 
 ## Trampas conocidas
 
-- **Healthcheck que miente:** la `HEALTHCHECK` de la imagen hace `curl -s http://localhost:8080/`
-  (404) sin `-f`, así que el contenedor sale *healthy* aunque la app esté rota. Por eso el
-  deploy verifica el 401. Mejor arreglo pendiente: añadir `/health` y usar `curl -f`.
+- ✅ **Healthcheck** (arreglado 2026-11-23): antes hacía `curl -s http://localhost:8080/` (404) sin
+  `-f` y el contenedor salía *healthy* con la app rota. Ahora `curl -f` contra **`GET /api/v1/health`**
+  (`SELECT 1` en la BD con timeout de 2 s → 200, o 503). Ojo: la prueba de vida de `deploy.sh`
+  (`/auth/me` sin token → 401) sigue aparte y **no** detecta un `JWT_SECRET` roto ni la BD caída
+  (sin token el middleware responde 401 antes de mirar nada).
+- **Build con cargo-chef** (2026-11-23): las dependencias se compilan en una capa propia que solo se
+  invalida si cambian `Cargo.toml`/`Cargo.lock`; un cambio de código ya no recompila las ~200
+  dependencias. Se eligió cargo-chef (capas normales) y no `RUN --mount=type=cache` porque este
+  exige BuildKit/buildx, que no está en todas las máquinas. `cargo-chef` fijado a 0.1.72 (anterior a
+  Rust 1.89): no subirlo sin probar el build.
 - **Sin `JWT_SECRET`** el servidor arranca y responde, pero toda ruta autenticada da 500.
 - **Perfil de release**: `lto = "thin"` en el `Cargo.toml` del workspace (los perfiles de los
   miembros se ignoran). El build del VPS usa Rust 1.89: `tidol-core` declara `rust-version = "1.89"`
