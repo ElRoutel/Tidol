@@ -46,6 +46,18 @@ curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:3000/api/v1/auth/me
 sin tocar el `.env`: `DATABASE_URL="${DATABASE_URL}?ssl-mode=disabled" cargo sqlx prepare --workspace`.
 El servidor (sqlx 0.7) conecta sin problema.
 
+### Redis local (opcional)
+
+El backend funciona sin Redis (solo cachés en memoria). Para probar la caché compartida:
+```bash
+sudo pacman -S --needed valkey && sudo systemctl start valkey   # Arch: Valkey = Redis compatible
+# y en tidol-workspace/.env:  REDIS_URL=redis://127.0.0.1:6379
+valkey-cli --scan --pattern 'tidol:v1:*'                         # ver qué se ha cacheado
+```
+Para simular fallos sin sudo: `valkey-cli client pause 5000 all` (Redis colgado) y
+`valkey-cli client kill type normal` (reinicio). Para probar varias réplicas en local:
+`./dev.sh backend` (:3000) + `PORT=3001 ./target/debug/tidol-server` desde `tidol-workspace/`.
+
 ## Backend
 
 ```bash

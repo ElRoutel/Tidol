@@ -68,6 +68,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let spotify_client_secret = std::env::var("SPOTIFY_CLIENT_SECRET").unwrap_or_default();
     let soundcloud_client_id = std::env::var("SOUNDCLOUD_CLIENT_ID").unwrap_or_default();
     let jwt_secret = std::env::var("JWT_SECRET").ok();
+    // Caché compartida entre réplicas (compose ya lo pasaba, pero nadie lo leía).
+    let redis_url = std::env::var("REDIS_URL")
+        .ok()
+        .filter(|s| !s.trim().is_empty());
 
     let config = CoreConfig {
         database_url,
@@ -79,6 +83,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         spotify_client_secret,
         soundcloud_client_id,
         jwt_secret,
+        redis_url,
     };
 
     // El core abre el pool, ejecuta migraciones, carga plugin y monta proveedores.

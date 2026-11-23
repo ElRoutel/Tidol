@@ -2,6 +2,11 @@
 name = "tidol-core"
 version = "0.2.0"
 edition = "2021"
+# Versión de Rust de la imagen de producción (tidol-core/Dockerfile: rust:1.89).
+# Declararla hace que el resolver de Cargo elija dependencias compatibles: en
+# local hay un Rust más nuevo y, sin esto, un crate nuevo compilaba aquí pero
+# rompía el build del VPS.
+rust-version = "1.89"
 
 [features]
 # Marcador de posición para futura reproducción desde biblioteca local.
@@ -44,6 +49,9 @@ regex = "1.10"
 moka = { version = "0.12", features = ["future"] }
 # Firma HMAC de las pistas de portada en la URL (/covers?c=…&s=…). Ya estaban en
 # el árbol de dependencias vía sqlx: no añaden descargas.
+# Caché compartida entre réplicas (ver src/cache.rs). connection-manager reconecta
+# solo si Redis se reinicia. 0.32: rust-version 1.80 (la imagen usa 1.89).
+redis = { version = "0.32", default-features = false, features = ["tokio-comp", "connection-manager", "script"] }
 hmac = "0.12"
 sha2 = "0.10"
 

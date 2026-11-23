@@ -62,8 +62,9 @@ fecha y el commit**. Las prioridades son una propuesta; el dueño del proyecto d
    que `get_lyrics` no entiende; tampoco existe en la imagen Docker. Eliminarlo junto con
    `trigger_bad_engine_prefetch`, o arreglarlo (ver [06](06-proveedores-plugins-y-workers.md#bad_engine)).
 8. **Cuota de YouTube**: ~100 búsquedas/día. Persistir `videoId` resuelto por mbid (la columna
-   `track_links.yt_video_id` ya existe y está sin usar) y reutilizarlo antes de buscar; caché
-   compartida (Redis) entre réplicas; pedir ampliación de cuota.
+   `track_links.yt_video_id` ya existe y está sin usar) y reutilizarlo antes de buscar; pedir
+   ampliación de cuota. ✅ *2026-11-23*: caché compartida en Redis (búsquedas 7 d, clave
+   normalizada): la misma búsqueda ya no se paga una vez por réplica ni tras cada deploy.
 9. **Spotify/SoundCloud**: código listo, sin credenciales, y sus widgets no son controlables
    desde la UI. Decidir si se ofrecen como "abrir en la plataforma" o se retiran.
 10. **iTunes bloqueado desde el VPS**: las portadas de artista y el paso 3 de `get_cover` fallan
@@ -88,7 +89,8 @@ fecha y el commit**. Las prioridades son una propuesta; el dueño del proyecto d
   radio, home y prefetch. Partir por dominio como se hizo con `TidolCore`.
 - **Path absoluto de la máquina del dev** como fallback en `trigger_bad_engine_prefetch`.
 - **`hydrate_unknown_tracks`** se ejecuta en cada réplica al arrancar; debería ser un job único.
-- **Cachés en memoria por réplica** (YouTube, misses de portadas). Redis está levantado sin uso.
+- ✅ *2026-11-23*: Redis en uso (`cache.rs`) para YouTube, similares y la ventana global de
+  MusicBrainz. Siguen por réplica (menor impacto): Internet Archive y Spotify/SoundCloud.
 - **Home "top artists"** une `track_links.artist = artists.name` (por nombre). Guardar `artist_mbid`.
 - **Errores tragados**: varios métodos devuelven `Vec` vacío ante error de BD
   (`get_album_songs`, `get_artist_songs`, `get_local_likes`…) — el front no distingue fallo de vacío.
@@ -100,8 +102,8 @@ fecha y el commit**. Las prioridades son una propuesta; el dueño del proyecto d
   backfill de `playlist_songs.position` solo si hace falta; prefetch de `bad_engine` sin coste
   cuando no hay binario.
 - Rendimiento pendiente: `[profile.release]` sin LTO (valorar `lto = "thin"` frente al tiempo de
-  build en el VPS); las cachés siguen siendo por réplica (también el limitador
-  de MusicBrainz: con N réplicas el ritmo total es N req/s; compartirlo requeriría Redis).
+  build en el VPS); el limitador de MusicBrainz ya es global vía Redis
+  (verificado: 2 réplicas en carga → exactamente 1 req/s en total).
 - ✅ *2026-11-22*: limitador común de MusicBrainz con prioridades (`net.rs`) + pistas de portada
   desde la búsqueda. Benchmark local (20 portadas sin caché + búsqueda simultánea): antes la
   búsqueda salía vacía por 503 y solo 3/20 portadas; ahora la búsqueda trae resultados y la

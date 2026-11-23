@@ -852,12 +852,21 @@ impl MetadataOrchestrator {
         if let Some(hit) = self.similar_cache.get(&cache_key).await {
             return Ok(hit);
         }
+        // Nivel 2 (Redis): una sola réplica paga Last.fm + hasta 10 resoluciones
+        // en MusicBrainz (a 1 req/s); las demás, y la propia tras un deploy, lo
+        // reutilizan.
+        let shared_key = crate::cache::key("similar", &cache_key);
+        if let Some(hit) = crate::cache::get_json::<Vec<TrackProfile>>(&shared_key).await {
+            self.similar_cache.insert(cache_key, hit.clone()).await;
+            return Ok(hit);
+        }
 
         let result = self.fetch_similar_tracks(artist, title, limit, db).await?;
         // Solo se cachean resultados con contenido: un vacío suele ser un fallo
         // transitorio (Last.fm/MB caídos) y no debe "envenenar" la Home 6 horas.
         if !result.is_empty() {
             self.similar_cache.insert(cache_key, result.clone()).await;
+            crate::cache::set_json(&shared_key, &result, SIMILAR_CACHE_TTL).await;
         }
         Ok(result)
     }

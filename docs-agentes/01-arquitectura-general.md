@@ -23,7 +23,7 @@
       │        │                       │  · reproduce audio de archive.org con <audio>
       │        │                       │  · pide letras a LRCLIB (web component am-lyrics)
  ┌────▼───┐ ┌──▼────┐
- │MariaDB │ │ Redis │ (Redis: levantado, SIN USO)
+ │MariaDB │ │ Redis │ (caché compartida entre réplicas: YouTube, similares, límite de MusicBrainz)
  └────────┘ └───────┘
       APIs externas que llama el backend:
       MusicBrainz · Cover Art Archive · iTunes Search · Wikipedia · Last.fm ·

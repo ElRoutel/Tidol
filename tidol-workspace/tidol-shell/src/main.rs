@@ -220,6 +220,7 @@ fn core_config_from_env() -> Result<CoreConfig, String> {
         spotify_client_secret: std::env::var("SPOTIFY_CLIENT_SECRET").unwrap_or_default(),
         soundcloud_client_id: std::env::var("SOUNDCLOUD_CLIENT_ID").unwrap_or_default(),
         jwt_secret: std::env::var("JWT_SECRET").ok(),
+        redis_url: std::env::var("REDIS_URL").ok().filter(|s| !s.trim().is_empty()),
     })
 }
 

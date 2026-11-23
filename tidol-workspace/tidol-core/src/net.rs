@@ -141,7 +141,59 @@ fn mb_threshold(p: MbPriority) -> f64 {
 }
 
 /// Espera hasta poder hacer una petición a MusicBrainz con la prioridad dada.
+///
+/// Dos niveles: el cubo local (prioridades dentro de la réplica) y, si hay
+/// Redis, una ventana por segundo compartida por TODAS las réplicas. MB limita
+/// por IP: con 3 réplicas y solo el cubo local, el total llegaba a 3 req/s.
 pub(crate) async fn mb_acquire(priority: MbPriority) {
+    mb_acquire_local(priority).await;
+    mb_acquire_global(priority).await;
+}
+
+/// Peticiones por segundo admitidas en TODO el despliegue según prioridad:
+/// el fondo solo entra si en este segundo no ha salido ninguna; lo interactivo
+/// admite una segunda (misma idea que los umbrales del cubo local).
+fn mb_global_max(p: MbPriority) -> u32 {
+    match p {
+        MbPriority::Interactive => 2,
+        MbPriority::Background => 1,
+    }
+}
+
+/// Espera máxima en la ventana global: nunca se cuelga una petición por el
+/// limitador; pasado esto se envía igual (MB puede responder 503 y `mb_get`
+/// reintenta).
+const MB_GLOBAL_MAX_WAIT: Duration = Duration::from_secs(10);
+
+async fn mb_acquire_global(priority: MbPriority) {
+    let max = mb_global_max(priority);
+    let deadline = tokio::time::Instant::now() + MB_GLOBAL_MAX_WAIT;
+    loop {
+        let now = now_ms();
+        let window = now / 1000;
+        let key = crate::cache::key("mb:rl", &window.to_string());
+        match crate::cache::window_admit(&key, max, Duration::from_secs(2)).await {
+            // Sin Redis: solo el límite local (comportamiento de una réplica).
+            None | Some(true) => return,
+            Some(false) => {}
+        }
+        if tokio::time::Instant::now() >= deadline {
+            tracing::debug!(
+                "[MusicBrainz] ventana global llena tras {:?}; se envía igual",
+                MB_GLOBAL_MAX_WAIT
+            );
+            return;
+        }
+        // Dormir hasta el siguiente segundo, con un desfase pseudoaleatorio
+        // (0-90 ms) para que las réplicas no despierten todas a la vez.
+        let jitter = (now % 7) * 13;
+        let until_next = 1000 - (now % 1000) + jitter;
+        tokio::time::sleep(Duration::from_millis(until_next)).await;
+    }
+}
+
+/// Cubo de fichas local (por proceso) con prioridades.
+async fn mb_acquire_local(priority: MbPriority) {
     let bucket = MB_BUCKET.get_or_init(|| {
         tokio::sync::Mutex::new(Bucket {
             tokens: MB_BURST,

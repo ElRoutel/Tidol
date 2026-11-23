@@ -3,6 +3,14 @@ use async_trait::async_trait;
 use moka::future::Cache;
 use std::time::Duration;
 
+/// Caducidad en Redis de búsquedas y vídeos de YouTube. Muy por debajo del
+/// límite de 30 días de las políticas de YouTube API Services para guardar datos
+/// de la API sin refrescarlos.
+const YT_SHARED_TTL: Duration = Duration::from_secs(7 * 24 * 60 * 60);
+/// Búsquedas sin resultados: menos tiempo (consulta mal escrita, vídeo que se
+/// sube después).
+const YT_EMPTY_TTL: Duration = Duration::from_secs(6 * 60 * 60);
+
 /// YouTube provider using the official YouTube Data API v3.
 /// Only returns embed URLs — never direct audio streams.
 pub struct YouTubeProvider {
@@ -84,9 +92,25 @@ impl MusicProvider for YouTubeProvider {
     }
 
     async fn search(&self, query: &str, limit: u32) -> Result<Vec<Track>, ProviderError> {
-        let cache_key = format!("{}:{}", query, limit);
+        // Clave normalizada (minúsculas, espacios colapsados): antes "Soda Stereo"
+        // y "soda  stereo" eran entradas distintas y cada una gastaba cuota.
+        let normalized = query
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase();
+        let cache_key = format!("{}:{}", normalized, limit);
 
+        // Nivel 1: memoria del proceso.
         if let Some(cached) = self.search_cache.get(&cache_key).await {
+            return Ok(cached);
+        }
+        // Nivel 2: Redis, compartido por las réplicas y persistente entre deploys.
+        // `search.list` cuesta 100 de las 10 000 unidades diarias: cada acierto
+        // aquí es ~1 % de la cuota del día ahorrado.
+        let shared_key = crate::cache::key("yt:search", &cache_key);
+        if let Some(cached) = crate::cache::get_json::<Vec<Track>>(&shared_key).await {
+            self.search_cache.insert(cache_key, cached.clone()).await;
             return Ok(cached);
         }
 
@@ -127,6 +151,9 @@ impl MusicProvider for YouTubeProvider {
         if items.is_empty() {
             let result = Vec::new();
             self.search_cache.insert(cache_key, result.clone()).await;
+            // Un vacío se comparte menos tiempo: puede ser una consulta mal escrita
+            // que el usuario corregirá, o un vídeo que se suba más tarde.
+            crate::cache::set_json(&shared_key, &result, YT_EMPTY_TTL).await;
             return Ok(result);
         }
 
@@ -200,11 +227,19 @@ impl MusicProvider for YouTubeProvider {
             .collect();
 
         self.search_cache.insert(cache_key, tracks.clone()).await;
+        crate::cache::set_json(&shared_key, &tracks, YT_SHARED_TTL).await;
         Ok(tracks)
     }
 
     async fn resolve(&self, id: &str) -> Result<EmbedInfo, ProviderError> {
         if let Some(cached) = self.resolve_cache.get(&id.to_string()).await {
+            return Ok(cached);
+        }
+        let shared_key = crate::cache::key("yt:video", id);
+        if let Some(cached) = crate::cache::get_json::<EmbedInfo>(&shared_key).await {
+            self.resolve_cache
+                .insert(id.to_string(), cached.clone())
+                .await;
             return Ok(cached);
         }
 
@@ -238,6 +273,7 @@ impl MusicProvider for YouTubeProvider {
         self.resolve_cache
             .insert(id.to_string(), info.clone())
             .await;
+        crate::cache::set_json(&shared_key, &info, YT_SHARED_TTL).await;
         Ok(info)
     }
 

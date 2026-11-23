@@ -6,6 +6,7 @@
 // proveedores, criptografía/JWT de auth, procesamiento de imágenes y tipos de
 // dominio). El transporte HTTP vive en el binario `tidol-server`.
 // =========================================================================
+pub mod cache;
 pub mod config;
 pub mod error;
 pub mod lyrics;
@@ -76,6 +77,9 @@ impl TidolCore {
             .max_connections(config.database_max_connections)
             .connect(&config.database_url)
             .await?;
+        // Caché compartida entre réplicas (Redis). No bloquea el arranque: si
+        // Redis aún no responde, se conecta en segundo plano (ver cache.rs).
+        cache::init(config.redis_url.clone());
         // Clave de firma de las pistas de portada (ver media.rs).
         media::init_cover_hint_key(config.jwt_secret.as_deref());
         info!("[OK] Database connection established.");

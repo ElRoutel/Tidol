@@ -942,6 +942,7 @@ mod tests {
             spotify_client_secret: String::new(),
             soundcloud_client_id: String::new(),
             jwt_secret: None,
+            redis_url: None,
         })
     }
 

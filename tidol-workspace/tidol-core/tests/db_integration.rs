@@ -49,6 +49,7 @@ async fn core() -> TidolCore {
         spotify_client_secret: String::new(),
         soundcloud_client_id: String::new(),
         jwt_secret: Some("secreto-integracion".into()),
+        redis_url: None,
     })
     .await
     .expect("TidolCore::new contra la BD de prueba (¿está levantada? ver scripts/test-db.sh)")

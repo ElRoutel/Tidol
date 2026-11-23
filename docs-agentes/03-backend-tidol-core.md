@@ -4,7 +4,9 @@
 
 `tidol-core` es una **lib sin `axum`**: SQL (sqlx/MariaDB), HTTP saliente (reqwest),
 orquestación de metadatos, proveedores de embed, JWT/argon2, imágenes. La consumen
-`tidol-server` (HTTP) y `tidol-shell` (REPL). Versión de crate `0.2.0`, edition 2021.
+`tidol-server` (HTTP) y `tidol-shell` (REPL). Versión de crate `0.2.0`, edition 2021, `rust-version = "1.89"` (la de la imagen de
+producción: con ella el resolver de Cargo no elige dependencias que solo compilen en el Rust más
+nuevo de la máquina del dev; al añadir crates usa `CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS=fallback cargo update`).
 
 ## `Cargo.toml`
 
@@ -13,7 +15,8 @@ orquestación de metadatos, proveedores de embed, JWT/argon2, imágenes. La cons
   - `test-util` — expone `TidolCore::new_disconnected` a otros crates (tests del middleware en `tidol-server`).
   - `db-tests` — activa `tests/db_integration.rs` (necesita BD de prueba, ver [11](11-desarrollo-local-y-pruebas.md)).
 - Dependencias clave: `sqlx 0.7` (mysql, macros), `reqwest 0.11` (socks), `musicbrainz_rs 0.13`,
-  `jsonwebtoken 9`, `argon2 0.5`, `image` + `color-thief`, `moka` (cachés con TTL),
+  `jsonwebtoken 9`, `argon2 0.5`, `image` + `color-thief`, `moka` (cachés con TTL), `redis 0.32`
+  (caché compartida), `hmac`/`sha2` (firma de pistas de portada),
   `libloading` (plugins `.so`), `tracing`.
 - Otros ficheros del crate: `Dockerfile` (la imagen de **producción del backend**, ver [10](10-infraestructura-y-deploy.md)),
   `.dockerignore`, `.gitignore`, `postgresql_migration.sql` (esquema para un **posible paso a
@@ -201,6 +204,23 @@ ningún camino lo invoca** (campo marcado `#[allow(dead_code)]`); `get_lyrics` v
   una ráfaga de portadas. `mb_get` reintenta 2 veces ante 503/429. Todas las llamadas a MB del
   core pasan por aquí, también las de `musicbrainz_rs` (se llama a `mb_acquire` antes). **Por
   réplica**: con N réplicas el total es N req/s.
+
+### `cache.rs`
+Caché compartida entre réplicas (Redis/Valkey), **segundo nivel** detrás de las cachés `moka` de
+cada proceso. Añadida el 2026-11-23: Redis llevaba meses en compose con `REDIS_URL` sin que nada lo
+leyera, y con 3 réplicas cada búsqueda de YouTube (100 de 10 000 unidades/día) podía pagarse 3 veces.
+- `init(redis_url)` (desde `TidolCore::new`, no bloquea): conecta en segundo plano y reintenta cada
+  15 s si Redis aún no responde. Sin `REDIS_URL` → desactivada.
+- `get_json` / `set_json` (JSON con TTL) y `window_admit` (ventana fija atómica con Lua, para el
+  límite global de MusicBrainz). Claves `tidol:v1:<espacio>:<clave>` (SHA-256 si > 200 chars).
+- **Nunca rompe una petición**: timeout de 250 ms por operación; ante un error de conexión reintenta
+  una vez (el `ConnectionManager` ya reconectó); ante un timeout o un segundo fallo abre un
+  cortacircuitos de 30 s. Cualquier fallo = "no está en caché".
+- Usos: YouTube `yt:search` (7 d, vacíos 6 h) y `yt:video` (7 d) — bajo el límite de 30 días de las
+  políticas de YouTube API Services —, `similar` (6 h), `mb:rl` (ventana por segundo).
+- Verificado en local con 2 réplicas y Valkey 9: búsqueda/radio de una réplica servida por la otra
+  desde Redis (radio: 25,9 s en frío → 2,5 ms); 1,00 req/s a MusicBrainz sumando ambas; con Redis
+  colgado solo la 1.ª petición paga 250 ms; tras `CLIENT KILL` la siguiente acierta en 3 ms.
 
 ### `proxy.rs`
 `ProxyRotator`: round-robin sobre `PROXY_POOL` (`"direct"` por defecto) y

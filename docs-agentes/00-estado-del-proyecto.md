@@ -63,7 +63,7 @@ Resumen; el detalle priorizado está en [12](12-pendientes-y-deuda-tecnica.md).
   imagen pero **nadie los carga**. El plugin `provider-lyrics` se carga pero **nunca se usa**.
 - **`bad_engine`** (prefetch de letras): no existe en la imagen Docker → en producción el
   prefetch se salta con un `warn`.
-- **Redis**: está en el compose pero el backend no lo usa.
+- **Redis**: caché compartida entre réplicas (búsquedas de YouTube 7 d, similares 6 h) y ventana global del límite de MusicBrainz, desde 2026-11-23 (`tidol-core/src/cache.rs`). Opcional: sin `REDIS_URL` todo funciona solo con memoria.
 - **`tidol-shell` modo local**: la mayoría de comandos devuelven `NotImplemented`.
 - **Cuota de YouTube Data API v3**: 10 000 unidades/día ≈ 100 búsquedas/día. Hay caché en
   memoria de 1 h por réplica, nada más.

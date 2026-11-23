@@ -102,7 +102,10 @@ En local, `tidol-workspace/.env` (git-ignorado) aporta `DATABASE_URL` y demás.
   deploy verifica el 401. Mejor arreglo pendiente: añadir `/health` y usar `curl -f`.
 - **Sin `JWT_SECRET`** el servidor arranca y responde, pero toda ruta autenticada da 500.
 - **Pool × réplicas**: 100 × 3 = 300 > 151 `max_connections` por defecto de MariaDB.
-- **Cachés en memoria por réplica**: YouTube (1 h), misses de portadas (30 min), dedupe de
-  prefetch. Con varias réplicas no se comparten (Redis está para eso, sin usar).
+- **Cachés**: YouTube y pistas similares tienen un segundo nivel en **Redis** compartido por las
+  réplicas (`REDIS_URL`, ver [03](03-backend-tidol-core.md#cachers)); el límite de MusicBrainz usa
+  una ventana global en Redis. Siguen siendo por réplica: misses de portadas en memoria (30 min,
+  pero también en `cover_map`), Internet Archive y el dedupe de prefetch. Si Redis cae, el backend
+  sigue funcionando solo con memoria (no hay que reiniciarlo: reconecta solo).
 - **`hydrate_unknown_tracks`** corre en cada réplica al arrancar.
 - **Volumen de portadas** compartido por todas las réplicas (escrituras concurrentes al mismo fichero posibles).

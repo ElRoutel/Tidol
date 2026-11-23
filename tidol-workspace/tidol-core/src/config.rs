@@ -22,4 +22,7 @@ pub struct CoreConfig {
     /// necesitan devuelven un error en tiempo de petición (el servidor arranca
     /// igualmente, preservando el comportamiento previo).
     pub jwt_secret: Option<String>,
+    /// Redis para la caché compartida entre réplicas (`REDIS_URL`). `None` =
+    /// solo cachés en memoria por proceso (desarrollo local sin Redis).
+    pub redis_url: Option<String>,
 }

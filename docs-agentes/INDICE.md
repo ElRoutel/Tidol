@@ -115,7 +115,7 @@ Rutas: todas las rutas son relativas a la raíz del repo git
 ### R
 - **Radio (Last.fm similar tracks)** → [03](03-backend-tidol-core.md#orchestratorrs) · `orchestrator.rs::get_similar_tracks`; front `PlayerContext.tsx` (`/radio`)
 - **Rate limiting (login/register)** → [04](04-backend-tidol-server-api.md#capas-globales)
-- **Redis (en compose, sin uso)** → [10](10-infraestructura-y-deploy.md#compose), [12](12-pendientes-y-deuda-tecnica.md)
+- **Redis / Valkey (caché compartida entre réplicas)** → [03](03-backend-tidol-core.md#cachers), [10](10-infraestructura-y-deploy.md#compose), [11](11-desarrollo-local-y-pruebas.md) · `tidol-core/src/cache.rs`
 - **REPL de admin** → [09](09-tidol-shell.md)
 
 ### S
