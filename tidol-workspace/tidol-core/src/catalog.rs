@@ -114,6 +114,9 @@ pub enum LyricsError {
     NotAvailable,
 }
 
+/// Búsquedas de embeds por usuario y minuto (ver `embed_search_allowed`).
+pub const EMBED_SEARCHES_PER_MINUTE: u32 = 30;
+
 impl TidolCore {
     // -------------------------------------------------------------------------
     // FORWARDERS al orquestador de metadatos (MusicBrainz — Legal)
@@ -177,6 +180,27 @@ impl TidolCore {
     // -------------------------------------------------------------------------
     // FORWARDERS a los proveedores de embed (APIs oficiales — Legal)
     // -------------------------------------------------------------------------
+    /// ¿Puede este usuario hacer otra búsqueda de embeds ahora? Ventana por minuto
+    /// compartida entre réplicas (Redis). Cada búsqueda que no esté en caché cuesta
+    /// 100 de las 10 000 unidades diarias de YouTube: antes la ruta era PÚBLICA y
+    /// sin límite, y cualquiera podía agotar la cuota del día y dejar la app sin
+    /// reproducción. La reproducción normal hace como mucho una por canción.
+    /// Sin Redis no hay ventana compartida y se permite (la ruta ya exige sesión).
+    pub async fn embed_search_allowed(&self, user_id: i64) -> bool {
+        let minute = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() / 60)
+            .unwrap_or(0);
+        let key = crate::cache::key("rl:embed", &format!("{user_id}:{minute}"));
+        crate::cache::window_admit(
+            &key,
+            EMBED_SEARCHES_PER_MINUTE,
+            std::time::Duration::from_secs(120),
+        )
+        .await
+        .unwrap_or(true)
+    }
+
     pub async fn embed_search(&self, query: &str, limit: u32) -> Vec<Track> {
         self.embed_orchestrator.search_all(query, limit).await
     }

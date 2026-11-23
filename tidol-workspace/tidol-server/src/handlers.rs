@@ -294,10 +294,24 @@ pub async fn search_handler(
 // =========================================================================
 // EMBED (APIs oficiales — Legal)
 // =========================================================================
+/// Protegida y limitada por usuario (antes pública y sin límite: cualquiera
+/// podía agotar la cuota diaria de YouTube). 429 con el mismo cuerpo que el rate
+/// limit de login.
 pub async fn embed_search_handler(
     State(state): State<AppState>,
+    Extension(auth): Extension<AuthContext>,
     Query(params): Query<EmbedSearchQuery>,
-) -> impl IntoResponse {
+) -> axum::response::Response {
+    if !state.core.embed_search_allowed(auth.user_id).await {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(json!({
+                "status": "error",
+                "message": "Too many requests: demasiadas búsquedas, espera un minuto"
+            })),
+        )
+            .into_response();
+    }
     let limit = params.limit.unwrap_or(10);
     let tracks = state.core.embed_search(&params.q, limit).await;
 
@@ -308,6 +322,7 @@ pub async fn embed_search_handler(
             "tracks": tracks
         })),
     )
+        .into_response()
 }
 
 pub async fn embed_resolve_handler(

@@ -37,13 +37,11 @@ fecha y el commit**. Las prioridades son una propuesta; el dueño del proyecto d
    - `tidol-tv-lite-backup/src/api/axiosConfig.js`: JWT de respaldo escrito en el código → eliminado.
    - `plugins/provider-jamendo`: el client_id de respaldo es el **id de demo público** que documenta
      Jamendo, no una credencial; se deja (el plugin además no se carga).
-3. **`/api/v1/embed/search` pública y sin rate limit** → cualquiera puede agotar la cuota diaria
-   de YouTube (≈100 búsquedas) y dejar la app sin reproducción. Moverla a rutas protegidas o
-   limitarla por usuario/IP.
-4. **Rate limit de login/registro probablemente global**: `tower_governor` usa por defecto la IP
-   del peer; detrás de Caddy todas las peticiones llegan desde la IP de Caddy, así que la ráfaga
-   de 2 logins se comparte entre **todos** los usuarios (bloqueo fácil). Usar un extractor por
-   `X-Forwarded-For`/`X-Real-IP` (Caddy ya los envía) y confiar solo en el proxy.
+3. ✅ *2026-11-23* **`/embed/search` pública y sin límite** → ahora protegida (también
+   `/embed/resolve`) y con **30 búsquedas/minuto por usuario** (ventana en Redis; sin Redis no hay
+   límite compartido, pero ya exige sesión). Verificado: sin token 401; la 31.ª del minuto, 429.
+4. ✅ *2026-11-23* **Rate limit de login/registro global** → `SmartIpKeyExtractor` (IP real vía
+   `X-Forwarded-For`, que Caddy sobrescribe). Verificado: la ráfaga de una IP da 429 y otra IP entra.
 5. **JWT aceptado por `?token=` en la query** (`handlers::auth_middleware`): acaba en logs de
    Caddy/Nginx e historial. Comprobar si algún cliente lo usa todavía; si no, quitarlo.
 6. **CORS `Any`** en `tidol-server/src/main.rs`: innecesario en prod (mismo origen); restringir.

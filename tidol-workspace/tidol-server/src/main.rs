@@ -15,7 +15,9 @@ use axum::{
 };
 use dotenvy::dotenv;
 use tokio::net::TcpListener;
-use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
+use tower_governor::{
+    governor::GovernorConfigBuilder, key_extractor::SmartIpKeyExtractor, GovernorLayer,
+};
 use tracing::info;
 
 use tidol_core::{config::CoreConfig, TidolCore};
@@ -90,9 +92,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let core = Arc::new(TidolCore::new(config).await?);
     let app_state = AppState { core };
 
-    // Rate limiters
+    // Rate limiters por IP REAL del cliente (SmartIpKeyExtractor: X-Forwarded-For).
+    // Antes se usaba la IP del peer, que detrás de Caddy es siempre la de Caddy:
+    // la ráfaga de 2 logins se compartía entre TODOS los usuarios y bastaba un
+    // atacante para bloquear el login de todo el mundo. Es seguro fiarse de la
+    // cabecera porque Caddyfile.prod la SOBRESCRIBE (`header_up X-Forwarded-For
+    // {remote_host}`) y el backend solo es accesible a través de Caddy (`expose`,
+    // sin `ports`). Sin cabecera (desarrollo directo) cae a la IP del peer.
     let register_rate_limiter = Arc::new(
         GovernorConfigBuilder::default()
+            .key_extractor(SmartIpKeyExtractor)
             .per_second(1)
             .burst_size(5)
             .error_handler(rate_limit_error_handler)
@@ -102,6 +111,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let login_rate_limiter = Arc::new(
         GovernorConfigBuilder::default()
+            .key_extractor(SmartIpKeyExtractor)
             .per_second(1)
             .burst_size(2)
             .error_handler(rate_limit_error_handler)
@@ -125,17 +135,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route("/api/v1/lyrics/:track_id", get(handlers::get_lyrics_handler))
         .route("/api/v1/covers/:mbid", get(handlers::get_cover_handler))
-        // Embed endpoints (public so frontend can use without auth for search preview)
         // Healthcheck de Docker: 200 si la BD responde, 503 si no.
-        .route("/api/v1/health", get(handlers::health_handler))
+        .route("/api/v1/health", get(handlers::health_handler));
+
+    // ─── PROTECTED ROUTES ───
+    let protected_routes = Router::new()
+        // Embeds: antes públicos "para la vista previa de búsqueda"; cada búsqueda
+        // gasta cuota de YouTube, así que exigen sesión (el front ya envía el token
+        // en todas sus llamadas) y la búsqueda tiene límite por usuario.
         .route("/api/v1/embed/search", get(handlers::embed_search_handler))
         .route(
             "/api/v1/embed/resolve/:platform_id",
             get(handlers::embed_resolve_handler),
-        );
-
-    // ─── PROTECTED ROUTES ───
-    let protected_routes = Router::new()
+        )
         .route("/api/v1/home", get(handlers::get_home_dashboard_handler))
         .route(
             "/api/v1/tracks/listen-again",

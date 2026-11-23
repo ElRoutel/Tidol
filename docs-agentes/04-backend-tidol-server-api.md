@@ -83,8 +83,8 @@ Prefijo común `/api/v1`. 🔓 = pública, 🔒 = requiere JWT.
 | GET | `/albums/:mbid` | 🔒 | `get_album_details` | |
 | POST | `/albums/:mbid/report-cover-404` | 🔒 | `report_cover_404` | marca `albums.cover_status` |
 | GET | `/radio?artist=&title=&limit=` | 🔒 | `get_similar_tracks` | Last.fm |
-| GET | `/embed/search?q=&limit=` | 🔓 | `embed_search` | **consume cuota de YouTube**; pública y sin rate limit |
-| GET | `/embed/resolve/:platform_id` | 🔓 | `resolve_embed` | id `plataforma:id` (p.ej. `youtube:dQw4w9WgXcQ`) |
+| GET | `/embed/search?q=&limit=` | 🔒 | `embed_search` | **consume cuota de YouTube**; pública y sin rate limit |
+| GET | `/embed/resolve/:platform_id` | 🔒 | `resolve_embed` | id `plataforma:id` (p.ej. `youtube:dQw4w9WgXcQ`) |
 
 ### Letras, media y portadas
 | Método | Ruta | | Core | Notas |
