@@ -101,6 +101,9 @@ En local, `tidol-workspace/.env` (git-ignorado) aporta `DATABASE_URL` y demás.
   (404) sin `-f`, así que el contenedor sale *healthy* aunque la app esté rota. Por eso el
   deploy verifica el 401. Mejor arreglo pendiente: añadir `/health` y usar `curl -f`.
 - **Sin `JWT_SECRET`** el servidor arranca y responde, pero toda ruta autenticada da 500.
+- **Perfil de release**: `lto = "thin"` en el `Cargo.toml` del workspace (los perfiles de los
+  miembros se ignoran). El build del VPS usa Rust 1.89: `tidol-core` declara `rust-version = "1.89"`
+  para que Cargo no elija dependencias que solo compilan en el Rust más nuevo del dev.
 - **Pool × réplicas**: 100 × 3 = 300 > 151 `max_connections` por defecto de MariaDB.
 - **Cachés**: YouTube y pistas similares tienen un segundo nivel en **Redis** compartido por las
   réplicas (`REDIS_URL`, ver [03](03-backend-tidol-core.md#cachers)); el límite de MusicBrainz usa

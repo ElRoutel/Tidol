@@ -101,8 +101,10 @@ fecha y el commit**. Las prioridades son una propuesta; el dueño del proyecto d
   caché de 6 h para `get_similar_tracks` (Home); CAA en paralelo acotado en `get_cover`;
   backfill de `playlist_songs.position` solo si hace falta; prefetch de `bad_engine` sin coste
   cuando no hay binario.
-- Rendimiento pendiente: `[profile.release]` sin LTO (valorar `lto = "thin"` frente al tiempo de
-  build en el VPS); el limitador de MusicBrainz ya es global vía Redis
+- ✅ *2026-11-23*: `[profile.release] lto = "thin"` en `tidol-workspace/Cargo.toml` (+2–3,5 % req/s
+  en todas las rutas medidas; build limpio 204 → 206 s). `strip` descartado (backtraces legibles).
+- Rendimiento pendiente: el `Dockerfile` recompila todas las dependencias en cada deploy (no hay capa
+  de caché de dependencias, p.ej. `cargo-chef`); es lo que más tarda del deploy; el limitador de MusicBrainz ya es global vía Redis
   (verificado: 2 réplicas en carga → exactamente 1 req/s en total).
 - ✅ *2026-11-22*: limitador común de MusicBrainz con prioridades (`net.rs`) + pistas de portada
   desde la búsqueda. Benchmark local (20 portadas sin caché + búsqueda simultánea): antes la

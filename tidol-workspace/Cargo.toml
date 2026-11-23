@@ -8,3 +8,18 @@ members = [
     "plugins/provider-jamendo"
 ]
 resolver = "2"
+
+# Perfil de release (lo usa el Dockerfile de producción). Los perfiles solo se
+# leen en el Cargo.toml raíz del workspace, no en los miembros.
+#
+# lto = "thin": optimización entre crates en el enlazado. Medido en local
+# (2026-11-23, 8 núcleos, alternando binarios, 2 rondas, 64 conexiones):
+#   +2,0..3,5 % req/s en todas las rutas (auth/me con JWT+BD +3,5 %, /home +2,0 %,
+#   /covers desde disco +2,4 %) y p99 algo menor; compilación limpia 204 s → 206 s
+#   (dentro del ruido). "fat" + codegen-units=1 no se probó: alarga mucho el build,
+#   y el Dockerfile recompila TODAS las dependencias en cada deploy.
+# strip: NO. Quitar símbolos ahorra 7,6 MB (25 %) pero los backtraces de un pánico
+#   en producción perderían los nombres de función; quitar solo debuginfo ahorra
+#   0,7 MB. No compensa en una imagen de >100 MB.
+[profile.release]
+lto = "thin"
