@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "UPDATE track_links SET yt_video_id = NULL, yt_checked_at = NULL WHERE mbid = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "b61974fd73ec3247f0ba12b4b69f514630aa2bb1a4cb4cf3024b51e0c212a2eb"
+}

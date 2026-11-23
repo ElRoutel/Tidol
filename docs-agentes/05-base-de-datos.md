@@ -17,7 +17,7 @@
 | `artists` | caché de artistas de MusicBrainz | PK `mbid`; `status` `provisional`/`full_discography_synced`; `image_url` y `cover_url` (redundantes) |
 | `albums` | caché de álbumes (release-groups) | PK `mbid`, FK → artists; `cover_status` (`not_found` lo pone el front vía report-cover-404) |
 | `album_tracks` | pistas de álbum | PK `track_mbid` (¡una pista solo puede estar en un álbum!), FK → albums |
-| `track_links` | **índice maestro de pistas** reproducidas: título, artista, portada, letras | PK `mbid`; `lyrics_json` + `lyrics_status` (`pending`/`lrclib_synced`/`plain_only`/`whisper_synced`/`not_found`). Columnas **legado**: `yt_video_id`, `genius_id`, `direct_stream_url`, `premium_audio_path`, `provisional_audio_path`, `soundcloud_track_id` |
+| `track_links` | **índice maestro de pistas** reproducidas: título, artista, portada, letras | PK `mbid`; `lyrics_json` + `lyrics_status` (`pending`/`lrclib_synced`/`plain_only`/`whisper_synced`/`not_found`). `yt_video_id` + `yt_checked_at` = vídeo de YouTube recordado (desde 2026-11-23). Columnas **legado**: `genius_id`, `direct_stream_url`, `premium_audio_path`, `provisional_audio_path`, `soundcloud_track_id` |
 | `trackMetadata` | caché de metadata de búsquedas/clics/likes de IA | camelCase (herencia de otra época); PK `id`, único `trackId`. Muchas columnas legado (`localAudioPath`, `structuredWordsJson`…) |
 | `searchClicks` | analítica: query normalizada × pista → nº clics | PK compuesta |
 | `playlists` | playlists | PK `id` UUID (VARCHAR 36), FK → users |
@@ -44,6 +44,7 @@ Hay **tres mecanismos** (sí, es un poco caótico):
    - `002_playlist_position_url.sql` — mismo cambio que (1), como referencia/aplicación manual.
    - `003_play_history_indexes.sql` — índices de `play_history` y `playlist_songs`.
    - `004_cover_map.sql` — tabla `cover_map` (también la crea `TidolCore::new`).
+   - `005_track_links_yt_checked.sql` — `track_links.yt_checked_at` (también en `TidolCore::new`).
    No hay tabla de control de versiones: cada fichero debe ser **idempotente**.
 3. **`cleanup_legacy_tables.sql`** — manual, una vez, contiene DROPs irreversibles.
 

@@ -81,6 +81,21 @@ export async function resolvePlayback(track: UnifiedTrack): Promise<ResolvedPlay
     const title = track.trackName || track.title || track.attributes?.name || '';
     const q = `${artist} ${title}`.trim();
 
+    // 3a. Pista del catálogo (mbid): vídeo recordado por el backend en
+    // track_links. Antes CADA reproducción buscaba en YouTube (100 unidades de
+    // una cuota de 10 000/día); ahora solo la primera vez por pista. Si falla
+    // (sin coincidencia, 429, red), se sigue con la búsqueda de siempre.
+    const mbid = String(track.trackId || track.id || '');
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(mbid)) {
+        try {
+            const res = await api.get(`/tracks/${mbid}/youtube`, { params: { artist, title } });
+            const videoId = res.data?.videoId;
+            if (videoId) return { mode: 'youtube', videoId };
+        } catch {
+            // 404/429/red: caer a /embed/search.
+        }
+    }
+
     if (q) {
         try {
             const res = await api.get('/embed/search', { params: { q, limit: 5 } });

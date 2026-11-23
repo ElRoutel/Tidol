@@ -809,7 +809,9 @@ impl MetadataOrchestrator {
     ON DUPLICATE KEY UPDATE
         title = VALUES(title),
         artist = VALUES(artist),
-        yt_video_id = VALUES(yt_video_id),
+        -- COALESCE: aquí siempre llega NULL; sin él se BORRABA el vídeo de YouTube
+        -- recordado (catalog::youtube_for_track) al re-resolver una pista.
+        yt_video_id = COALESCE(VALUES(yt_video_id), yt_video_id),
         genius_id = VALUES(genius_id),
         cover_url = VALUES(cover_url)
     "#,

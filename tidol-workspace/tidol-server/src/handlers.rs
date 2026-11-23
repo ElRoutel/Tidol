@@ -367,6 +367,62 @@ pub async fn get_lyrics_handler(
     })
 }
 
+#[derive(Deserialize)]
+pub struct TrackYoutubeQuery {
+    pub artist: Option<String>,
+    pub title: Option<String>,
+}
+
+/// `GET /api/v1/tracks/:mbid/youtube?artist=&title=` (protegida): vídeo de
+/// YouTube recordado para la pista; si no hay, busca (límite por usuario) y lo
+/// guarda. 200 `{status, videoId, source}`, 404 sin coincidencia, 429 límite,
+/// 400 mbid inválido.
+pub async fn track_youtube_handler(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthContext>,
+    Path(mbid): Path<String>,
+    Query(q): Query<TrackYoutubeQuery>,
+) -> axum::response::Response {
+    // Solo mbids de MusicBrainz (UUID): es la clave de track_links.
+    let is_mbid = mbid.len() == 36
+        && mbid
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() || c == '-');
+    if !is_mbid {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "status": "error", "message": "mbid inválido" })),
+        )
+            .into_response();
+    }
+    let artist = q.artist.unwrap_or_default();
+    let title = q.title.unwrap_or_default();
+    match state
+        .core
+        .youtube_for_track(auth.user_id, &mbid.to_lowercase(), &artist, &title)
+        .await
+    {
+        tidol_core::YoutubeForTrack::Found { video_id, source } => (
+            StatusCode::OK,
+            Json(json!({ "status": "success", "videoId": video_id, "source": source })),
+        )
+            .into_response(),
+        tidol_core::YoutubeForTrack::NotFound => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "status": "error", "message": "sin vídeo de YouTube para esta pista" })),
+        )
+            .into_response(),
+        tidol_core::YoutubeForTrack::RateLimited => (
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(json!({
+                "status": "error",
+                "message": "Too many requests: demasiadas búsquedas, espera un minuto"
+            })),
+        )
+            .into_response(),
+    }
+}
+
 // =========================================================================
 // ACTIVIDAD DE USUARIO: LOG PLAY / HOME / LISTEN AGAIN
 // =========================================================================

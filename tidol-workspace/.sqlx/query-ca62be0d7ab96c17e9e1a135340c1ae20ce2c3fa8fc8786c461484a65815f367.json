@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT INTO track_links (mbid, title, artist, yt_video_id, yt_checked_at)\n             VALUES (?, ?, ?, ?, NOW())\n             ON DUPLICATE KEY UPDATE yt_video_id = VALUES(yt_video_id), yt_checked_at = NOW()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "ca62be0d7ab96c17e9e1a135340c1ae20ce2c3fa8fc8786c461484a65815f367"
+}

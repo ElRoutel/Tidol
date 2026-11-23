@@ -56,7 +56,8 @@ CREATE TABLE IF NOT EXISTS track_links (
     mbid                   VARCHAR(36)  NOT NULL,
     title                  VARCHAR(255) NOT NULL,
     artist                 VARCHAR(255) NOT NULL,
-    yt_video_id            VARCHAR(50)  DEFAULT NULL,
+    yt_video_id            VARCHAR(50)  DEFAULT NULL,  -- vídeo de YouTube recordado (migrations/005)
+    yt_checked_at          TIMESTAMP    NULL DEFAULT NULL,  -- última comprobación; se rehace a los 30 días
     genius_id              VARCHAR(50)  DEFAULT NULL,
     direct_stream_url      TEXT         DEFAULT NULL,
     cover_url              TEXT         DEFAULT NULL,

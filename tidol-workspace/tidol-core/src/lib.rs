@@ -42,7 +42,9 @@ pub use auth::{
     AuthContext, AuthError, Claims, DeleteAccountError, LoginError, LoginPayload, LogoutError,
     MeError, RegisterError, RegisterPayload,
 };
-pub use catalog::{normalize_query, LogPlayPayload, LyricsError, TrackClickPayload};
+pub use catalog::{
+    is_youtube_id, normalize_query, LogPlayPayload, LyricsError, TrackClickPayload, YoutubeForTrack,
+};
 pub use library::SearchQuery;
 pub use media::{Colors, ColorsResponse, CoverOutcome, ExtractColorsPayload, OptimizeError};
 pub use user_data::{
@@ -97,6 +99,15 @@ impl TidolCore {
                 lyrics_status VARCHAR(50) DEFAULT 'pending',
                 last_sync TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )",
+        )
+        .execute(&pool)
+        .await?;
+
+        // Vídeo de YouTube recordado por pista (migrations/005): fecha de la última
+        // comprobación de yt_video_id.
+        sqlx::query(
+            "ALTER TABLE track_links
+                ADD COLUMN IF NOT EXISTS yt_checked_at TIMESTAMP NULL DEFAULT NULL AFTER yt_video_id",
         )
         .execute(&pool)
         .await?;

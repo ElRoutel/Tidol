@@ -157,6 +157,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/api/v1/tracks/:mbid/log-play",
             post(handlers::log_play_handler),
         )
+        // Vídeo de YouTube recordado por pista (ahorra la búsqueda de 100 unidades).
+        .route(
+            "/api/v1/tracks/:mbid/youtube",
+            get(handlers::track_youtube_handler),
+        )
         .route(
             "/api/v1/auth/me",
             get(handlers::me_handler).delete(handlers::delete_me_handler),

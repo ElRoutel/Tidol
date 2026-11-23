@@ -29,6 +29,14 @@ pub struct LogPlayPayload {
     pub cover_url: Option<String>,
 }
 
+/// Id de vídeo de YouTube con forma válida (11 caracteres base64url). Filtra
+/// valores heredados raros antes de guardarlos o devolverlos al front.
+pub fn is_youtube_id(s: &str) -> bool {
+    s.len() == 11
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
 /// Normaliza una consulta: minúsculas, sin acentos, solo alfanumérico/espacios,
 /// colapsando espacios. Pura (sin efectos).
 pub fn normalize_query(query: &str) -> String {
@@ -112,6 +120,26 @@ pub enum LyricsError {
     CachedNegative,
     #[error("Lyrics not available")]
     NotAvailable,
+}
+
+/// Días que un vídeo recordado se da por bueno sin volver a comprobarlo. Por
+/// debajo del límite de 30 días de las políticas de YouTube API Services para
+/// guardar datos de la API sin refrescarlos.
+const YT_RECHECK_DAYS: i64 = 30;
+
+/// Resultado de `youtube_for_track`.
+#[derive(Debug, PartialEq, Eq)]
+pub enum YoutubeForTrack {
+    /// Vídeo encontrado; `source` = "stored" (0 unidades de cuota),
+    /// "verified" (1 unidad: comprobado de nuevo) o "search" (100 unidades).
+    Found {
+        video_id: String,
+        source: &'static str,
+    },
+    /// Ni guardado ni encontrado en la búsqueda.
+    NotFound,
+    /// El usuario superó su límite de búsquedas por minuto.
+    RateLimited,
 }
 
 /// Búsquedas de embeds por usuario y minuto (ver `embed_search_allowed`).
@@ -199,6 +227,130 @@ impl TidolCore {
         )
         .await
         .unwrap_or(true)
+    }
+
+    /// Vídeo de YouTube para una pista del catálogo, recordado en
+    /// `track_links.yt_video_id`. Antes cada reproducción buscaba en YouTube
+    /// (100 unidades de una cuota de 10 000/día); ahora solo la primera vez, y
+    /// después una comprobación de 1 unidad cada `YT_RECHECK_DAYS`.
+    /// Errores de BD = se sigue como si no hubiera nada guardado (la reproducción
+    /// no debe depender de este atajo).
+    pub async fn youtube_for_track(
+        &self,
+        user_id: i64,
+        mbid: &str,
+        artist: &str,
+        title: &str,
+    ) -> YoutubeForTrack {
+        let stored = sqlx::query!(
+            r#"SELECT yt_video_id,
+                      TIMESTAMPDIFF(DAY, yt_checked_at, NOW()) AS "age_days: i64"
+               FROM track_links WHERE mbid = ?"#,
+            mbid
+        )
+        .fetch_optional(&self.db)
+        .await
+        .ok()
+        .flatten();
+
+        if let Some(row) = stored {
+            if let Some(video_id) = row.yt_video_id.filter(|v| is_youtube_id(v)) {
+                match row.age_days {
+                    Some(age) if age < YT_RECHECK_DAYS => {
+                        return YoutubeForTrack::Found {
+                            video_id,
+                            source: "stored",
+                        };
+                    }
+                    // Nunca comprobado (heredado) o caducado: videos.list (1 unidad).
+                    _ => match self
+                        .embed_orchestrator
+                        .resolve(&format!("youtube:{video_id}"))
+                        .await
+                    {
+                        Ok(_) => {
+                            let _ = sqlx::query!(
+                                "UPDATE track_links SET yt_checked_at = NOW() WHERE mbid = ?",
+                                mbid
+                            )
+                            .execute(&self.db)
+                            .await;
+                            return YoutubeForTrack::Found {
+                                video_id,
+                                source: "verified",
+                            };
+                        }
+                        Err(crate::providers::ProviderError::NotFound(_)) => {
+                            // Vídeo borrado o privado: olvidarlo y buscar otro.
+                            let _ = sqlx::query!(
+                                "UPDATE track_links SET yt_video_id = NULL, yt_checked_at = NULL WHERE mbid = ?",
+                                mbid
+                            )
+                            .execute(&self.db)
+                            .await;
+                        }
+                        // Cuota agotada, red…: no se puede comprobar ahora; mejor
+                        // el vídeo guardado que ninguno (sin renovar la fecha).
+                        Err(_) => {
+                            return YoutubeForTrack::Found {
+                                video_id,
+                                source: "stored",
+                            };
+                        }
+                    },
+                }
+            }
+        }
+
+        // Sin vídeo guardado: búsqueda (misma limitación por usuario que /embed/search).
+        if !self.embed_search_allowed(user_id).await {
+            return YoutubeForTrack::RateLimited;
+        }
+        let query = format!("{} {}", artist.trim(), title.trim());
+        let found = self
+            .embed_search(query.trim(), 5)
+            .await
+            .into_iter()
+            .find(|t| t.platform == crate::providers::Platform::YouTube && is_youtube_id(&t.id));
+        let Some(track) = found else {
+            return YoutubeForTrack::NotFound;
+        };
+
+        // Guardar. El título/artista solo se usan si la pista aún no existe en
+        // track_links (log_play la crea al reproducir; esto puede llegar antes):
+        // nunca se pisan los datos buenos que ya hubiera.
+        let title_db = if title.trim().is_empty() {
+            "Unknown"
+        } else {
+            title.trim()
+        };
+        let artist_db = if artist.trim().is_empty() {
+            "Unknown"
+        } else {
+            artist.trim()
+        };
+        if let Err(e) = sqlx::query!(
+            "INSERT INTO track_links (mbid, title, artist, yt_video_id, yt_checked_at)
+             VALUES (?, ?, ?, ?, NOW())
+             ON DUPLICATE KEY UPDATE yt_video_id = VALUES(yt_video_id), yt_checked_at = NOW()",
+            mbid,
+            title_db,
+            artist_db,
+            track.id
+        )
+        .execute(&self.db)
+        .await
+        {
+            tracing::warn!(
+                "youtube_for_track: no se pudo guardar el vídeo de {}: {}",
+                mbid,
+                e
+            );
+        }
+        YoutubeForTrack::Found {
+            video_id: track.id,
+            source: "search",
+        }
     }
 
     pub async fn embed_search(&self, query: &str, limit: u32) -> Vec<Track> {
@@ -451,6 +603,16 @@ impl TidolCore {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ids_de_youtube_validos() {
+        assert!(is_youtube_id("dQw4w9WgXcQ"));
+        assert!(is_youtube_id("a-b_c1234XY"));
+        assert!(!is_youtube_id("dQw4w9WgXc")); // 10
+        assert!(!is_youtube_id("dQw4w9WgXcQQ")); // 12
+        assert!(!is_youtube_id("dQw4w9WgX/Q"));
+        assert!(!is_youtube_id(""));
+    }
 
     // ── normalize_query: comportamiento de línea base (main.rs @ e46be8bb) ──
 

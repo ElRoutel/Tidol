@@ -1,0 +1,36 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT yt_video_id,\n                      TIMESTAMPDIFF(DAY, yt_checked_at, NOW()) AS \"age_days: i64\"\n               FROM track_links WHERE mbid = ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "yt_video_id",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 200
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "age_days: i64",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "BINARY",
+          "char_set": 63,
+          "max_size": 21
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "d7a35c37b6e94417023e789a0b95cfb9a39430a1be1f7c3e44e64e4872e1090e"
+}

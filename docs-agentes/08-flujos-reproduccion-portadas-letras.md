@@ -50,6 +50,12 @@ playSong(track, queue)
 
 ## 2. Portadas
 
+**Vídeo recordado por pista** (desde 2026-11-23): para pistas con mbid, `embedResolver` pide antes
+`GET /api/v1/tracks/:mbid/youtube?artist=&title=`. El backend devuelve `track_links.yt_video_id` si se
+comprobó hace < 30 días (0 unidades de cuota); si es más antiguo o heredado, lo verifica con
+`videos.list` (1 unidad; si el vídeo ya no existe lo olvida y busca otro); si no hay, busca (100
+unidades, límite por usuario) y lo guarda. Cualquier fallo → la búsqueda de siempre (`/embed/search`).
+
 **Backend** — `GET /api/v1/covers/:mbid?fallback=<url>&c=<pista>&s=<firma>` → `tidol-core/src/media.rs::get_cover`:
 
 ```

@@ -70,10 +70,10 @@ fecha y el commit**. Las prioridades son una propuesta; el dueño del proyecto d
 7. **`bad_engine` roto**: escribe en la columna inexistente `track_links.status` y en un formato
    que `get_lyrics` no entiende; tampoco existe en la imagen Docker. Eliminarlo junto con
    `trigger_bad_engine_prefetch`, o arreglarlo (ver [06](06-proveedores-plugins-y-workers.md#bad_engine)).
-8. **Cuota de YouTube**: ~100 búsquedas/día. Persistir `videoId` resuelto por mbid (la columna
-   `track_links.yt_video_id` ya existe y está sin usar) y reutilizarlo antes de buscar; pedir
-   ampliación de cuota. ✅ *2026-11-23*: caché compartida en Redis (búsquedas 7 d, clave
-   normalizada): la misma búsqueda ya no se paga una vez por réplica ni tras cada deploy.
+8. ✅ *2026-11-23* **Cuota de YouTube** — vídeo recordado por pista en `track_links.yt_video_id`
+   (`GET /tracks/:mbid/youtube`, comprobado cada 30 días con `videos.list` de 1 unidad) + caché de
+   Redis compartida. Verificado: 2.ª reproducción de una pista = 0 unidades (antes 100). Pendiente:
+   pedir ampliación de cuota a Google si el uso crece.
 9. **Spotify/SoundCloud**: código listo, sin credenciales, y sus widgets no son controlables
    desde la UI. Decidir si se ofrecen como "abrir en la plataforma" o se retiran.
 10. **iTunes bloqueado desde el VPS**: las portadas de artista y el paso 3 de `get_cover` fallan

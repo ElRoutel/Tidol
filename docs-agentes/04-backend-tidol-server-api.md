@@ -90,6 +90,7 @@ Prefijo común `/api/v1`. 🔓 = pública, 🔒 = requiere JWT.
 | Método | Ruta | | Core | Notas |
 |--------|------|-|------|-------|
 | GET | `/lyrics/:track_id` | 🔓 | `get_lyrics` | LRCLIB + caché en `track_links` |
+| GET | `/tracks/:mbid/youtube?artist=&title=` | 🔒 | `youtube_for_track` | vídeo recordado (`source`: `stored` 0 u., `verified` 1 u., `search` 100 u.); 404 sin coincidencia, 429 límite, 400 mbid inválido |
 | GET | `/health` | 🔓 | `health_check` | 200 `{status:"ok",db:"ok",cache}` si la BD responde; 503 si no. HEALTHCHECK de Docker |
 | GET | `/covers/:mbid?fallback=&c=&s=` | 🔓 | `get_cover` | devuelve **JPEG** con `Cache-Control` (7 d / 1 h respaldo / 10 min sin portada); 400 id inválido; 404 sin default. `c`/`s` = pista firmada que genera la búsqueda ([08](08-flujos-reproduccion-portadas-letras.md#2-portadas)) |
 | GET | `/images/optimize?path=&w=&q=` | 🔒 | `optimize_image` | solo `uploads/…`; `q` se ignora |
