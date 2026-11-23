@@ -66,7 +66,10 @@ mod tests {
 
     #[test]
     fn display_unauthorized_preserva_texto() {
-        assert_eq!(TidolError::Unauthorized.to_string(), "Autenticación requerida");
+        assert_eq!(
+            TidolError::Unauthorized.to_string(),
+            "Autenticación requerida"
+        );
     }
 
     #[test]

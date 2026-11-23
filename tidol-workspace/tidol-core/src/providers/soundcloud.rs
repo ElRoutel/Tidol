@@ -100,10 +100,7 @@ impl MusicProvider for SoundCloudProvider {
                     // Replace small size with large
                     s.replace("-large.", "-t500x500.")
                 });
-                let permalink = item["permalink_url"]
-                    .as_str()
-                    .unwrap_or("")
-                    .to_string();
+                let permalink = item["permalink_url"].as_str().unwrap_or("").to_string();
 
                 Some(Track {
                     id: id.clone(),
@@ -156,10 +153,7 @@ impl MusicProvider for SoundCloudProvider {
         }
 
         let json: serde_json::Value = resp.json().await?;
-        let permalink = json["permalink_url"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
+        let permalink = json["permalink_url"].as_str().unwrap_or("").to_string();
 
         let info = EmbedInfo {
             embed_url: Self::embed_url(id),
@@ -167,7 +161,9 @@ impl MusicProvider for SoundCloudProvider {
             preview_url: None,
         };
 
-        self.resolve_cache.insert(id.to_string(), info.clone()).await;
+        self.resolve_cache
+            .insert(id.to_string(), info.clone())
+            .await;
         Ok(info)
     }
 

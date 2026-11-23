@@ -628,7 +628,10 @@ mod tests {
             device_type: dt.into(),
         };
 
-        let e = core.register(mk("", "12345678", "d", "t")).await.unwrap_err();
+        let e = core
+            .register(mk("", "12345678", "d", "t"))
+            .await
+            .unwrap_err();
         assert!(matches!(e, RegisterError::InvalidUsername));
         assert_eq!(e.to_string(), "Username inválido");
 
@@ -638,11 +641,17 @@ mod tests {
             .unwrap_err();
         assert!(matches!(e, RegisterError::InvalidUsername));
 
-        let e = core.register(mk("user", "1234567", "d", "t")).await.unwrap_err();
+        let e = core
+            .register(mk("user", "1234567", "d", "t"))
+            .await
+            .unwrap_err();
         assert!(matches!(e, RegisterError::PasswordTooShort));
         assert_eq!(e.to_string(), "Contraseña muy corta (mínimo 8 caracteres)");
 
-        let e = core.register(mk("user", "12345678", "", "t")).await.unwrap_err();
+        let e = core
+            .register(mk("user", "12345678", "", "t"))
+            .await
+            .unwrap_err();
         assert!(matches!(e, RegisterError::InvalidDevice));
         assert_eq!(e.to_string(), "Datos de dispositivo inválidos");
     }

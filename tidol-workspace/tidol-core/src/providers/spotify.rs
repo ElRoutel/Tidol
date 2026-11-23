@@ -216,7 +216,9 @@ impl MusicProvider for SpotifyProvider {
             preview_url,
         };
 
-        self.resolve_cache.insert(id.to_string(), info.clone()).await;
+        self.resolve_cache
+            .insert(id.to_string(), info.clone())
+            .await;
         Ok(info)
     }
 

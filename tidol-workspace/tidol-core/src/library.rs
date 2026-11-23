@@ -42,10 +42,7 @@ impl TidolCore {
         Ok(albums)
     }
 
-    pub async fn get_album_by_id(
-        &self,
-        id: &str,
-    ) -> Result<Option<AlbumResponse>, sqlx::Error> {
+    pub async fn get_album_by_id(&self, id: &str) -> Result<Option<AlbumResponse>, sqlx::Error> {
         let r = sqlx::query!(
             r#"
             SELECT a.mbid as id, a.title, a.artist_mbid as artist_id, ar.name as artist_name, a.release_year, a.cover_url, a.cover_status
@@ -128,10 +125,7 @@ impl TidolCore {
         }))
     }
 
-    pub async fn get_artist_by_id(
-        &self,
-        id: &str,
-    ) -> Result<Option<ArtistResponse>, sqlx::Error> {
+    pub async fn get_artist_by_id(&self, id: &str) -> Result<Option<ArtistResponse>, sqlx::Error> {
         let r = sqlx::query!(
             r#"
             SELECT mbid as id, name, cover_url as image_url

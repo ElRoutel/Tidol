@@ -212,11 +212,7 @@ impl MusicProvider for YouTubeProvider {
         let resp = self
             .http
             .get("https://www.googleapis.com/youtube/v3/videos")
-            .query(&[
-                ("part", "id"),
-                ("id", id),
-                ("key", &self.api_key),
-            ])
+            .query(&[("part", "id"), ("id", id), ("key", &self.api_key)])
             .send()
             .await?;
 
@@ -239,7 +235,9 @@ impl MusicProvider for YouTubeProvider {
             preview_url: None,
         };
 
-        self.resolve_cache.insert(id.to_string(), info.clone()).await;
+        self.resolve_cache
+            .insert(id.to_string(), info.clone())
+            .await;
         Ok(info)
     }
 

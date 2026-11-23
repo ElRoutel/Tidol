@@ -20,7 +20,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use tidol_core::config::CoreConfig;
 use tidol_core::{
-    AddSongToPlaylistPayload, CreatePlaylistPayload, LoginError, LoginPayload, LogPlayPayload,
+    AddSongToPlaylistPayload, CreatePlaylistPayload, LogPlayPayload, LoginError, LoginPayload,
     RegisterError, RegisterPayload, RenameError, RenamePlaylistPayload, ReorderError, TidolCore,
     ToggleLikePayload,
 };
@@ -81,8 +81,14 @@ async fn register_user(core: &TidolCore) -> (i64, String, String) {
         })
         .await
         .expect("register");
-    let token = res["token"].as_str().expect("token en register").to_string();
-    let ctx = core.authenticate(&token).await.expect("authenticate tras register");
+    let token = res["token"]
+        .as_str()
+        .expect("token en register")
+        .to_string();
+    let ctx = core
+        .authenticate(&token)
+        .await
+        .expect("authenticate tras register");
     (ctx.user_id, token, username)
 }
 
@@ -156,7 +162,10 @@ async fn auth_ciclo_completo_register_login_me_logout() {
     core.logout(&ctx).await.expect("logout");
     let again = core.logout(&ctx).await.unwrap_err();
     assert_eq!(again.to_string(), "Sesión inválida o ya cerrada");
-    assert!(core.authenticate(&token).await.is_err(), "token debe morir con el device");
+    assert!(
+        core.authenticate(&token).await.is_err(),
+        "token debe morir con el device"
+    );
 }
 
 #[tokio::test]
@@ -166,7 +175,12 @@ async fn delete_account_borra_todo_y_revoca_tokens() {
     // Usuario "vecino": no debe verse afectado por el borrado del otro.
     let (vecino, _tv, _uv) = register_user(&core).await;
     let vecino_pid = core
-        .create_playlist(vecino, CreatePlaylistPayload { nombre: "Del vecino".into() })
+        .create_playlist(
+            vecino,
+            CreatePlaylistPayload {
+                nombre: "Del vecino".into(),
+            },
+        )
         .await
         .unwrap()["id"]
         .as_str()
@@ -178,7 +192,12 @@ async fn delete_account_borra_todo_y_revoca_tokens() {
     let ctx = core.authenticate(&token).await.expect("authenticate");
 
     let pid = core
-        .create_playlist(uid, CreatePlaylistPayload { nombre: "Mía".into() })
+        .create_playlist(
+            uid,
+            CreatePlaylistPayload {
+                nombre: "Mía".into(),
+            },
+        )
         .await
         .unwrap()["id"]
         .as_str()
@@ -216,10 +235,16 @@ async fn delete_account_borra_todo_y_revoca_tokens() {
     );
 
     // 2. Todos los datos por-usuario desaparecen.
-    assert!(core.get_playlists(uid).await.is_empty(), "playlists borradas");
+    assert!(
+        core.get_playlists(uid).await.is_empty(),
+        "playlists borradas"
+    );
     assert!(core.get_history(uid).await.is_empty(), "historial borrado");
     assert!(core.get_local_likes(uid).await.is_empty(), "likes borrados");
-    assert!(core.get_playlist(uid, &pid).await.is_none(), "detalle borrado");
+    assert!(
+        core.get_playlist(uid, &pid).await.is_none(),
+        "detalle borrado"
+    );
 
     // 3. Segundo borrado → NotFound (la fila ya no existe).
     assert!(matches!(
@@ -261,7 +286,12 @@ async fn create_get_rename_delete_playlist() {
     let (uid, _tok, _u) = register_user(&core).await;
 
     let created = core
-        .create_playlist(uid, CreatePlaylistPayload { nombre: "Mi lista".into() })
+        .create_playlist(
+            uid,
+            CreatePlaylistPayload {
+                nombre: "Mi lista".into(),
+            },
+        )
         .await
         .expect("create_playlist");
     let pid = created["id"].as_str().expect("id").to_string();
@@ -269,7 +299,10 @@ async fn create_get_rename_delete_playlist() {
 
     // Aparece en el listado con los campos enriquecidos de la base.
     let lists = core.get_playlists(uid).await;
-    let mine = lists.iter().find(|p| p["id"] == serde_json::json!(pid)).expect("en listado");
+    let mine = lists
+        .iter()
+        .find(|p| p["id"] == serde_json::json!(pid))
+        .expect("en listado");
     assert_eq!(mine["songCount"], 0);
     assert_eq!(mine["likes"], 0);
 
@@ -281,26 +314,47 @@ async fn create_get_rename_delete_playlist() {
 
     // rename: trim aplicado; vacío → EmptyName; ajeno → NotFound.
     let renamed = core
-        .rename_playlist(uid, &pid, RenamePlaylistPayload { nombre: "  Nueva  ".into() })
+        .rename_playlist(
+            uid,
+            &pid,
+            RenamePlaylistPayload {
+                nombre: "  Nueva  ".into(),
+            },
+        )
         .await
         .expect("rename");
     assert_eq!(renamed["nombre"], "Nueva");
 
     let e = core
-        .rename_playlist(uid, &pid, RenamePlaylistPayload { nombre: "   ".into() })
+        .rename_playlist(
+            uid,
+            &pid,
+            RenamePlaylistPayload {
+                nombre: "   ".into(),
+            },
+        )
         .await
         .unwrap_err();
     assert!(matches!(e, RenameError::EmptyName));
 
     let (otro_uid, _t, _un) = register_user(&core).await;
     let e = core
-        .rename_playlist(otro_uid, &pid, RenamePlaylistPayload { nombre: "hack".into() })
+        .rename_playlist(
+            otro_uid,
+            &pid,
+            RenamePlaylistPayload {
+                nombre: "hack".into(),
+            },
+        )
         .await
         .unwrap_err();
     assert!(matches!(e, RenameError::NotFound));
 
     // delete: solo el dueño; idempotencia → segunda vez false (404).
-    assert!(!core.delete_playlist(otro_uid, &pid).await, "ajeno no puede borrar");
+    assert!(
+        !core.delete_playlist(otro_uid, &pid).await,
+        "ajeno no puede borrar"
+    );
     assert!(core.delete_playlist(uid, &pid).await);
     assert!(!core.delete_playlist(uid, &pid).await);
     assert!(core.get_playlist(uid, &pid).await.is_none());
@@ -315,7 +369,12 @@ async fn playlist_ajena_no_es_legible() {
     let (intruso, _t2, _u2) = register_user(&core).await;
 
     let created = core
-        .create_playlist(dueno, CreatePlaylistPayload { nombre: "Privada".into() })
+        .create_playlist(
+            dueno,
+            CreatePlaylistPayload {
+                nombre: "Privada".into(),
+            },
+        )
         .await
         .expect("create_playlist");
     let pid = created["id"].as_str().expect("id").to_string();
@@ -325,12 +384,20 @@ async fn playlist_ajena_no_es_legible() {
     assert!(core.get_playlist_songs(dueno, &pid).await.is_some());
 
     // El intruso no, ni el detalle ni las canciones.
-    assert!(core.get_playlist(intruso, &pid).await.is_none(), "detalle ajeno filtrado");
-    assert!(core.get_playlist_songs(intruso, &pid).await.is_none(), "canciones ajenas filtradas");
+    assert!(
+        core.get_playlist(intruso, &pid).await.is_none(),
+        "detalle ajeno filtrado"
+    );
+    assert!(
+        core.get_playlist_songs(intruso, &pid).await.is_none(),
+        "canciones ajenas filtradas"
+    );
 
     // Y tampoco asoma en su listado.
     let del_intruso = core.get_playlists(intruso).await;
-    assert!(del_intruso.iter().all(|p| p["id"] != serde_json::json!(pid)));
+    assert!(del_intruso
+        .iter()
+        .all(|p| p["id"] != serde_json::json!(pid)));
 }
 
 #[tokio::test]
@@ -338,7 +405,12 @@ async fn add_song_posiciones_duplicados_y_propiedad() {
     let core = core().await;
     let (uid, _tok, _u) = register_user(&core).await;
     let pid = core
-        .create_playlist(uid, CreatePlaylistPayload { nombre: "Songs".into() })
+        .create_playlist(
+            uid,
+            CreatePlaylistPayload {
+                nombre: "Songs".into(),
+            },
+        )
         .await
         .unwrap()["id"]
         .as_str()
@@ -348,9 +420,15 @@ async fn add_song_posiciones_duplicados_y_propiedad() {
     let (id_a, id_b) = (unique("track_a"), unique("track_b"));
 
     // Añadir dos canciones → posiciones estables 1 y 2 (orden de llegada).
-    let r = core.add_song_to_playlist(uid, &pid, song(&id_a, "A")).await.unwrap();
+    let r = core
+        .add_song_to_playlist(uid, &pid, song(&id_a, "A"))
+        .await
+        .unwrap();
     assert_eq!(r, serde_json::json!({ "added": true, "already": false }));
-    let r = core.add_song_to_playlist(uid, &pid, song(&id_b, "B")).await.unwrap();
+    let r = core
+        .add_song_to_playlist(uid, &pid, song(&id_b, "B"))
+        .await
+        .unwrap();
     assert_eq!(r["added"], true);
 
     let songs = core.get_playlist_songs(uid, &pid).await.expect("lista");
@@ -366,7 +444,10 @@ async fn add_song_posiciones_duplicados_y_propiedad() {
     assert_eq!(s["playbackUrl"], "https://example.invalid/s.mp3");
 
     // Duplicado: no re-inserta ni reordena; avisa.
-    let dup = core.add_song_to_playlist(uid, &pid, song(&id_a, "A")).await.unwrap();
+    let dup = core
+        .add_song_to_playlist(uid, &pid, song(&id_a, "A"))
+        .await
+        .unwrap();
     assert_eq!(dup, serde_json::json!({ "added": false, "already": true }));
     assert_eq!(core.get_playlist_songs(uid, &pid).await.unwrap().len(), 2);
 
@@ -389,7 +470,12 @@ async fn reorder_persiste_el_orden_y_valida_entrada() {
     let core = core().await;
     let (uid, _tok, _u) = register_user(&core).await;
     let pid = core
-        .create_playlist(uid, CreatePlaylistPayload { nombre: "Orden".into() })
+        .create_playlist(
+            uid,
+            CreatePlaylistPayload {
+                nombre: "Orden".into(),
+            },
+        )
         .await
         .unwrap()["id"]
         .as_str()
@@ -398,7 +484,9 @@ async fn reorder_persiste_el_orden_y_valida_entrada() {
 
     let (a, b, c) = (unique("ta"), unique("tb"), unique("tc"));
     for (id, t) in [(&a, "A"), (&b, "B"), (&c, "C")] {
-        core.add_song_to_playlist(uid, &pid, song(id, t)).await.unwrap();
+        core.add_song_to_playlist(uid, &pid, song(id, t))
+            .await
+            .unwrap();
     }
     assert_eq!(
         ids_of(&core.get_playlist_songs(uid, &pid).await.unwrap()),
@@ -419,31 +507,45 @@ async fn reorder_persiste_el_orden_y_valida_entrada() {
     // Reorden PARCIAL (contrato de la base): solo los listados cambian de
     // posición; al no listado le queda la suya. [b] → b pasa a posición 1 y
     // empata con c (que ya tenía 1); el desempate es added_at ASC → c antes.
-    let ok = core.reorder_playlist_songs(uid, &pid, vec![b.clone()]).await.unwrap();
+    let ok = core
+        .reorder_playlist_songs(uid, &pid, vec![b.clone()])
+        .await
+        .unwrap();
     assert_eq!(ok["ok"], true);
     let order = ids_of(&core.get_playlist_songs(uid, &pid).await.unwrap());
     assert_eq!(order.len(), 3);
     // b (pos 1) debe ir ahora antes que a (pos 2, intacta).
     let pos_of = |id: &str| order.iter().position(|x| x == id).unwrap();
-    assert!(pos_of(&b) < pos_of(&a), "orden tras reorden parcial: {order:?}");
+    assert!(
+        pos_of(&b) < pos_of(&a),
+        "orden tras reorden parcial: {order:?}"
+    );
 
     // Validaciones: vacío y >1000 → Invalid; ajeno / inexistente → NotFound.
     assert!(matches!(
-        core.reorder_playlist_songs(uid, &pid, vec![]).await.unwrap_err(),
+        core.reorder_playlist_songs(uid, &pid, vec![])
+            .await
+            .unwrap_err(),
         ReorderError::Invalid
     ));
     let too_many: Vec<String> = (0..1001).map(|i| format!("t{i}")).collect();
     assert!(matches!(
-        core.reorder_playlist_songs(uid, &pid, too_many).await.unwrap_err(),
+        core.reorder_playlist_songs(uid, &pid, too_many)
+            .await
+            .unwrap_err(),
         ReorderError::Invalid
     ));
     let (otro, _t, _un) = register_user(&core).await;
     assert!(matches!(
-        core.reorder_playlist_songs(otro, &pid, vec![a.clone()]).await.unwrap_err(),
+        core.reorder_playlist_songs(otro, &pid, vec![a.clone()])
+            .await
+            .unwrap_err(),
         ReorderError::NotFound
     ));
     assert!(matches!(
-        core.reorder_playlist_songs(uid, "no-existe", vec![a.clone()]).await.unwrap_err(),
+        core.reorder_playlist_songs(uid, "no-existe", vec![a.clone()])
+            .await
+            .unwrap_err(),
         ReorderError::NotFound
     ));
 }
@@ -453,14 +555,21 @@ async fn remove_song_respeta_propiedad_e_integridad() {
     let core = core().await;
     let (uid, _tok, _u) = register_user(&core).await;
     let pid = core
-        .create_playlist(uid, CreatePlaylistPayload { nombre: "Rm".into() })
+        .create_playlist(
+            uid,
+            CreatePlaylistPayload {
+                nombre: "Rm".into(),
+            },
+        )
         .await
         .unwrap()["id"]
         .as_str()
         .unwrap()
         .to_string();
     let id_a = unique("rm");
-    core.add_song_to_playlist(uid, &pid, song(&id_a, "A")).await.unwrap();
+    core.add_song_to_playlist(uid, &pid, song(&id_a, "A"))
+        .await
+        .unwrap();
 
     // Ajeno → false (404) y la canción sigue.
     let (otro, _t, _un) = register_user(&core).await;
@@ -479,7 +588,12 @@ async fn toggle_playlist_like_alterna_y_cuenta() {
     let core = core().await;
     let (uid, _tok, _u) = register_user(&core).await;
     let pid = core
-        .create_playlist(uid, CreatePlaylistPayload { nombre: "Like".into() })
+        .create_playlist(
+            uid,
+            CreatePlaylistPayload {
+                nombre: "Like".into(),
+            },
+        )
         .await
         .unwrap()["id"]
         .as_str()
@@ -492,7 +606,9 @@ async fn toggle_playlist_like_alterna_y_cuenta() {
     assert_eq!(r, serde_json::json!({ "liked": false, "likes": 0 }));
 
     assert!(matches!(
-        core.toggle_playlist_like(uid, "no-existe").await.unwrap_err(),
+        core.toggle_playlist_like(uid, "no-existe")
+            .await
+            .unwrap_err(),
         tidol_core::TogglePlaylistLikeError::NotFound
     ));
 }
@@ -569,7 +685,9 @@ async fn likes_local_e_ia_y_detallados() {
     assert_eq!(entry["title"], "Tema IA");
     assert_eq!(entry["artist"], "Autor IA");
     let solo_local = core.get_likes_detailed(uid, Some("local".into())).await;
-    assert!(solo_local.iter().all(|e| e["id"] != serde_json::json!(ia_id)));
+    assert!(solo_local
+        .iter()
+        .all(|e| e["id"] != serde_json::json!(ia_id)));
 
     // Alternar de nuevo el IA like → fuera.
     let r = core

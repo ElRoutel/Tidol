@@ -30,10 +30,7 @@ impl ProxyRotator {
             return Err("ProxyRotator requiere al menos una URL".into());
         }
 
-        let nodes = urls
-            .into_iter()
-            .map(|url| ProxyNode { url })
-            .collect();
+        let nodes = urls.into_iter().map(|url| ProxyNode { url }).collect();
 
         Ok(Self {
             nodes: Arc::new(RwLock::new(nodes)),

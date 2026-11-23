@@ -4,12 +4,7 @@ use moka::future::Cache;
 use std::time::Duration;
 
 /// Legal collections on Internet Archive with CC or public domain licenses.
-const LEGAL_COLLECTIONS: &[&str] = &[
-    "etree",
-    "78rpm",
-    "opensource_audio",
-    "netlabels",
-];
+const LEGAL_COLLECTIONS: &[&str] = &["etree", "78rpm", "opensource_audio", "netlabels"];
 
 /// Internet Archive provider — direct streaming IS legal because all content
 /// is under Creative Commons or public domain licenses.
@@ -132,10 +127,7 @@ impl MusicProvider for ArchiveProvider {
                     .unwrap_or("Unknown Artist")
                     .to_string();
 
-                let thumbnail = Some(format!(
-                    "https://archive.org/services/img/{}",
-                    identifier
-                ));
+                let thumbnail = Some(format!("https://archive.org/services/img/{}", identifier));
 
                 // For IA, the embed_url is the IA embed player, and
                 // preview_url IS the direct stream (legal for CC/PD content)
@@ -213,7 +205,10 @@ impl MusicProvider for ArchiveProvider {
             // Prefer "original" source, then by size (largest = highest quality)
             .max_by_key(|f| {
                 let is_original = f["source"].as_str() == Some("original");
-                let size = f["size"].as_str().and_then(|s| s.parse::<u64>().ok()).unwrap_or(0);
+                let size = f["size"]
+                    .as_str()
+                    .and_then(|s| s.parse::<u64>().ok())
+                    .unwrap_or(0);
                 (is_original as u64 * 1_000_000_000) + size
             });
 
@@ -227,7 +222,9 @@ impl MusicProvider for ArchiveProvider {
             preview_url, // Direct streaming is LEGAL for CC/PD content
         };
 
-        self.resolve_cache.insert(id.to_string(), info.clone()).await;
+        self.resolve_cache
+            .insert(id.to_string(), info.clone())
+            .await;
         Ok(info)
     }
 

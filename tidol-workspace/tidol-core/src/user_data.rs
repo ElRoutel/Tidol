@@ -213,11 +213,7 @@ impl TidolCore {
     /// GET /api/v1/playlists/:id — metadata de una playlist + sus canciones.
     /// `None` → 404, tanto si no existe como si es de otro usuario: una playlist
     /// ajena es indistinguible de una inexistente.
-    pub async fn get_playlist(
-        &self,
-        user_id: i64,
-        playlist_id: &str,
-    ) -> Option<serde_json::Value> {
+    pub async fn get_playlist(&self, user_id: i64, playlist_id: &str) -> Option<serde_json::Value> {
         let playlist = sqlx::query!(
             r#"
             SELECT
@@ -774,7 +770,11 @@ impl TidolCore {
         // las pistas IA no existen en track_links ni (normalmente) en
         // trackMetadata, la Library mostraba "Sin título / Artista desconocido".
         // trackMetadata es la caché que ya lee get_likes_detailed.
-        let title = payload.title.clone().or(payload.name.clone()).unwrap_or_default();
+        let title = payload
+            .title
+            .clone()
+            .or(payload.name.clone())
+            .unwrap_or_default();
         let artist = payload
             .artist
             .clone()
@@ -851,7 +851,10 @@ mod tests {
 
     #[test]
     fn json_id_acepta_numero() {
-        assert_eq!(json_id_to_string(&serde_json::json!(42)), Some("42".to_string()));
+        assert_eq!(
+            json_id_to_string(&serde_json::json!(42)),
+            Some("42".to_string())
+        );
         assert_eq!(
             json_id_to_string(&serde_json::json!(3.5)),
             Some("3.5".to_string())
