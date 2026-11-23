@@ -58,6 +58,10 @@ pub struct OptimizeQuery {
 pub struct CoverQuery {
     /// URL de respaldo (p.ej. miniatura de YouTube) si CAA/MusicBrainz/iTunes fallan.
     pub fallback: Option<String>,
+    /// Pista de portada que genera la búsqueda (candidatos de CAA) y su firma HMAC.
+    /// Se ignora si la firma no verifica (ver tidol-core/src/media.rs).
+    pub c: Option<String>,
+    pub s: Option<String>,
 }
 
 // =========================================================================
@@ -443,23 +447,42 @@ pub async fn get_cover_handler(
     Path(mbid): Path<String>,
     Query(q): Query<CoverQuery>,
 ) -> impl IntoResponse {
-    match state.core.get_cover(&mbid, q.fallback).await {
+    // Cache-Control: antes no se enviaba ninguna cabecera de caché, así que el
+    // navegador volvía a pedir cada portada en cada render (cambiar de página,
+    // volver a la Home…), aunque el servidor la sirviera desde disco. Los status y
+    // cuerpos no cambian.
+    //  - portada canónica (cacheada en disco, no cambia): 7 días;
+    //  - respaldo (iTunes / ?fallback=, NO cacheado en disco para que MB reintente): 1 h;
+    //  - sin portada (default o 404): 10 min, para que reaparezca si CAA la añade.
+    const LONG: &str = "public, max-age=604800";
+    const FALLBACK: &str = "public, max-age=3600";
+    const MISS: &str = "public, max-age=600";
+    let jpeg = |bytes: Vec<u8>, cache: &'static str| {
+        (
+            StatusCode::OK,
+            [
+                (header::CONTENT_TYPE, "image/jpeg"),
+                (header::CACHE_CONTROL, cache),
+            ],
+            bytes,
+        )
+            .into_response()
+    };
+    match state
+        .core
+        .get_cover(&mbid, q.fallback, q.c.as_deref(), q.s.as_deref())
+        .await
+    {
         CoverOutcome::InvalidId => (StatusCode::BAD_REQUEST, "Invalid id").into_response(),
-        CoverOutcome::Image(bytes) => (
-            StatusCode::OK,
-            [(header::CONTENT_TYPE, "image/jpeg")],
-            bytes,
+        CoverOutcome::Image(bytes) => jpeg(bytes, LONG),
+        CoverOutcome::Fallback(bytes) => jpeg(bytes, FALLBACK),
+        CoverOutcome::Default(Some(bytes)) => jpeg(bytes, MISS),
+        CoverOutcome::Default(None) => (
+            StatusCode::NOT_FOUND,
+            [(header::CACHE_CONTROL, MISS)],
+            "Cover not found",
         )
             .into_response(),
-        CoverOutcome::Default(Some(bytes)) => (
-            StatusCode::OK,
-            [(header::CONTENT_TYPE, "image/jpeg")],
-            bytes,
-        )
-            .into_response(),
-        CoverOutcome::Default(None) => {
-            (StatusCode::NOT_FOUND, "Cover not found").into_response()
-        }
     }
 }
 

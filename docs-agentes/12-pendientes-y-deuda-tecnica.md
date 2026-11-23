@@ -106,6 +106,12 @@ fecha y el commit**. Las prioridades son una propuesta; el dueño del proyecto d
   desde la búsqueda. Benchmark local (20 portadas sin caché + búsqueda simultánea): antes la
   búsqueda salía vacía por 503 y solo 3/20 portadas; ahora la búsqueda trae resultados y la
   portada más lenta pasa de ~40 s (solo limitador) a ~3 s (limitador + pistas).
+- ✅ *2026-11-22*: portadas — `Cache-Control` en `/covers` (antes ninguno) y pista firmada en la
+  URL en vez de caché en memoria (funciona con 3 réplicas; verificado: búsqueda en una réplica,
+  portadas servidas por otra en ≤ 3,4 s; pista falsificada ignorada).
+- Portadas pendiente (fase 3): `covers/` guarda una copia **por grabación** (medido: 52 % del disco
+  son duplicados, una misma imagen hasta 20 veces). Mapa persistente `recording → release-group`
+  en MariaDB + ficheros por release-group, y misses compartidos con TTL largo.
 - ✅ *2026-11-22*: `ORDER BY RAND()` de las recomendaciones de reserva de la Home sustituido por
   un pivote UUID aleatorio sobre la PK (rango por índice + vuelta circular).
 

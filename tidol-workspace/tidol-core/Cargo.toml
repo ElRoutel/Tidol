@@ -42,6 +42,10 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 chrono = { version = "0.4", features = ["serde"] }
 regex = "1.10"
 moka = { version = "0.12", features = ["future"] }
+# Firma HMAC de las pistas de portada en la URL (/covers?c=…&s=…). Ya estaban en
+# el árbol de dependencias vía sqlx: no añaden descargas.
+hmac = "0.12"
+sha2 = "0.10"
 
 [dev-dependencies]
 # test-util: reloj simulado (start_paused) para probar el limitador de MusicBrainz

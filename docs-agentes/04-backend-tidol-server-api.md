@@ -90,7 +90,7 @@ Prefijo común `/api/v1`. 🔓 = pública, 🔒 = requiere JWT.
 | Método | Ruta | | Core | Notas |
 |--------|------|-|------|-------|
 | GET | `/lyrics/:track_id` | 🔓 | `get_lyrics` | LRCLIB + caché en `track_links` |
-| GET | `/covers/:mbid?fallback=` | 🔓 | `get_cover` | devuelve **JPEG**; 400 id inválido; 404 sin default |
+| GET | `/covers/:mbid?fallback=&c=&s=` | 🔓 | `get_cover` | devuelve **JPEG** con `Cache-Control` (7 d / 1 h respaldo / 10 min sin portada); 400 id inválido; 404 sin default. `c`/`s` = pista firmada que genera la búsqueda ([08](08-flujos-reproduccion-portadas-letras.md#2-portadas)) |
 | GET | `/images/optimize?path=&w=&q=` | 🔒 | `optimize_image` | solo `uploads/…`; `q` se ignora |
 | POST | `/colors/extract` | 🔒 | `extract_colors` | sin consumidores en el front |
 

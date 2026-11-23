@@ -50,21 +50,36 @@ playSong(track, queue)
 
 ## 2. Portadas
 
-**Backend** — `GET /api/v1/covers/:mbid?fallback=<url>` → `tidol-core/src/media.rs::get_cover`:
+**Backend** — `GET /api/v1/covers/:mbid?fallback=<url>&c=<pista>&s=<firma>` → `tidol-core/src/media.rs::get_cover`:
 
 ```
 validar mbid (charset seguro, anti path-traversal)            → 400 si no
 ¿covers/<mbid>.jpg en disco?                                   → servirla
-¿miss reciente en COVER_MISSES (30 min)?                       → default
-1. Cover Art Archive /release/<mbid>/front, /release-group/<mbid>/front
-2. MusicBrainz: si es un recording, puntuar sus releases
-   (Official + Album + fecha antigua; excluir Compilation/Live/DJ-mix/Remix…;
-    exigir mismo artista) y probar CAA por release y por release-group
-   → primer acierto se cachea en disco
-3. iTunes (texto fuzzy; NO se cachea en disco)               ← bloqueado desde el VPS
+¿miss reciente en COVER_MISSES (30 min, por réplica)?          → default
+¿pista c/s con firma HMAC válida? (la pone la búsqueda)        → saltar 1 y el lookup de 2
+1. Cover Art Archive /release/<mbid>/front, /release-group/<mbid>/front (en paralelo)
+2. Candidatos = la pista, o un lookup a MusicBrainz (limitador común, prioridad de fondo)
+   puntuados por cover_candidates (Official + Album + fecha antigua; excluir
+   Compilation/Live/DJ-mix/Remix…; exigir mismo artista) → CAA con concurrencia 4
+   en orden de puntuación → primer acierto se cachea en disco
+3. iTunes (texto fuzzy; NO se cachea en disco)               ← cortacircuitos; bloqueado desde el VPS
 4. fallback=<url> (p.ej. miniatura de YouTube) descargada y servida same-origin (NO se cachea)
-nada → registrar miss → covers/default.jpg o 404
+nada → registrar miss (salvo si MB dio 503) → covers/default.jpg o 404
 ```
+
+**Pista firmada (`?c=r.<release>,g.<release-group>&s=<hmac>`).** `search_catalog` ya recibe los
+releases de cada grabación y los mete en el `coverUrl` de cada resultado
+(`cover_url_for_search`); `c=-` = sin candidatos (falla al instante). Va en la URL y no en
+memoria porque en prod hay 3 réplicas (`least_conn`): una caché en memoria solo acertaba
+~1/3. La **firma es obligatoria** (HMAC-SHA256 con `JWT_SECRET`, dominio
+`tidol-cover-hint-v1`, ligada al mbid): `/covers` es pública y lo encontrado se cachea en disco
+para todos, así que una pista sin firmar permitiría envenenar la portada de cualquier mbid. Sin
+`JWT_SECRET` no se generan ni aceptan pistas. Los ids se validan como UUID: solo salen URLs de
+coverartarchive.org.
+
+**Caché HTTP** (`handlers::get_cover_handler`): portada canónica `max-age=604800` (7 días),
+respaldo iTunes/`fallback` `max-age=3600` (`CoverOutcome::Fallback`), default/404 `max-age=600`.
+Antes no había `Cache-Control` y el navegador repetía cada portada en cada render.
 
 **Frontend** — `utils/coverArt.ts::getCoverSrc(track)` es la **fuente única de verdad**:
 `resolvedCover` congelado en el contexto → portada propia de la pista

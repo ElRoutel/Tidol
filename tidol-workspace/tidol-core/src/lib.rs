@@ -76,6 +76,8 @@ impl TidolCore {
             .max_connections(config.database_max_connections)
             .connect(&config.database_url)
             .await?;
+        // Clave de firma de las pistas de portada (ver media.rs).
+        media::init_cover_hint_key(config.jwt_secret.as_deref());
         info!("[OK] Database connection established.");
 
         // Ensure track_links table exists

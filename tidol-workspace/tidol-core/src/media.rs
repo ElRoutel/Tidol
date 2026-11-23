@@ -46,10 +46,17 @@ pub struct Colors {
 // PORTADAS
 // -------------------------------------------------------------------------
 /// Resultado de `get_cover`. `InvalidId` → 400; `Image` → 200 jpeg;
-/// `Default(Some)` → 200 jpeg (portada por defecto); `Default(None)` → 404.
+/// `Fallback` → 200 jpeg; `Default(Some)` → 200 jpeg (portada por defecto);
+/// `Default(None)` → 404.
 pub enum CoverOutcome {
     InvalidId,
+    /// Portada canónica (CAA), cacheada en disco: estable, el navegador puede
+    /// guardarla mucho tiempo.
     Image(Vec<u8>),
+    /// Portada de respaldo (iTunes o `?fallback=`, p.ej. miniatura de YouTube).
+    /// NO se cachea en disco a propósito (iTunes es texto difuso y puede fallar;
+    /// que MB reintente), así que el navegador tampoco debe guardarla mucho.
+    Fallback(Vec<u8>),
     Default(Option<Vec<u8>>),
 }
 
@@ -101,11 +108,58 @@ async fn fetch_image(client: &reqwest::Client, url: &str) -> Option<Vec<u8>> {
     (bytes.len() > 100).then(|| bytes.to_vec())
 }
 
-/// Ordena los releases de una grabación y devuelve las URLs de CAA a probar.
+/// Referencia a una portada de Cover Art Archive: por release o por release-group.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ArtRef {
+    Release(String),
+    Group(String),
+}
+
+impl ArtRef {
+    fn caa_url(&self) -> String {
+        match self {
+            ArtRef::Release(id) => format!("https://coverartarchive.org/release/{}/front-500", id),
+            ArtRef::Group(id) => {
+                format!("https://coverartarchive.org/release-group/{}/front-500", id)
+            }
+        }
+    }
+
+    /// Forma compacta para la URL: `r.<uuid>` / `g.<uuid>`.
+    fn encode(&self) -> String {
+        match self {
+            ArtRef::Release(id) => format!("r.{}", id),
+            ArtRef::Group(id) => format!("g.{}", id),
+        }
+    }
+
+    fn decode(s: &str) -> Option<Self> {
+        let (kind, id) = s.split_once('.')?;
+        if !is_uuid(id) {
+            return None;
+        }
+        match kind {
+            "r" => Some(ArtRef::Release(id.to_string())),
+            "g" => Some(ArtRef::Group(id.to_string())),
+            _ => None,
+        }
+    }
+}
+
+/// UUID de MusicBrainz en forma canónica (8-4-4-4-12, hex en minúsculas).
+fn is_uuid(s: &str) -> bool {
+    s.len() == 36
+        && s.char_indices().all(|(i, c)| match i {
+            8 | 13 | 18 | 23 => c == '-',
+            _ => c.is_ascii_digit() || ('a'..='f').contains(&c),
+        })
+}
+
+/// Ordena los releases de una grabación y devuelve las portadas de CAA a probar.
 /// Puntúa Official + Album + artista coincidente + fecha antigua y excluye
 /// recopilatorios/directos/mixes. Compartido por `get_cover` (datos del lookup de
-/// MusicBrainz) y por la búsqueda (`store_cover_hints`), que ya trae los releases.
-pub(crate) fn cover_candidates(releases: &[serde_json::Value], rec_artist: &str) -> Vec<String> {
+/// MusicBrainz) y por la búsqueda (`cover_url_for_search`), que ya trae los releases.
+pub(crate) fn cover_candidates(releases: &[serde_json::Value], rec_artist: &str) -> Vec<ArtRef> {
     let rec_artist = rec_artist.to_lowercase();
     // Tipos secundarios a excluir (no queremos recopilatorios/directos/mixes).
     const BAD_SECONDARY: [&str; 8] = [
@@ -210,18 +264,10 @@ pub(crate) fn cover_candidates(releases: &[serde_json::Value], rec_artist: &str)
     // Orden: mayor score primero; a igualdad, fecha más antigua.
     scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
 
-    // Antes: hasta 12 peticiones a CAA en SERIE (release y release-group
-    // de los 6 mejores releases) → una portada difícil tardaba >10 s.
-    // Ahora se piden con concurrencia acotada; `buffered` mantiene el
-    // orden de puntuación, así que gana el mejor candidato con portada
-    // (mismo resultado que antes) y al soltar el stream se cancela el resto.
-    let mut candidates: Vec<String> = Vec::new();
+    let mut candidates: Vec<ArtRef> = Vec::new();
     for (_score, _date, rel) in scored.iter().take(6) {
         if let Some(rid) = rel.get("id").and_then(|v| v.as_str()) {
-            candidates.push(format!(
-                "https://coverartarchive.org/release/{}/front-500",
-                rid
-            ));
+            candidates.push(ArtRef::Release(rid.to_string()));
         }
         // A veces solo el release-group tiene arte.
         if let Some(rgid) = rel
@@ -229,48 +275,118 @@ pub(crate) fn cover_candidates(releases: &[serde_json::Value], rec_artist: &str)
             .and_then(|rg| rg.get("id"))
             .and_then(|v| v.as_str())
         {
-            let url = format!(
-                "https://coverartarchive.org/release-group/{}/front-500",
-                rgid
-            );
+            let group = ArtRef::Group(rgid.to_string());
             // Varios releases suelen compartir release-group.
-            if !candidates.contains(&url) {
-                candidates.push(url);
+            if !candidates.contains(&group) {
+                candidates.push(group);
             }
         }
     }
     candidates
 }
 
-// Pistas de portada: la búsqueda de grabaciones de MusicBrainz YA trae los
-// releases de cada resultado. Antes `get_cover` volvía a pedirlos uno por uno
-// (1 lookup a MB por portada): con el limitador común, una página de 20
-// resultados tardaba ~40 s en completar las portadas. Ahora la búsqueda deja aquí
-// los candidatos y la portada de un resultado no gasta ninguna petición a MB.
-static COVER_HINTS: std::sync::OnceLock<moka::future::Cache<String, std::sync::Arc<Vec<String>>>> =
-    std::sync::OnceLock::new();
+// ── Pista de portada firmada en la URL ───────────────────────────────────────
+//
+// La búsqueda de grabaciones de MusicBrainz YA trae los releases de cada
+// resultado; sin pista, `get_cover` volvía a pedirlos con un lookup a MB por
+// portada (≈40 s para una página de 20 con el limitador común). La primera
+// versión los guardaba en una caché en MEMORIA, pero en producción hay 3
+// réplicas tras `least_conn`: ~2/3 de las portadas caían en otra réplica sin la
+// pista. Ahora la búsqueda mete los candidatos en la propia URL de la portada
+// (`/api/v1/covers/<mbid>?c=r.<id>,g.<id>&s=<firma>`): funciona en cualquier
+// réplica, sobrevive a reinicios y viaja con la pista (playlists, likes).
+//
+// Firma HMAC obligatoria: `/covers` es pública y lo encontrado se cachea EN
+// DISCO para todos. Sin firma, `?c=` con el álbum de otro artista envenenaría la
+// portada de cualquier mbid. Sin `JWT_SECRET` no hay clave: se ignoran pistas y
+// se sigue el camino normal. Los ids se validan como UUID → solo se construyen
+// URLs de coverartarchive.org (no abre un SSRF como el de `?fallback=`).
 
-fn cover_hints() -> &'static moka::future::Cache<String, std::sync::Arc<Vec<String>>> {
-    COVER_HINTS.get_or_init(|| {
-        moka::future::Cache::builder()
-            .max_capacity(20_000)
-            .time_to_live(std::time::Duration::from_secs(60 * 60))
-            .build()
-    })
+/// Máximo de referencias en la URL (~40 caracteres cada una).
+const MAX_HINT_REFS: usize = 6;
+
+static COVER_HINT_KEY: std::sync::OnceLock<Option<Vec<u8>>> = std::sync::OnceLock::new();
+
+/// Fija la clave de firma (una vez por proceso, desde `TidolCore::new`).
+pub(crate) fn init_cover_hint_key(secret: Option<&str>) {
+    let _ = COVER_HINT_KEY.set(
+        secret
+            .filter(|s| !s.is_empty())
+            .map(|s| s.as_bytes().to_vec()),
+    );
 }
 
-/// Guarda los candidatos de portada de una grabación (desde la búsqueda).
-///
-/// También se guarda la lista VACÍA (grabación sin releases o solo con
-/// recopilatorios/directos): el lookup a MusicBrainz devolvería los mismos
-/// releases, así que no hay nada que ganar y sí ~1 s de cola del limitador por
-/// portada. En benchmark (búsqueda "el tri"), esas portadas tardaban hasta 38 s
-/// en resolverse como "sin portada"; ahora fallan al instante.
-pub(crate) async fn store_cover_hints(mbid: &str, releases: &[serde_json::Value], artist: &str) {
-    let candidates = cover_candidates(releases, artist);
-    cover_hints()
-        .insert(mbid.to_string(), std::sync::Arc::new(candidates))
-        .await;
+fn sign_hint(mbid: &str, hint: &str) -> Option<String> {
+    use hmac::{Hmac, Mac};
+    let key = COVER_HINT_KEY.get()?.as_ref()?;
+    let mut mac = Hmac::<sha2::Sha256>::new_from_slice(key).ok()?;
+    // Separación de dominio: la clave es la de los JWT; el prefijo impide que una
+    // firma de pista se confunda con cualquier otro uso del mismo secreto.
+    mac.update(b"tidol-cover-hint-v1|");
+    mac.update(mbid.as_bytes());
+    mac.update(b"|");
+    mac.update(hint.as_bytes());
+    // 128 bits bastan para una firma no reutilizable entre mbids.
+    let tag = mac.finalize().into_bytes();
+    Some(tag[..16].iter().map(|b| format!("{:02x}", b)).collect())
+}
+
+fn verify_hint(mbid: &str, hint: &str, sig: &str) -> bool {
+    match sign_hint(mbid, hint) {
+        // Comparación en tiempo constante (no filtrar por dónde difiere la firma).
+        Some(expected) => {
+            expected.len() == sig.len()
+                && expected
+                    .bytes()
+                    .zip(sig.bytes())
+                    .fold(0u8, |acc, (a, b)| acc | (a ^ b))
+                    == 0
+        }
+        None => false,
+    }
+}
+
+/// Codifica candidatos para `?c=`. `-` = grabación sin portadas candidatas
+/// (sin releases o solo recopilatorios): la portada falla al instante en lugar de
+/// esperar ~1 s de cola del limitador para un lookup a MB que diría lo mismo.
+fn encode_hint(candidates: &[ArtRef]) -> String {
+    if candidates.is_empty() {
+        return "-".to_string();
+    }
+    candidates
+        .iter()
+        .take(MAX_HINT_REFS)
+        .map(ArtRef::encode)
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+/// Pista válida y bien firmada → candidatos; cualquier otra cosa → `None`
+/// (se ignora la pista entera y se sigue el camino normal).
+fn parse_signed_hint(mbid: &str, hint: Option<&str>, sig: Option<&str>) -> Option<Vec<ArtRef>> {
+    let (hint, sig) = (hint?, sig?);
+    if hint.len() > MAX_HINT_REFS * 40 || !verify_hint(mbid, hint, sig) {
+        return None;
+    }
+    if hint == "-" {
+        return Some(Vec::new());
+    }
+    hint.split(',').map(ArtRef::decode).collect()
+}
+
+/// URL de portada para un resultado de búsqueda: con pista firmada si hay clave,
+/// o la URL de siempre (`/api/v1/covers/<mbid>`) si no.
+pub(crate) fn cover_url_for_search(
+    mbid: &str,
+    releases: &[serde_json::Value],
+    artist: &str,
+) -> String {
+    let base = format!("/api/v1/covers/{}", mbid);
+    let hint = encode_hint(&cover_candidates(releases, artist));
+    match sign_hint(mbid, &hint) {
+        Some(sig) => format!("{}?c={}&s={}", base, hint, sig),
+        None => base,
+    }
 }
 
 /// Lee la portada por defecto (`covers/default.jpg`) si existe.
@@ -396,7 +512,15 @@ impl TidolCore {
         colors
     }
 
-    pub async fn get_cover(&self, mbid: &str, fallback: Option<String>) -> CoverOutcome {
+    /// `hint`/`sig`: pista firmada de la búsqueda (`?c=`/`?s=`, ver
+    /// `cover_url_for_search`); se ignora si no verifica.
+    pub async fn get_cover(
+        &self,
+        mbid: &str,
+        fallback: Option<String>,
+        hint: Option<&str>,
+        sig: Option<&str>,
+    ) -> CoverOutcome {
         // Anti path-traversal: el mbid forma el nombre del fichero cacheado; un valor
         // como `../x` escribía/leía fuera de covers/. Solo se aceptan ids "seguros".
         if mbid.is_empty()
@@ -429,9 +553,9 @@ impl TidolCore {
         // uno por petición: cada portada pagaba DNS+TLS de nuevo en cada salto.
         let client = crate::net::shared_client();
 
-        // Si la búsqueda dejó candidatos, el mbid es de una GRABACIÓN: el paso 1
-        // (CAA por mbid de release/release-group) daría 404 seguro; se salta.
-        let hint = cover_hints().get(mbid).await;
+        // Con pista de la búsqueda el mbid es de una GRABACIÓN: el paso 1 (CAA por
+        // mbid de release/release-group) daría 404 seguro; se salta.
+        let hint = parse_signed_hint(mbid, hint, sig);
 
         // ── 1. Cover Art Archive directo por mbid (si es release / release-group) ──
         //    Las dos variantes van en paralelo (antes en serie: para un mbid de
@@ -454,15 +578,15 @@ impl TidolCore {
         }
 
         // ── 2. Releases de la grabación → CAA en orden de puntuación ──
-        //    Los candidatos salen de las pistas que dejó la búsqueda o, si no hay,
+        //    Los candidatos salen de la pista firmada de la búsqueda o, si no hay,
         //    de un lookup a MusicBrainz (prioridad de fondo en el limitador común:
         //    una página con 20 portadas sin caché ya no dispara 20 peticiones
         //    simultáneas a MB, que acababan en 503 y en "miss" cacheado 30 min).
         //    Si MB sigue respondiendo 503 tras los reintentos NO se registra miss:
         //    la portada puede existir.
         let mut mb_throttled = false;
-        let candidates: Vec<String> = match hint {
-            Some(c) => c.as_ref().clone(),
+        let candidates: Vec<ArtRef> = match hint {
+            Some(c) => c,
             None => {
                 let mb_url = format!(
                     "https://musicbrainz.org/ws/2/recording/{}?inc=releases+release-groups+artist-credits&fmt=json",
@@ -503,7 +627,7 @@ impl TidolCore {
         // el stream se cancela el resto.
         use futures::stream::StreamExt;
         let mut stream = futures::stream::iter(candidates)
-            .map(|url| async move { fetch_image(client, &url).await })
+            .map(|art| async move { fetch_image(client, &art.caa_url()).await })
             .buffered(COVER_CAA_CONCURRENCY);
         while let Some(found) = stream.next().await {
             if let Some(bytes) = found {
@@ -550,7 +674,7 @@ impl TidolCore {
                                     if let Ok(bytes) = img_res.bytes().await {
                                         // No se cachea: iTunes es texto-fuzzy y puede
                                         // equivocarse; dejamos que MB reintente y acierte.
-                                        return CoverOutcome::Image(bytes.to_vec());
+                                        return CoverOutcome::Fallback(bytes.to_vec());
                                     }
                                 }
                             }
@@ -569,7 +693,7 @@ impl TidolCore {
                         if let Ok(bytes) = res.bytes().await {
                             if bytes.len() > 100 {
                                 // No se cachea el fallback (miniatura YT): que MB reintente.
-                                return CoverOutcome::Image(bytes.to_vec());
+                                return CoverOutcome::Fallback(bytes.to_vec());
                             }
                         }
                     }
@@ -609,18 +733,67 @@ mod tests {
              "release-group": {"id": "rg-album", "primary-type": "Album"}}
         ]);
         let got = cover_candidates(releases.as_array().unwrap(), "Molotov");
-        let caa = |k: &str, id: &str| format!("https://coverartarchive.org/{k}/{id}/front-500");
+        let r = |id: &str| ArtRef::Release(id.to_string());
+        let g = |id: &str| ArtRef::Group(id.to_string());
         assert_eq!(
             got,
             vec![
-                caa("release", "album-1997"),
-                caa("release-group", "rg-album"),
-                caa("release", "album-2005"), // rg-album no se repite
-                caa("release", "single"),
-                caa("release-group", "rg-single"),
+                r("album-1997"),
+                g("rg-album"),
+                r("album-2005"), // rg-album no se repite
+                r("single"),
+                g("rg-single"),
             ]
         );
         assert!(cover_candidates(&[], "x").is_empty());
+    }
+
+    #[test]
+    fn pista_de_portada_firmada() {
+        // La clave es global al proceso (OnceLock): este es el único test que la fija.
+        init_cover_hint_key(Some("secreto-de-prueba"));
+        let mbid = "0ca08a67-bcb1-4b6e-bd93-2dcabe336ad8";
+        let rel = "236fb078-3c87-4b39-b948-187d22e5b553";
+        let rg = "5b0a2384-d65c-3b6e-bb66-548d24a4e6ce";
+        let releases = serde_json::json!([
+            {"id": rel, "status": "Official", "release-group": {"id": rg, "primary-type": "Album"}}
+        ]);
+
+        let url = cover_url_for_search(mbid, releases.as_array().unwrap(), "Caifanes");
+        let query = url.split_once('?').unwrap().1;
+        let (c, s) = query.split_once('&').unwrap();
+        let (c, s) = (c.strip_prefix("c=").unwrap(), s.strip_prefix("s=").unwrap());
+        assert_eq!(c, format!("r.{rel},g.{rg}"));
+
+        // Ida y vuelta.
+        let parsed = parse_signed_hint(mbid, Some(c), Some(s)).unwrap();
+        assert_eq!(
+            parsed,
+            vec![ArtRef::Release(rel.into()), ArtRef::Group(rg.into())]
+        );
+
+        // Firma manipulada, pista cambiada o reutilizada en otro mbid → se ignora
+        // (anti envenenamiento de la caché de disco).
+        let mut bad = s.to_string();
+        bad.replace_range(0..1, if s.starts_with('0') { "1" } else { "0" });
+        assert!(parse_signed_hint(mbid, Some(c), Some(&bad)).is_none());
+        assert!(parse_signed_hint(mbid, Some(&format!("g.{rg}")), Some(s)).is_none());
+        let otro = "11111111-2222-3333-4444-555555555555";
+        assert!(parse_signed_hint(otro, Some(c), Some(s)).is_none());
+        assert!(parse_signed_hint(mbid, Some(c), None).is_none());
+
+        // Grabación sin releases → "-" firmado = sin candidatos (falla rápido).
+        let url = cover_url_for_search(mbid, &[], "x");
+        assert!(url.contains("?c=-&s="));
+        let s_vacia = url.rsplit_once("s=").unwrap().1;
+        assert_eq!(
+            parse_signed_hint(mbid, Some("-"), Some(s_vacia)),
+            Some(vec![])
+        );
+
+        // Ids que no son UUID (p.ej. intento de colar otra URL) → se ignora la pista.
+        assert!(ArtRef::decode("r.../../etc").is_none());
+        assert!(ArtRef::decode("x.236fb078-3c87-4b39-b948-187d22e5b553").is_none());
     }
 
     fn core() -> TidolCore {
@@ -743,13 +916,16 @@ mod tests {
         let c = core();
         for id in ["", "../x", "a/b", "a.b", "id con espacios", "café"] {
             assert!(
-                matches!(c.get_cover(id, None).await, CoverOutcome::InvalidId),
+                matches!(
+                    c.get_cover(id, None, None, None).await,
+                    CoverOutcome::InvalidId
+                ),
                 "id {id:?} debía ser InvalidId (→400)"
             );
         }
         let long = "a".repeat(65);
         assert!(matches!(
-            c.get_cover(&long, None).await,
+            c.get_cover(&long, None, None, None).await,
             CoverOutcome::InvalidId
         ));
     }

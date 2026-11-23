@@ -109,7 +109,8 @@ El fichero más grande (~1 270 líneas).
 
 - `search_catalog`: un 503 de MB tras los reintentos ahora es **error** (antes se leía como
   0 resultados y el usuario veía "sin resultados"); el handler sigue respondiendo `{status:"error"}`.
-  Guarda en `media.rs` las **pistas de portada** de cada resultado (sus releases ya vienen en la respuesta).
+  El `coverUrl` de cada resultado lleva una **pista de portada firmada** (`media::cover_url_for_search`:
+  sus releases ya vienen en la respuesta; ver [08](08-flujos-reproduccion-portadas-letras.md#2-portadas)).
 - `search_catalog`: llama **directo a la API JSON de MusicBrainz** (no a `musicbrainz_rs`,
   cuya cola global de 1 req/s hacía que la búsqueda tardara minutos). Filtra grabaciones
   no canónicas (`BAD_DISAMBIG`: megamix, karaoke…) y vídeos. Portadas: cada pista apunta
@@ -155,9 +156,9 @@ El fichero más grande (~1 270 líneas).
   Valida el id (anti path-traversal), caché en disco `covers/<mbid>.jpg` (relativa al
   CWD; en Docker `/app/covers`, volumen `tidol-covers`), caché negativa en memoria 30 min
   (`COVER_MISSES`), cascada CAA → MusicBrainz (puntuando releases) → iTunes → `fallback`.
-  Si la búsqueda dejó **pistas de portada** (`store_cover_hints`, caché 1 h, también vacías para
-  grabaciones sin releases) se saltan el paso 1 y el lookup a MB. La puntuación de releases vive en
-  `cover_candidates` (función pura con test). Si MB respondió 503 no se cachea el miss.
+  Con pista firmada (`?c=&s=`, HMAC con `JWT_SECRET`) se saltan el paso 1 y el lookup a MB. La
+  puntuación de releases vive en `cover_candidates` (función pura con test). Si MB respondió 503
+  no se cachea el miss. Los respaldos (iTunes/`fallback`) salen como `CoverOutcome::Fallback`.
   Las dos variantes CAA del paso 1 van en paralelo y los candidatos del paso 2 se piden con
   concurrencia 4 en orden de puntuación (gana el mismo que antes, pero sin 12 peticiones en serie).
 

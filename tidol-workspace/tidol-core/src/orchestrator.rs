@@ -153,24 +153,6 @@ impl MetadataOrchestrator {
         // ~20 llamadas a iTunes por request. Ahora cada pista apunta al endpoint
         // propio /api/v1/covers/:mbid (lazy, cacheado en disco, mismo origen) y
         // la búsqueda responde en el tiempo de MusicBrainz (~1s).
-        // Pistas de portada: los releases de cada resultado ya vienen en esta
-        // respuesta; guardarlos evita un lookup a MB por portada (ver media.rs).
-        // Sin `releases` (grabación suelta) se guarda una pista vacía: así la
-        // portada no consulta a MB para acabar sabiendo lo mismo.
-        if let Some(recs) = rec_json["recordings"].as_array() {
-            for rec in recs {
-                if let Some(id) = rec["id"].as_str() {
-                    let releases = rec["releases"].as_array().map(Vec::as_slice).unwrap_or(&[]);
-                    let artist = rec["artist-credit"]
-                        .as_array()
-                        .and_then(|c| c.first())
-                        .and_then(|c| c["name"].as_str())
-                        .unwrap_or("");
-                    crate::media::store_cover_hints(id, releases, artist).await;
-                }
-            }
-        }
-
         let enriched_tracks: Vec<TrackResponse> = rec_json["recordings"]
             .as_array()
             .map(|arr| arr.as_slice())
@@ -195,8 +177,15 @@ impl MetadataOrchestrator {
                     .to_string();
                 let duration_ms = rec["length"].as_i64().unwrap_or(0);
 
+                // Portada con pista firmada: los releases ya vienen en esta respuesta
+                // y viajan en la URL, así `/covers` no gasta un lookup a MusicBrainz
+                // (funciona en cualquier réplica; ver media.rs). Sin `releases`
+                // (grabación suelta) la pista dice "sin candidatos".
+                let releases = rec["releases"].as_array().map(Vec::as_slice).unwrap_or(&[]);
+                let cover_url =
+                    crate::media::cover_url_for_search(&track_id, releases, &artist_name);
                 Some(TrackResponse {
-                    cover_url: Some(format!("/api/v1/covers/{}", track_id)),
+                    cover_url: Some(cover_url),
                     track_id,
                     title,
                     artist: artist_name,
