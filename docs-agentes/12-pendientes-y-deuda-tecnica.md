@@ -100,8 +100,12 @@ fecha y el commit**. Las prioridades son una propuesta; el dueño del proyecto d
   backfill de `playlist_songs.position` solo si hace falta; prefetch de `bad_engine` sin coste
   cuando no hay binario.
 - Rendimiento pendiente: `[profile.release]` sin LTO (valorar `lto = "thin"` frente al tiempo de
-  build en el VPS); las cachés siguen siendo por réplica; sin limitador global de MusicBrainz
-  para las llamadas directas.
+  build en el VPS); las cachés siguen siendo por réplica (también el limitador
+  de MusicBrainz: con N réplicas el ritmo total es N req/s; compartirlo requeriría Redis).
+- ✅ *2026-11-22*: limitador común de MusicBrainz con prioridades (`net.rs`) + pistas de portada
+  desde la búsqueda. Benchmark local (20 portadas sin caché + búsqueda simultánea): antes la
+  búsqueda salía vacía por 503 y solo 3/20 portadas; ahora la búsqueda trae resultados y la
+  portada más lenta pasa de ~40 s (solo limitador) a ~3 s (limitador + pistas).
 - ✅ *2026-11-22*: `ORDER BY RAND()` de las recomendaciones de reserva de la Home sustituido por
   un pivote UUID aleatorio sobre la PK (rango por índice + vuelta circular).
 

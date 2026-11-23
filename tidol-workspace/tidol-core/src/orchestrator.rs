@@ -111,18 +111,29 @@ impl MetadataOrchestrator {
             urlencoding::encode(query)
         );
 
+        // Ambas pasan por el limitador común (prioridad interactiva; ver crate::net).
         let (rec_res, artist_res) = tokio::join!(
-            self.http_client
-                .get(&rec_url)
-                .header("User-Agent", "TidolCore/1.0 (contact@tidol.duckdns.org)")
-                .send(),
-            self.http_client
-                .get(&artist_url)
-                .header("User-Agent", "TidolCore/1.0 (contact@tidol.duckdns.org)")
-                .send()
+            crate::net::mb_get(
+                &self.http_client,
+                &rec_url,
+                crate::net::MbPriority::Interactive
+            ),
+            crate::net::mb_get(
+                &self.http_client,
+                &artist_url,
+                crate::net::MbPriority::Interactive
+            ),
         );
 
-        let rec_json: serde_json::Value = rec_res?.json().await?;
+        // Antes no se miraba el status: un 503 de MB ("server busy") se parseaba
+        // como 0 resultados y el usuario veía "sin resultados" en vez de un fallo.
+        // Ahora es un error; el handler lo convierte en `{status:"error"}` (mismo
+        // contrato de siempre para errores) y el front muestra la lista vacía igual.
+        let rec_res = rec_res?;
+        if !rec_res.status().is_success() {
+            return Err(format!("MusicBrainz devolvió {} en la búsqueda", rec_res.status()).into());
+        }
+        let rec_json: serde_json::Value = rec_res.json().await?;
         let total_count = rec_json["count"].as_u64().unwrap_or(0) as u32;
 
         // Términos que delatan grabaciones no canónicas (megamix/karaoke/etc.)
@@ -142,6 +153,24 @@ impl MetadataOrchestrator {
         // ~20 llamadas a iTunes por request. Ahora cada pista apunta al endpoint
         // propio /api/v1/covers/:mbid (lazy, cacheado en disco, mismo origen) y
         // la búsqueda responde en el tiempo de MusicBrainz (~1s).
+        // Pistas de portada: los releases de cada resultado ya vienen en esta
+        // respuesta; guardarlos evita un lookup a MB por portada (ver media.rs).
+        // Sin `releases` (grabación suelta) se guarda una pista vacía: así la
+        // portada no consulta a MB para acabar sabiendo lo mismo.
+        if let Some(recs) = rec_json["recordings"].as_array() {
+            for rec in recs {
+                if let Some(id) = rec["id"].as_str() {
+                    let releases = rec["releases"].as_array().map(Vec::as_slice).unwrap_or(&[]);
+                    let artist = rec["artist-credit"]
+                        .as_array()
+                        .and_then(|c| c.first())
+                        .and_then(|c| c["name"].as_str())
+                        .unwrap_or("");
+                    crate::media::store_cover_hints(id, releases, artist).await;
+                }
+            }
+        }
+
         let enriched_tracks: Vec<TrackResponse> = rec_json["recordings"]
             .as_array()
             .map(|arr| arr.as_slice())
@@ -231,7 +260,10 @@ impl MetadataOrchestrator {
         &self,
         mbid: &str,
     ) -> Result<ArtistProfileResponse, Box<dyn std::error::Error + Send + Sync>> {
-        // Fetch the artist basic details
+        // Fetch the artist basic details. `musicbrainz_rs` tiene su propia cola,
+        // pero no ve las llamadas directas: pasamos también por el limitador común
+        // para que el total del proceso no supere el ritmo permitido por MB.
+        crate::net::mb_acquire(crate::net::MbPriority::Interactive).await;
         let artist = Artist::fetch().id(mbid).execute_async().await?;
 
         // Try to fetch top release groups for the artist
@@ -242,6 +274,7 @@ impl MetadataOrchestrator {
         rg_query.limit(10);
 
         let mut albums = Vec::new();
+        crate::net::mb_acquire(crate::net::MbPriority::Interactive).await;
         if let Ok(rg_results) = rg_query.execute_async().await {
             for rg in rg_results.entities {
                 let release_year = rg
@@ -284,25 +317,15 @@ impl MetadataOrchestrator {
         &self,
         url: &str,
     ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
-        let mut attempts = 0;
-        loop {
-            attempts += 1;
-            let res = self
-                .http_client
-                .get(url)
-                .header("User-Agent", "TidolCore/1.0 (contact@tidol.duckdns.org)")
-                .send()
-                .await?;
-            let status = res.status();
-            if status.is_success() {
-                return Ok(res.json().await?);
-            }
-            if attempts < 3 && (status.as_u16() == 503 || status.as_u16() == 429) {
-                tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
-                continue;
-            }
-            return Err(format!("MusicBrainz devolvió {} para {}", status, url).into());
+        // Limitador común + reintentos ante 503/429 (antes: bucle propio con
+        // 1,1 s de espera, sin coordinarse con el resto de llamadas a MB).
+        let res =
+            crate::net::mb_get(&self.http_client, url, crate::net::MbPriority::Interactive).await?;
+        let status = res.status();
+        if status.is_success() {
+            return Ok(res.json().await?);
         }
+        Err(format!("MusicBrainz devolvió {} para {}", status, url).into())
     }
 
     pub async fn get_artist_discography(
@@ -519,11 +542,9 @@ impl MetadataOrchestrator {
                 "https://musicbrainz.org/ws/2/release?release-group={}&inc=recordings&fmt=json",
                 album_mbid
             );
-            let res = client
-                .get(&mb_search_url)
-                .header("User-Agent", "TidolCore/1.0")
-                .send()
-                .await?;
+            let res =
+                crate::net::mb_get(client, &mb_search_url, crate::net::MbPriority::Interactive)
+                    .await?;
             let mut mb_data: serde_json::Value = res.json().await?;
 
             if let Some(releases) = mb_data.get("releases").and_then(|v| v.as_array()) {
@@ -759,10 +780,16 @@ impl MetadataOrchestrator {
         // Timeout explícito: musicbrainz_rs encola TODAS las peticiones del
         // proceso a 1 req/s; si la cola está saturada preferimos fallar esta
         // resolución de fondo a retener el handler minutos.
-        let recording = tokio::time::timeout(
-            std::time::Duration::from_secs(15),
-            Recording::fetch().id(mbid).with_artists().execute_async(),
-        )
+        // La espera del limitador común (prioridad de fondo) cuenta dentro del
+        // mismo timeout: si MB está saturado, preferimos fallar esta resolución.
+        let recording = tokio::time::timeout(std::time::Duration::from_secs(15), async {
+            crate::net::mb_acquire(crate::net::MbPriority::Background).await;
+            Recording::fetch()
+                .id(mbid)
+                .with_artists()
+                .execute_async()
+                .await
+        })
         .await
         .map_err(|_| "MusicBrainz lookup timed out (cola saturada)".to_string())?
         .map_err(|e| format!("MusicBrainz lookup failed: {}", e))?;
@@ -937,13 +964,16 @@ impl MetadataOrchestrator {
             "https://musicbrainz.org/ws/2/recording?query={}&fmt=json&limit=1",
             urlencoding::encode(&query)
         );
-        let mb_res = self
-            .http_client
-            .get(&mb_url)
-            .header("User-Agent", "TidolCore/1.0")
-            .send()
-            .await
-            .ok()?;
+        let mb_res = crate::net::mb_get(
+            &self.http_client,
+            &mb_url,
+            crate::net::MbPriority::Background,
+        )
+        .await
+        .ok()?;
+        if !mb_res.status().is_success() {
+            return None;
+        }
         let mb_json = mb_res.json::<serde_json::Value>().await.ok()?;
         mb_json
             .get("recordings")

@@ -42,3 +42,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 chrono = { version = "0.4", features = ["serde"] }
 regex = "1.10"
 moka = { version = "0.12", features = ["future"] }
+
+[dev-dependencies]
+# test-util: reloj simulado (start_paused) para probar el limitador de MusicBrainz
+# sin esperas reales. Solo en tests; no entra en el binario.
+tokio = { version = "1.0", features = ["full", "test-util"] }

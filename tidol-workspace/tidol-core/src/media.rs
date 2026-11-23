@@ -101,6 +101,178 @@ async fn fetch_image(client: &reqwest::Client, url: &str) -> Option<Vec<u8>> {
     (bytes.len() > 100).then(|| bytes.to_vec())
 }
 
+/// Ordena los releases de una grabación y devuelve las URLs de CAA a probar.
+/// Puntúa Official + Album + artista coincidente + fecha antigua y excluye
+/// recopilatorios/directos/mixes. Compartido por `get_cover` (datos del lookup de
+/// MusicBrainz) y por la búsqueda (`store_cover_hints`), que ya trae los releases.
+pub(crate) fn cover_candidates(releases: &[serde_json::Value], rec_artist: &str) -> Vec<String> {
+    let rec_artist = rec_artist.to_lowercase();
+    // Tipos secundarios a excluir (no queremos recopilatorios/directos/mixes).
+    const BAD_SECONDARY: [&str; 8] = [
+        "compilation",
+        "live",
+        "dj-mix",
+        "mixtape/street",
+        "remix",
+        "soundtrack",
+        "demo",
+        "interview",
+    ];
+
+    let date_of = |rel: &serde_json::Value| -> String {
+        let rel_date = rel.get("date").and_then(|v| v.as_str()).unwrap_or("");
+        let rg_date = rel
+            .get("release-group")
+            .and_then(|rg| rg.get("first-release-date"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        // Preferimos la fecha con más información; para ordenar por más
+        // antigua tratamos "" como muy futuro.
+        let d = if !rel_date.is_empty() {
+            rel_date
+        } else {
+            rg_date
+        };
+        if d.is_empty() {
+            "9999".to_string()
+        } else {
+            d.to_string()
+        }
+    };
+
+    let mut scored: Vec<(i32, String, serde_json::Value)> = Vec::new();
+    for rel in releases {
+        let rg = rel.get("release-group");
+        let primary = rg
+            .and_then(|g| g.get("primary-type"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_lowercase();
+        let secondary: Vec<String> = rg
+            .and_then(|g| g.get("secondary-types"))
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|s| s.as_str())
+                    .map(|s| s.to_lowercase())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        // Excluir releases con tipos secundarios no deseados.
+        if secondary
+            .iter()
+            .any(|s| BAD_SECONDARY.contains(&s.as_str()))
+        {
+            continue;
+        }
+
+        let mut score = 0;
+        let status = rel
+            .get("status")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_lowercase();
+        if status == "official" {
+            score += 100;
+        }
+        match primary.as_str() {
+            "album" => score += 50,
+            "ep" => score += 20,
+            "single" => score += 5,
+            "broadcast" | "other" => score -= 20,
+            _ => {}
+        }
+
+        // Coincidencia de artista: el release debe ser del mismo artista
+        // que la grabación (evita recopilatorios/varios artistas ajenos).
+        if !rec_artist.is_empty() {
+            let rel_artist = rel
+                .get("artist-credit")
+                .and_then(|c| c.as_array())
+                .and_then(|arr| arr.first())
+                .and_then(|c| c.get("name"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_lowercase();
+            if !rel_artist.is_empty() {
+                if rel_artist == rec_artist {
+                    score += 80;
+                } else {
+                    score -= 60;
+                }
+            }
+        }
+
+        scored.push((score, date_of(rel), rel.clone()));
+    }
+
+    // Orden: mayor score primero; a igualdad, fecha más antigua.
+    scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+
+    // Antes: hasta 12 peticiones a CAA en SERIE (release y release-group
+    // de los 6 mejores releases) → una portada difícil tardaba >10 s.
+    // Ahora se piden con concurrencia acotada; `buffered` mantiene el
+    // orden de puntuación, así que gana el mejor candidato con portada
+    // (mismo resultado que antes) y al soltar el stream se cancela el resto.
+    let mut candidates: Vec<String> = Vec::new();
+    for (_score, _date, rel) in scored.iter().take(6) {
+        if let Some(rid) = rel.get("id").and_then(|v| v.as_str()) {
+            candidates.push(format!(
+                "https://coverartarchive.org/release/{}/front-500",
+                rid
+            ));
+        }
+        // A veces solo el release-group tiene arte.
+        if let Some(rgid) = rel
+            .get("release-group")
+            .and_then(|rg| rg.get("id"))
+            .and_then(|v| v.as_str())
+        {
+            let url = format!(
+                "https://coverartarchive.org/release-group/{}/front-500",
+                rgid
+            );
+            // Varios releases suelen compartir release-group.
+            if !candidates.contains(&url) {
+                candidates.push(url);
+            }
+        }
+    }
+    candidates
+}
+
+// Pistas de portada: la búsqueda de grabaciones de MusicBrainz YA trae los
+// releases de cada resultado. Antes `get_cover` volvía a pedirlos uno por uno
+// (1 lookup a MB por portada): con el limitador común, una página de 20
+// resultados tardaba ~40 s en completar las portadas. Ahora la búsqueda deja aquí
+// los candidatos y la portada de un resultado no gasta ninguna petición a MB.
+static COVER_HINTS: std::sync::OnceLock<moka::future::Cache<String, std::sync::Arc<Vec<String>>>> =
+    std::sync::OnceLock::new();
+
+fn cover_hints() -> &'static moka::future::Cache<String, std::sync::Arc<Vec<String>>> {
+    COVER_HINTS.get_or_init(|| {
+        moka::future::Cache::builder()
+            .max_capacity(20_000)
+            .time_to_live(std::time::Duration::from_secs(60 * 60))
+            .build()
+    })
+}
+
+/// Guarda los candidatos de portada de una grabación (desde la búsqueda).
+///
+/// También se guarda la lista VACÍA (grabación sin releases o solo con
+/// recopilatorios/directos): el lookup a MusicBrainz devolvería los mismos
+/// releases, así que no hay nada que ganar y sí ~1 s de cola del limitador por
+/// portada. En benchmark (búsqueda "el tri"), esas portadas tardaban hasta 38 s
+/// en resolverse como "sin portada"; ahora fallan al instante.
+pub(crate) async fn store_cover_hints(mbid: &str, releases: &[serde_json::Value], artist: &str) {
+    let candidates = cover_candidates(releases, artist);
+    cover_hints()
+        .insert(mbid.to_string(), std::sync::Arc::new(candidates))
+        .await;
+}
+
 /// Lee la portada por defecto (`covers/default.jpg`) si existe.
 async fn read_default_cover(covers_dir: &std::path::Path) -> Option<Vec<u8>> {
     tokio::fs::read(covers_dir.join("default.jpg")).await.ok()
@@ -257,6 +429,10 @@ impl TidolCore {
         // uno por petición: cada portada pagaba DNS+TLS de nuevo en cada salto.
         let client = crate::net::shared_client();
 
+        // Si la búsqueda dejó candidatos, el mbid es de una GRABACIÓN: el paso 1
+        // (CAA por mbid de release/release-group) daría 404 seguro; se salta.
+        let hint = cover_hints().get(mbid).await;
+
         // ── 1. Cover Art Archive directo por mbid (si es release / release-group) ──
         //    Las dos variantes van en paralelo (antes en serie: para un mbid de
         //    grabación, el caso habitual, eran dos 404 encadenados antes de seguir).
@@ -266,182 +442,76 @@ impl TidolCore {
             "https://coverartarchive.org/release-group/{}/front-500",
             mbid
         );
-        let (as_release, as_group) = tokio::join!(
-            fetch_image(client, &release_url),
-            fetch_image(client, &group_url),
-        );
-        if let Some(bytes) = as_release.or(as_group) {
-            let _ = tokio::fs::write(&file_path, &bytes).await;
-            return CoverOutcome::Image(bytes);
-        }
-
-        // ── 2. MusicBrainz: si el mbid es un recording, elige el release "canónico" ──
-        //    Puntúa los releases (Official + Album + fecha antigua, excluye
-        //    Compilation/Live/DJ-mix/Remix/etc.) y prueba CAA en orden. Además intenta
-        //    la portada del release-group. Primer acierto gana y se cachea en disco.
-        let mb_url = format!(
-            "https://musicbrainz.org/ws/2/recording/{}?inc=releases+release-groups+artist-credits&fmt=json",
-            mbid
-        );
-        if let Ok(res) = client.get(&mb_url).send().await {
-            if let Ok(json) = res.json::<serde_json::Value>().await {
-                // Artista canónico de la grabación (para exigir coincidencia de release).
-                let rec_artist = json
-                    .get("artist-credit")
-                    .and_then(|c| c.as_array())
-                    .and_then(|arr| arr.first())
-                    .and_then(|c| c.get("name"))
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_lowercase();
-
-                if let Some(releases) = json.get("releases").and_then(|r| r.as_array()) {
-                    // Tipos secundarios a excluir (no queremos recopilatorios/directos/mixes).
-                    const BAD_SECONDARY: [&str; 8] = [
-                        "compilation",
-                        "live",
-                        "dj-mix",
-                        "mixtape/street",
-                        "remix",
-                        "soundtrack",
-                        "demo",
-                        "interview",
-                    ];
-
-                    let date_of = |rel: &serde_json::Value| -> String {
-                        let rel_date = rel.get("date").and_then(|v| v.as_str()).unwrap_or("");
-                        let rg_date = rel
-                            .get("release-group")
-                            .and_then(|rg| rg.get("first-release-date"))
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("");
-                        // Preferimos la fecha con más información; para ordenar por más
-                        // antigua tratamos "" como muy futuro.
-                        let d = if !rel_date.is_empty() {
-                            rel_date
-                        } else {
-                            rg_date
-                        };
-                        if d.is_empty() {
-                            "9999".to_string()
-                        } else {
-                            d.to_string()
-                        }
-                    };
-
-                    let mut scored: Vec<(i32, String, serde_json::Value)> = Vec::new();
-                    for rel in releases {
-                        let rg = rel.get("release-group");
-                        let primary = rg
-                            .and_then(|g| g.get("primary-type"))
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_lowercase();
-                        let secondary: Vec<String> = rg
-                            .and_then(|g| g.get("secondary-types"))
-                            .and_then(|v| v.as_array())
-                            .map(|arr| {
-                                arr.iter()
-                                    .filter_map(|s| s.as_str())
-                                    .map(|s| s.to_lowercase())
-                                    .collect()
-                            })
-                            .unwrap_or_default();
-
-                        // Excluir releases con tipos secundarios no deseados.
-                        if secondary
-                            .iter()
-                            .any(|s| BAD_SECONDARY.contains(&s.as_str()))
-                        {
-                            continue;
-                        }
-
-                        let mut score = 0;
-                        let status = rel
-                            .get("status")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_lowercase();
-                        if status == "official" {
-                            score += 100;
-                        }
-                        match primary.as_str() {
-                            "album" => score += 50,
-                            "ep" => score += 20,
-                            "single" => score += 5,
-                            "broadcast" | "other" => score -= 20,
-                            _ => {}
-                        }
-
-                        // Coincidencia de artista: el release debe ser del mismo artista
-                        // que la grabación (evita recopilatorios/varios artistas ajenos).
-                        if !rec_artist.is_empty() {
-                            let rel_artist = rel
-                                .get("artist-credit")
-                                .and_then(|c| c.as_array())
-                                .and_then(|arr| arr.first())
-                                .and_then(|c| c.get("name"))
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("")
-                                .to_lowercase();
-                            if !rel_artist.is_empty() {
-                                if rel_artist == rec_artist {
-                                    score += 80;
-                                } else {
-                                    score -= 60;
-                                }
-                            }
-                        }
-
-                        scored.push((score, date_of(rel), rel.clone()));
-                    }
-
-                    // Orden: mayor score primero; a igualdad, fecha más antigua.
-                    scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
-
-                    // Antes: hasta 12 peticiones a CAA en SERIE (release y release-group
-                    // de los 6 mejores releases) → una portada difícil tardaba >10 s.
-                    // Ahora se piden con concurrencia acotada; `buffered` mantiene el
-                    // orden de puntuación, así que gana el mejor candidato con portada
-                    // (mismo resultado que antes) y al soltar el stream se cancela el resto.
-                    let mut candidates: Vec<String> = Vec::new();
-                    for (_score, _date, rel) in scored.iter().take(6) {
-                        if let Some(rid) = rel.get("id").and_then(|v| v.as_str()) {
-                            candidates.push(format!(
-                                "https://coverartarchive.org/release/{}/front-500",
-                                rid
-                            ));
-                        }
-                        // A veces solo el release-group tiene arte.
-                        if let Some(rgid) = rel
-                            .get("release-group")
-                            .and_then(|rg| rg.get("id"))
-                            .and_then(|v| v.as_str())
-                        {
-                            let url = format!(
-                                "https://coverartarchive.org/release-group/{}/front-500",
-                                rgid
-                            );
-                            // Varios releases suelen compartir release-group.
-                            if !candidates.contains(&url) {
-                                candidates.push(url);
-                            }
-                        }
-                    }
-
-                    use futures::stream::StreamExt;
-                    let mut stream = futures::stream::iter(candidates)
-                        .map(|url| async move { fetch_image(client, &url).await })
-                        .buffered(COVER_CAA_CONCURRENCY);
-                    while let Some(found) = stream.next().await {
-                        if let Some(bytes) = found {
-                            let _ = tokio::fs::write(&file_path, &bytes).await;
-                            return CoverOutcome::Image(bytes);
-                        }
-                    }
-                }
+        if hint.is_none() {
+            let (as_release, as_group) = tokio::join!(
+                fetch_image(client, &release_url),
+                fetch_image(client, &group_url),
+            );
+            if let Some(bytes) = as_release.or(as_group) {
+                let _ = tokio::fs::write(&file_path, &bytes).await;
+                return CoverOutcome::Image(bytes);
             }
         }
+
+        // ── 2. Releases de la grabación → CAA en orden de puntuación ──
+        //    Los candidatos salen de las pistas que dejó la búsqueda o, si no hay,
+        //    de un lookup a MusicBrainz (prioridad de fondo en el limitador común:
+        //    una página con 20 portadas sin caché ya no dispara 20 peticiones
+        //    simultáneas a MB, que acababan en 503 y en "miss" cacheado 30 min).
+        //    Si MB sigue respondiendo 503 tras los reintentos NO se registra miss:
+        //    la portada puede existir.
+        let mut mb_throttled = false;
+        let candidates: Vec<String> = match hint {
+            Some(c) => c.as_ref().clone(),
+            None => {
+                let mb_url = format!(
+                    "https://musicbrainz.org/ws/2/recording/{}?inc=releases+release-groups+artist-credits&fmt=json",
+                    mbid
+                );
+                match crate::net::mb_get(client, &mb_url, crate::net::MbPriority::Background).await
+                {
+                    Ok(res) => {
+                        mb_throttled = res.status() == reqwest::StatusCode::SERVICE_UNAVAILABLE
+                            || res.status() == reqwest::StatusCode::TOO_MANY_REQUESTS;
+                        match res.json::<serde_json::Value>().await {
+                            Ok(json) => {
+                                // Artista canónico de la grabación (para exigir coincidencia de release).
+                                let rec_artist = json
+                                    .get("artist-credit")
+                                    .and_then(|c| c.as_array())
+                                    .and_then(|arr| arr.first())
+                                    .and_then(|c| c.get("name"))
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("");
+                                json.get("releases")
+                                    .and_then(|r| r.as_array())
+                                    .map(|rels| cover_candidates(rels, rec_artist))
+                                    .unwrap_or_default()
+                            }
+                            Err(_) => Vec::new(),
+                        }
+                    }
+                    Err(_) => Vec::new(),
+                }
+            }
+        };
+
+        // Antes: hasta 12 peticiones a CAA en SERIE (release y release-group de los
+        // 6 mejores releases) → una portada difícil tardaba >10 s. Ahora se piden con
+        // concurrencia acotada; `buffered` mantiene el orden de puntuación, así que
+        // gana el mejor candidato con portada (mismo resultado que antes) y al soltar
+        // el stream se cancela el resto.
+        use futures::stream::StreamExt;
+        let mut stream = futures::stream::iter(candidates)
+            .map(|url| async move { fetch_image(client, &url).await })
+            .buffered(COVER_CAA_CONCURRENCY);
+        while let Some(found) = stream.next().await {
+            if let Some(bytes) = found {
+                let _ = tokio::fs::write(&file_path, &bytes).await;
+                return CoverOutcome::Image(bytes);
+            }
+        }
+        drop(stream);
 
         let track = sqlx::query!("SELECT title, artist FROM track_links WHERE mbid = ?", mbid)
             .fetch_optional(&self.db)
@@ -509,7 +579,10 @@ impl TidolCore {
 
         // Nada encontró portada: registrar el miss para no repetir la cascada
         // durante el TTL (los fallbacks iTunes/YT no se cachean a disco a propósito).
-        cover_miss_store(mbid);
+        // Si MB estaba saturado no sabemos si hay portada: no se cachea el miss.
+        if !mb_throttled {
+            cover_miss_store(mbid);
+        }
         CoverOutcome::Default(read_default_cover(&covers_dir).await)
     }
 }
@@ -519,6 +592,36 @@ mod tests {
     use super::*;
     use crate::config::CoreConfig;
     use crate::TidolCore;
+
+    #[test]
+    fn cover_candidates_ordena_filtra_y_deduplica() {
+        let releases = serde_json::json!([
+            // Recopilatorio: excluido aunque sea Official.
+            {"id": "comp", "status": "Official",
+             "release-group": {"id": "rg-comp", "primary-type": "Album", "secondary-types": ["Compilation"]}},
+            // Single oficial: puntúa menos que el álbum.
+            {"id": "single", "status": "Official", "date": "1990",
+             "release-group": {"id": "rg-single", "primary-type": "Single"}},
+            // Álbum oficial (dos ediciones del mismo release-group; gana la más antigua).
+            {"id": "album-2005", "status": "Official", "date": "2005",
+             "release-group": {"id": "rg-album", "primary-type": "Album"}},
+            {"id": "album-1997", "status": "Official", "date": "1997",
+             "release-group": {"id": "rg-album", "primary-type": "Album"}}
+        ]);
+        let got = cover_candidates(releases.as_array().unwrap(), "Molotov");
+        let caa = |k: &str, id: &str| format!("https://coverartarchive.org/{k}/{id}/front-500");
+        assert_eq!(
+            got,
+            vec![
+                caa("release", "album-1997"),
+                caa("release-group", "rg-album"),
+                caa("release", "album-2005"), // rg-album no se repite
+                caa("release", "single"),
+                caa("release-group", "rg-single"),
+            ]
+        );
+        assert!(cover_candidates(&[], "x").is_empty());
+    }
 
     fn core() -> TidolCore {
         TidolCore::new_disconnected(CoreConfig {

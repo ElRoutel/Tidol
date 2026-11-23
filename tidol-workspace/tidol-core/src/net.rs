@@ -93,9 +93,149 @@ pub(crate) fn itunes_status_is_failure(status: reqwest::StatusCode) -> bool {
         || status.is_server_error()
 }
 
+// ── Limitador común de MusicBrainz ───────────────────────────────────────────
+//
+// MusicBrainz admite de media 1 petición/s por IP y responde 503 ("server is
+// currently busy") al pasarse. `musicbrainz_rs` tiene su propia cola, pero la
+// mayoría de llamadas del core van DIRECTAS a la API JSON (búsqueda, álbumes,
+// discografías, la cascada de portadas, la resolución de similares) y ninguna se
+// coordinaba: una página de búsqueda con 20 portadas sin caché disparaba ~20
+// peticiones a la vez, MB devolvía 503 a casi todas, las portadas quedaban como
+// "miss" 30 min y la búsqueda siguiente salía VACÍA (el 503 se leía como 0
+// resultados).
+//
+// Cubo de fichas compartido por todo el proceso (ritmo 1/s, ráfaga 3) con dos
+// prioridades: el trabajo de fondo (portadas, similares, hidratación) solo gasta
+// una ficha si quedan al menos 2, así siempre hay una libre para lo interactivo
+// (búsqueda, artista, álbum), que no se queda detrás de una ráfaga de portadas.
+// Es por réplica: con N réplicas el total es N req/s (ver docs-agentes/12).
+
+/// Prioridad de una petición a MusicBrainz.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MbPriority {
+    /// El usuario espera la respuesta (búsqueda, perfil de artista, álbum).
+    Interactive,
+    /// Puede esperar o fallar sin que nadie lo note (portadas, similares, hidratación).
+    Background,
+}
+
+const MB_RATE_PER_SEC: f64 = 1.0;
+const MB_BURST: f64 = 3.0;
+/// Reintentos ante 503/429 (además del intento inicial), cada uno pasando de
+/// nuevo por el limitador.
+const MB_RETRIES: u32 = 2;
+
+struct Bucket {
+    tokens: f64,
+    last: tokio::time::Instant,
+}
+
+static MB_BUCKET: OnceLock<tokio::sync::Mutex<Bucket>> = OnceLock::new();
+
+/// Fichas que deben quedar disponibles para que una prioridad pueda gastar una.
+fn mb_threshold(p: MbPriority) -> f64 {
+    match p {
+        MbPriority::Interactive => 1.0,
+        MbPriority::Background => 2.0,
+    }
+}
+
+/// Espera hasta poder hacer una petición a MusicBrainz con la prioridad dada.
+pub(crate) async fn mb_acquire(priority: MbPriority) {
+    let bucket = MB_BUCKET.get_or_init(|| {
+        tokio::sync::Mutex::new(Bucket {
+            tokens: MB_BURST,
+            last: tokio::time::Instant::now(),
+        })
+    });
+    let threshold = mb_threshold(priority);
+    loop {
+        let wait = {
+            let mut b = bucket.lock().await;
+            let now = tokio::time::Instant::now();
+            let elapsed = now.duration_since(b.last).as_secs_f64();
+            b.tokens = (b.tokens + elapsed * MB_RATE_PER_SEC).min(MB_BURST);
+            b.last = now;
+            if b.tokens >= threshold {
+                b.tokens -= 1.0;
+                return;
+            }
+            Duration::from_secs_f64((threshold - b.tokens) / MB_RATE_PER_SEC)
+        };
+        // Se suelta el candado antes de dormir; al despertar se vuelve a comprobar
+        // (otro puede haberse llevado la ficha).
+        tokio::time::sleep(wait).await;
+    }
+}
+
+/// GET a MusicBrainz pasando por el limitador, con reintento ante 503/429.
+/// Devuelve la última respuesta (que puede seguir siendo 503: el llamador decide).
+pub(crate) async fn mb_get(
+    client: &reqwest::Client,
+    url: &str,
+    priority: MbPriority,
+) -> Result<reqwest::Response, reqwest::Error> {
+    let mut attempt = 0;
+    loop {
+        mb_acquire(priority).await;
+        let res = client
+            .get(url)
+            .header("User-Agent", "TidolCore/1.0 (contact@tidol.duckdns.org)")
+            .send()
+            .await?;
+        let status = res.status();
+        let throttled = status == reqwest::StatusCode::SERVICE_UNAVAILABLE
+            || status == reqwest::StatusCode::TOO_MANY_REQUESTS;
+        if !throttled || attempt >= MB_RETRIES {
+            if throttled {
+                tracing::warn!(
+                    "[MusicBrainz] {} tras {} reintentos: {}",
+                    status,
+                    attempt,
+                    url
+                );
+            }
+            return Ok(res);
+        }
+        attempt += 1;
+        // Retroceso extra además del limitador: si MB está saturado, insistir al
+        // ritmo normal solo alarga el 503.
+        tokio::time::sleep(Duration::from_millis(1000 * attempt as u64)).await;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test(start_paused = true)]
+    async fn limitador_mb_respeta_ritmo_y_prioridad() {
+        let t0 = tokio::time::Instant::now();
+        // Ráfaga: 3 fichas → 3 interactivas inmediatas.
+        for _ in 0..3 {
+            mb_acquire(MbPriority::Interactive).await;
+        }
+        assert!(t0.elapsed() < Duration::from_millis(10));
+        // La 4ª espera ~1 s (ritmo 1/s).
+        mb_acquire(MbPriority::Interactive).await;
+        let e = t0.elapsed();
+        assert!(
+            e >= Duration::from_millis(990) && e < Duration::from_millis(1100),
+            "{e:?}"
+        );
+        // Fondo con el cubo vacío necesita 2 fichas acumuladas (~2 s).
+        let t1 = tokio::time::Instant::now();
+        mb_acquire(MbPriority::Background).await;
+        let e = t1.elapsed();
+        assert!(
+            e >= Duration::from_millis(1990) && e < Duration::from_millis(2100),
+            "{e:?}"
+        );
+        // …y deja 1 ficha: una interactiva justo después pasa sin esperar.
+        let t2 = tokio::time::Instant::now();
+        mb_acquire(MbPriority::Interactive).await;
+        assert!(t2.elapsed() < Duration::from_millis(10));
+    }
 
     #[test]
     fn cortacircuitos_se_abre_tras_fallo() {

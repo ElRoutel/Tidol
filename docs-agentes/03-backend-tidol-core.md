@@ -107,6 +107,9 @@ Fachada del catálogo + utilidades puras.
 El fichero más grande (~1 270 líneas).
 `MetadataOrchestrator` con un `reqwest::Client` con timeout obligatorio.
 
+- `search_catalog`: un 503 de MB tras los reintentos ahora es **error** (antes se leía como
+  0 resultados y el usuario veía "sin resultados"); el handler sigue respondiendo `{status:"error"}`.
+  Guarda en `media.rs` las **pistas de portada** de cada resultado (sus releases ya vienen en la respuesta).
 - `search_catalog`: llama **directo a la API JSON de MusicBrainz** (no a `musicbrainz_rs`,
   cuya cola global de 1 req/s hacía que la búsqueda tardara minutos). Filtra grabaciones
   no canónicas (`BAD_DISAMBIG`: megamix, karaoke…) y vídeos. Portadas: cada pista apunta
@@ -152,6 +155,9 @@ El fichero más grande (~1 270 líneas).
   Valida el id (anti path-traversal), caché en disco `covers/<mbid>.jpg` (relativa al
   CWD; en Docker `/app/covers`, volumen `tidol-covers`), caché negativa en memoria 30 min
   (`COVER_MISSES`), cascada CAA → MusicBrainz (puntuando releases) → iTunes → `fallback`.
+  Si la búsqueda dejó **pistas de portada** (`store_cover_hints`, caché 1 h, también vacías para
+  grabaciones sin releases) se saltan el paso 1 y el lookup a MB. La puntuación de releases vive en
+  `cover_candidates` (función pura con test). Si MB respondió 503 no se cachea el miss.
   Las dos variantes CAA del paso 1 van en paralelo y los candidatos del paso 2 se piden con
   concurrencia 4 en orden de puntuación (gana el mismo que antes, pero sin 12 peticiones en serie).
 
@@ -184,6 +190,12 @@ ningún camino lo invoca** (campo marcado `#[allow(dead_code)]`); `get_lyrics` v
   fallo de transporte o un 403/429/5xx, iTunes se omite 10 min. `ITUNES_ENABLED=false`
   lo desactiva del todo. Motivo: desde el VPS está bloqueado y cada intento costaba el
   timeout completo en Home, búsqueda y portadas.
+- **Limitador común de MusicBrainz** (`mb_acquire` / `mb_get`): cubo de fichas por proceso
+  (1 req/s, ráfaga 3) con dos prioridades. `Background` (portadas, similares, hidratación) solo
+  gasta ficha si quedan ≥ 2, así `Interactive` (búsqueda, artista, álbum) nunca espera detrás de
+  una ráfaga de portadas. `mb_get` reintenta 2 veces ante 503/429. Todas las llamadas a MB del
+  core pasan por aquí, también las de `musicbrainz_rs` (se llama a `mb_acquire` antes). **Por
+  réplica**: con N réplicas el total es N req/s.
 
 ### `proxy.rs`
 `ProxyRotator`: round-robin sobre `PROXY_POOL` (`"direct"` por defecto) y
