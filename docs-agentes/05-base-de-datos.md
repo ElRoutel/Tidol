@@ -24,6 +24,7 @@
 | `playlist_songs` | canciones de playlist (con metadata desnormalizada) | PK `(playlist_id, track_id)`; `position` (orden estable), `url` (audio directo de IA), `song_source` |
 | `playlist_likes` | likes a playlists | PK `(playlist_id, user_id)`, FKs con cascade |
 | `user_likes` | likes a canciones | único `(user_id, track_id)`; `source` `local`/`archive` |
+| `cover_map` | **mapa de portadas**: id pedido a `/covers` → portada de CAA | PK `mbid`; `art_key` `r.<release>`/`g.<release-group>` o NULL (sin portada, reintento a los 7 días por `checked_at`). Imagen en `covers/art/<art_key>.jpg`, una por portada |
 | `play_history` | **única** fuente de historial (Home, "Volver a escuchar", `/history`) | sin FK a users (por eso `delete_account` la borra a mano); índices `(user_id, track_mbid, played_at)` y `(track_mbid)` |
 
 Tablas **legado ya eliminadas** (o a eliminar con `cleanup_legacy_tables.sql`):
@@ -42,6 +43,7 @@ Hay **tres mecanismos** (sí, es un poco caótico):
    - `001_playlist_likes.sql` — tabla `playlist_likes`.
    - `002_playlist_position_url.sql` — mismo cambio que (1), como referencia/aplicación manual.
    - `003_play_history_indexes.sql` — índices de `play_history` y `playlist_songs`.
+   - `004_cover_map.sql` — tabla `cover_map` (también la crea `TidolCore::new`).
    No hay tabla de control de versiones: cada fichero debe ser **idempotente**.
 3. **`cleanup_legacy_tables.sql`** — manual, una vez, contiene DROPs irreversibles.
 

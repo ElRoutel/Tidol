@@ -198,4 +198,18 @@ CREATE TABLE IF NOT EXISTS play_history (
     KEY idx_play_history_track (track_mbid)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ---------------------------------------------------------------------------
+-- Mapa persistente de portadas (migrations/004_cover_map.sql)
+-- mbid pedido a /covers → portada de Cover Art Archive ('r.<release>' /
+-- 'g.<release-group>'); art_key NULL = sin portada (se reintenta a los 7 días).
+-- Las imágenes viven en covers/art/<art_key>.jpg, una por portada.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS cover_map (
+    mbid       VARCHAR(64) NOT NULL,
+    art_key    VARCHAR(40) DEFAULT NULL,
+    checked_at TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (mbid),
+    KEY idx_cover_map_art (art_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;

@@ -1,0 +1,36 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT art_key, TIMESTAMPDIFF(SECOND, checked_at, NOW()) AS \"age_secs: i64\"\n               FROM cover_map WHERE mbid = ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "art_key",
+        "type_info": {
+          "type": "VarString",
+          "flags": "MULTIPLE_KEY",
+          "char_set": 224,
+          "max_size": 160
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "age_secs: i64",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "BINARY",
+          "char_set": 63,
+          "max_size": 21
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "99c59fef3a6b6d5ec68477bc2b9ded2e441356dbdd56776b0bd52cc0dd6b2d8f"
+}

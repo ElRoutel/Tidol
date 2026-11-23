@@ -97,6 +97,21 @@ impl TidolCore {
         .execute(&pool)
         .await?;
 
+        // Mapa persistente de portadas (mismo DDL que migrations/004_cover_map.sql):
+        // get_cover lo necesita; si una réplica arranca antes de que deploy.sh
+        // aplique la migración, que no dependa de ese orden.
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS cover_map (
+                mbid       VARCHAR(64) NOT NULL,
+                art_key    VARCHAR(40) DEFAULT NULL,
+                checked_at TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (mbid),
+                KEY idx_cover_map_art (art_key)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        )
+        .execute(&pool)
+        .await?;
+
         // Migración idempotente: orden estable (position) y URL de reproducción
         // directa (url, p.ej. Internet Archive) en playlist_songs. El backfill
         // asigna 1..N por fecha de añadido solo a filas sin posición.

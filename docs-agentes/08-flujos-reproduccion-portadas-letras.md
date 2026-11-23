@@ -54,17 +54,20 @@ playSong(track, queue)
 
 ```
 validar mbid (charset seguro, anti path-traversal)            → 400 si no
-¿covers/<mbid>.jpg en disco?                                   → servirla
+¿covers/<mbid>.jpg en disco? (formato antiguo, una copia por pista) → servirla
 ¿miss reciente en COVER_MISSES (30 min, por réplica)?          → default
+0. cover_map (BD, compartido): art_key → covers/art/<art_key>.jpg (si falta el fichero,
+   se re-descarga SOLO esa portada); NULL de < 7 días → default sin cascada
 ¿pista c/s con firma HMAC válida? (la pone la búsqueda)        → saltar 1 y el lookup de 2
 1. Cover Art Archive /release/<mbid>/front, /release-group/<mbid>/front (en paralelo)
 2. Candidatos = la pista, o un lookup a MusicBrainz (limitador común, prioridad de fondo)
    puntuados por cover_candidates (Official + Album + fecha antigua; excluir
    Compilation/Live/DJ-mix/Remix…; exigir mismo artista) → CAA con concurrencia 4
-   en orden de puntuación → primer acierto se cachea en disco
+   en orden de puntuación (si la candidata ya está en covers/art se usa sin red)
+   → primer acierto: covers/art/<art_key>.jpg (atómico, una vez por portada) + cover_map
 3. iTunes (texto fuzzy; NO se cachea en disco)               ← cortacircuitos; bloqueado desde el VPS
 4. fallback=<url> (p.ej. miniatura de YouTube) descargada y servida same-origin (NO se cachea)
-nada → registrar miss (salvo si MB dio 503) → covers/default.jpg o 404
+nada → registrar miss en memoria y en cover_map (salvo si MB dio 503) → covers/default.jpg o 404
 ```
 
 **Pista firmada (`?c=r.<release>,g.<release-group>&s=<hmac>`).** `search_catalog` ya recibe los

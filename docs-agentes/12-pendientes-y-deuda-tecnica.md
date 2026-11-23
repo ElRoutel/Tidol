@@ -109,9 +109,11 @@ fecha y el commit**. Las prioridades son una propuesta; el dueño del proyecto d
 - ✅ *2026-11-22*: portadas — `Cache-Control` en `/covers` (antes ninguno) y pista firmada en la
   URL en vez de caché en memoria (funciona con 3 réplicas; verificado: búsqueda en una réplica,
   portadas servidas por otra en ≤ 3,4 s; pista falsificada ignorada).
-- Portadas pendiente (fase 3): `covers/` guarda una copia **por grabación** (medido: 52 % del disco
-  son duplicados, una misma imagen hasta 20 veces). Mapa persistente `recording → release-group`
-  en MariaDB + ficheros por release-group, y misses compartidos con TTL largo.
+- ✅ *2026-11-22*: portadas fase 3 — mapa persistente `cover_map` + una imagen por portada en
+  `covers/art/` + misses compartidos (7 días). Verificado: tras reiniciar, portadas en ≤ 17 ms y
+  "sin portada" en ≤ 2 ms sin cascada; un fichero perdido se repara descargando solo esa portada.
+  Pendiente: los ~500 `covers/<mbid>.jpg` antiguos (52 % duplicados) siguen ahí; se podrían
+  migrar a `covers/art/` con un script que resuelva su `art_key` (no urgente: ~19 MB).
 - ✅ *2026-11-22*: `ORDER BY RAND()` de las recomendaciones de reserva de la Home sustituido por
   un pivote UUID aleatorio sobre la PK (rango por índice + vuelta circular).
 

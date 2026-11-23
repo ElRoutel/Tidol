@@ -159,6 +159,10 @@ El fichero más grande (~1 270 líneas).
   Con pista firmada (`?c=&s=`, HMAC con `JWT_SECRET`) se saltan el paso 1 y el lookup a MB. La
   puntuación de releases vive en `cover_candidates` (función pura con test). Si MB respondió 503
   no se cachea el miss. Los respaldos (iTunes/`fallback`) salen como `CoverOutcome::Fallback`.
+  **Mapa persistente** (`cover_map`, desde 2026-11-22): cada id apunta a su portada de CAA y la
+  imagen se guarda una vez en `covers/art/<art_key>.jpg` (escritura atómica tmp+rename, las réplicas
+  comparten volumen); los "sin portada" se comparten entre réplicas con reintento a 7 días. Errores
+  de BD = se sigue la cascada como antes. Los `covers/<mbid>.jpg` antiguos se siguen sirviendo.
   Las dos variantes CAA del paso 1 van en paralelo y los candidatos del paso 2 se piden con
   concurrencia 4 en orden de puntuación (gana el mismo que antes, pero sin 12 peticiones en serie).
 

@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT INTO cover_map (mbid, art_key, checked_at) VALUES (?, ?, CURRENT_TIMESTAMP)\n             ON DUPLICATE KEY UPDATE art_key = VALUES(art_key), checked_at = CURRENT_TIMESTAMP",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "aaae6ee0c03c7e52c9cf709091f7ec54dca9f42d10b0df4ff64b16a3abd8c723"
+}

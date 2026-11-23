@@ -60,6 +60,7 @@ Rutas: todas las rutas son relativas a la raíz del repo git
 - **Context menu / long-press** → [07](07-frontend.md#menú-contextual) · `context/ContextMenuContext.tsx`, `hooks/useLongPress.ts`, `hooks/useContextMenuTrigger.ts`, `components/ContextMenu.jsx`
 - **CORS** → [04](04-backend-tidol-server-api.md#capas-globales) · `tidol-server/src/main.rs`
 - **Covers / portadas** → [08](08-flujos-reproduccion-portadas-letras.md#2-portadas) · back `media.rs::get_cover`; front `utils/coverArt.ts`
+- **cover_map (mapa persistente de portadas, `covers/art/`)** → [08](08-flujos-reproduccion-portadas-letras.md#2-portadas), [05](05-base-de-datos.md) · `media.rs`, `migrations/004_cover_map.sql`
 
 ### D
 - **Deploy** → [10](10-infraestructura-y-deploy.md#deploysh) · `deploy.sh`

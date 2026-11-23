@@ -1,7 +1,7 @@
 use image::imageops::FilterType;
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::TidolCore;
 
@@ -389,6 +389,40 @@ pub(crate) fn cover_url_for_search(
     }
 }
 
+/// Reintento de un "sin portada" guardado en el mapa (CAA puede añadirla después).
+const COVER_MAP_MISS_TTL_SECS: i64 = 7 * 24 * 60 * 60;
+
+/// Entrada válida del mapa de portadas.
+enum MapEntry {
+    Art(ArtRef),
+    /// Sin portada, comprobado hace menos de `COVER_MAP_MISS_TTL_SECS`.
+    Miss,
+}
+
+/// `covers/art/<r.|g.><uuid>.jpg`: una imagen por portada de CAA, compartida por
+/// todas las pistas que la usan (antes: una copia por grabación).
+fn art_path(covers_dir: &Path, art: &ArtRef) -> PathBuf {
+    covers_dir.join("art").join(format!("{}.jpg", art.encode()))
+}
+
+/// Escritura atómica (fichero temporal + rename): varias réplicas comparten el
+/// volumen y pueden escribir la misma portada a la vez; nadie debe leer un JPEG
+/// a medias.
+async fn store_art(covers_dir: &Path, art: &ArtRef, bytes: &[u8]) {
+    let dest = art_path(covers_dir, art);
+    if tokio::fs::try_exists(&dest).await.unwrap_or(false) {
+        return;
+    }
+    if let Some(dir) = dest.parent() {
+        let _ = tokio::fs::create_dir_all(dir).await;
+    }
+    let tmp = dest.with_extension(format!("{}.tmp", uuid::Uuid::new_v4()));
+    if tokio::fs::write(&tmp, bytes).await.is_ok() && tokio::fs::rename(&tmp, &dest).await.is_err()
+    {
+        let _ = tokio::fs::remove_file(&tmp).await;
+    }
+}
+
 /// Lee la portada por defecto (`covers/default.jpg`) si existe.
 async fn read_default_cover(covers_dir: &std::path::Path) -> Option<Vec<u8>> {
     tokio::fs::read(covers_dir.join("default.jpg")).await.ok()
@@ -548,10 +582,32 @@ impl TidolCore {
             return CoverOutcome::Default(read_default_cover(&covers_dir).await);
         }
 
+        // Cliente compartido (definido aquí para poder reparar desde el mapa).
+        let client = crate::net::shared_client();
+
+        // ── 0. Mapa persistente (cover_map, compartido por las réplicas) ──
+        match self.cover_map_get(mbid).await {
+            Some(MapEntry::Art(art)) => {
+                if let Ok(bytes) = tokio::fs::read(art_path(&covers_dir, &art)).await {
+                    return CoverOutcome::Image(bytes);
+                }
+                // El mapa sabe CUÁL es la portada pero falta el fichero (volumen
+                // nuevo, limpieza manual): se descarga solo esa, sin cascada.
+                if let Some(bytes) = fetch_image(client, &art.caa_url()).await {
+                    store_art(&covers_dir, &art, &bytes).await;
+                    return CoverOutcome::Image(bytes);
+                }
+            }
+            Some(MapEntry::Miss) => {
+                cover_miss_store(mbid);
+                return CoverOutcome::Default(read_default_cover(&covers_dir).await);
+            }
+            None => {}
+        }
+
         // Cliente compartido con User-Agent (MusicBrainz lo exige) y seguimiento de
         // redirecciones (Cover Art Archive redirige a archive.org). Antes se creaba
         // uno por petición: cada portada pagaba DNS+TLS de nuevo en cada salto.
-        let client = crate::net::shared_client();
 
         // Con pista de la búsqueda el mbid es de una GRABACIÓN: el paso 1 (CAA por
         // mbid de release/release-group) daría 404 seguro; se salta.
@@ -571,8 +627,13 @@ impl TidolCore {
                 fetch_image(client, &release_url),
                 fetch_image(client, &group_url),
             );
-            if let Some(bytes) = as_release.or(as_group) {
-                let _ = tokio::fs::write(&file_path, &bytes).await;
+            let found = match (as_release, as_group) {
+                (Some(b), _) => Some((ArtRef::Release(mbid.to_string()), b)),
+                (None, Some(b)) => Some((ArtRef::Group(mbid.to_string()), b)),
+                _ => None,
+            };
+            if let Some((art, bytes)) = found {
+                self.remember_cover(&covers_dir, mbid, &art, &bytes).await;
                 return CoverOutcome::Image(bytes);
             }
         }
@@ -626,12 +687,24 @@ impl TidolCore {
         // gana el mejor candidato con portada (mismo resultado que antes) y al soltar
         // el stream se cancela el resto.
         use futures::stream::StreamExt;
+        //
+        // Si la portada candidata ya está en disco (otra pista del mismo álbum ya la
+        // bajó) se usa sin red; el orden se mantiene, así que el resultado es el
+        // mismo que descargándola.
+        let covers_dir_ref = &covers_dir;
         let mut stream = futures::stream::iter(candidates)
-            .map(|art| async move { fetch_image(client, &art.caa_url()).await })
+            .map(|art| async move {
+                if let Ok(bytes) = tokio::fs::read(art_path(covers_dir_ref, &art)).await {
+                    return Some((art, bytes));
+                }
+                let bytes = fetch_image(client, &art.caa_url()).await?;
+                Some((art, bytes))
+            })
             .buffered(COVER_CAA_CONCURRENCY);
         while let Some(found) = stream.next().await {
-            if let Some(bytes) = found {
-                let _ = tokio::fs::write(&file_path, &bytes).await;
+            if let Some((art, bytes)) = found {
+                drop(stream);
+                self.remember_cover(&covers_dir, mbid, &art, &bytes).await;
                 return CoverOutcome::Image(bytes);
             }
         }
@@ -706,8 +779,55 @@ impl TidolCore {
         // Si MB estaba saturado no sabemos si hay portada: no se cachea el miss.
         if !mb_throttled {
             cover_miss_store(mbid);
+            self.cover_map_put(mbid, None).await;
         }
         CoverOutcome::Default(read_default_cover(&covers_dir).await)
+    }
+
+    // ── Mapa persistente de portadas (tabla cover_map) ──────────────────────
+    // Errores de BD = "no sé": se sigue la cascada como antes del mapa (la portada
+    // no debe depender de que la BD responda).
+
+    async fn cover_map_get(&self, mbid: &str) -> Option<MapEntry> {
+        let row = sqlx::query!(
+            r#"SELECT art_key, TIMESTAMPDIFF(SECOND, checked_at, NOW()) AS "age_secs: i64"
+               FROM cover_map WHERE mbid = ?"#,
+            mbid
+        )
+        .fetch_optional(&self.db)
+        .await
+        .ok()??;
+        match row.art_key {
+            // Una clave ilegible (editada a mano) se ignora y se re-resuelve.
+            Some(key) => ArtRef::decode(&key).map(MapEntry::Art),
+            None if row.age_secs.unwrap_or(i64::MAX) < COVER_MAP_MISS_TTL_SECS => {
+                Some(MapEntry::Miss)
+            }
+            None => None, // miss caducado: reintentar la cascada
+        }
+    }
+
+    async fn cover_map_put(&self, mbid: &str, art: Option<&ArtRef>) {
+        let key = art.map(ArtRef::encode);
+        // checked_at explícito: un ON UPDATE no se dispararía al reescribir el
+        // mismo NULL, y el TTL del miss no se renovaría.
+        if let Err(e) = sqlx::query!(
+            "INSERT INTO cover_map (mbid, art_key, checked_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+             ON DUPLICATE KEY UPDATE art_key = VALUES(art_key), checked_at = CURRENT_TIMESTAMP",
+            mbid,
+            key
+        )
+        .execute(&self.db)
+        .await
+        {
+            tracing::debug!("cover_map: no se pudo guardar {}: {}", mbid, e);
+        }
+    }
+
+    /// Portada encontrada: imagen una vez por art_key + entrada en el mapa.
+    async fn remember_cover(&self, covers_dir: &Path, mbid: &str, art: &ArtRef, bytes: &[u8]) {
+        store_art(covers_dir, art, bytes).await;
+        self.cover_map_put(mbid, Some(art)).await;
     }
 }
 
@@ -746,6 +866,21 @@ mod tests {
             ]
         );
         assert!(cover_candidates(&[], "x").is_empty());
+    }
+
+    #[tokio::test]
+    async fn store_art_una_copia_por_portada_y_sin_temporales() {
+        let dir = std::env::temp_dir().join(format!("tidol-art-{}", uuid::Uuid::new_v4()));
+        let art = ArtRef::Group("5b0a2384-d65c-3b6e-bb66-548d24a4e6ce".into());
+        store_art(&dir, &art, b"primera").await;
+        // Segunda escritura de la misma portada (otra pista del álbum): no la pisa.
+        store_art(&dir, &art, b"segunda").await;
+        let path = art_path(&dir, &art);
+        assert!(path.ends_with("art/g.5b0a2384-d65c-3b6e-bb66-548d24a4e6ce.jpg"));
+        assert_eq!(tokio::fs::read(&path).await.unwrap(), b"primera");
+        let entries: Vec<_> = std::fs::read_dir(dir.join("art")).unwrap().collect();
+        assert_eq!(entries.len(), 1, "no deben quedar ficheros .tmp");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
