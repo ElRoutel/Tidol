@@ -6,6 +6,8 @@
 #   ./dev.sh backend    solo tidol-server
 #   ./dev.sh frontend   solo Vite (espera un backend ya levantado)
 #   ./dev.sh check      solo comprueba requisitos (BD, .env, puertos)
+#   ./dev.sh test-user  asegura el usuario de pruebas (TIDOL_TEST_USER/PASSWORD del
+#                       .env) y escribe un token JWT válido en stdout (backend arriba)
 #
 # Variables opcionales: PORT (backend, 3000), VITE_PORT (5173), RELEASE=1
 # (compila el backend en release; más lento de compilar, más fiel a prod).
@@ -130,6 +132,34 @@ start_frontend() {
     ok "frontend en http://localhost:$VITE_PORT  (proxy /api → :3000)"
 }
 
+# Usuario de pruebas para agentes: credenciales en tidol-workspace/.env
+# (git-ignorado; nunca en el repo ni en docs-agentes). Inicia sesión y, si el
+# usuario no existe, lo registra. Solo el token va a stdout, para poder hacer
+#   TOKEN=$(./dev.sh test-user)
+test_user() {
+    local user pass body code base="http://127.0.0.1:$PORT/api/v1"
+    user="$(grep -E '^TIDOL_TEST_USER=' "$WS/.env" | head -1 | cut -d= -f2-)"
+    pass="$(grep -E '^TIDOL_TEST_PASSWORD=' "$WS/.env" | head -1 | cut -d= -f2-)"
+    [[ -n "$user" && -n "$pass" ]] || die "faltan TIDOL_TEST_USER / TIDOL_TEST_PASSWORD en tidol-workspace/.env"
+    port_free "$PORT" && die "no hay backend en :$PORT → ./dev.sh backend"
+    body="$(python3 -c 'import json,sys;print(json.dumps({"username":sys.argv[1],"password":sys.argv[2],"device_name":"agente","device_type":"cli"}))' "$user" "$pass")"
+    for endpoint in login register; do
+        code="$(curl -s -o "$LOG_DIR/test-user.json" -w '%{http_code}' -X POST "$base/auth/$endpoint" \
+            -H 'content-type: application/json' -d "$body")"
+        if [[ "$code" == 200 || "$code" == 201 ]]; then
+            [[ "$endpoint" == register ]] && printf '%s[ok]%s usuario %s creado\n' "$c_ok" "$c_off" "$user" >&2
+            python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["token"])' "$LOG_DIR/test-user.json"
+            return 0
+        fi
+        # 429 = rate limit de login/registro (ráfaga de 2): esperar y reintentar una vez.
+        if [[ "$code" == 429 ]]; then sleep 3; code="$(curl -s -o "$LOG_DIR/test-user.json" -w '%{http_code}' -X POST "$base/auth/$endpoint" -H 'content-type: application/json' -d "$body")"; fi
+        if [[ "$code" == 200 || "$code" == 201 ]]; then
+            python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["token"])' "$LOG_DIR/test-user.json"; return 0
+        fi
+    done
+    die "no se pudo iniciar sesión ni registrar $user (último status $code; ver $LOG_DIR/test-user.json)"
+}
+
 # ── Main ─────────────────────────────────────────────────────────────────
 case "$MODE" in
     check)
@@ -137,11 +167,12 @@ case "$MODE" in
         port_free "$PORT" && ok "puerto $PORT libre" || warn "puerto $PORT ocupado"
         port_free "$VITE_PORT" && ok "puerto $VITE_PORT libre" || warn "puerto $VITE_PORT ocupado"
         trap - EXIT; exit 0 ;;
+    test-user) mkdir -p "$LOG_DIR"; test_user; trap - EXIT; exit 0 ;;
     backend)  check_env; check_db; start_backend ;;
     frontend) start_frontend ;;
     all)      check_env; check_db; start_backend; start_frontend ;;
-    -h|--help|help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; trap - EXIT; exit 0 ;;
-    *) die "modo desconocido '$MODE' (all | backend | frontend | check)" ;;
+    -h|--help|help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; trap - EXIT; exit 0 ;;
+    *) die "modo desconocido '$MODE' (all | backend | frontend | check | test-user)" ;;
 esac
 
 printf '%sCtrl-C para parar.%s\n' "$c_dim" "$c_off"

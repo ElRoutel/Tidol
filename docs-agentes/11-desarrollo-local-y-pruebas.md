@@ -17,10 +17,29 @@
 ./dev.sh backend    # solo tidol-server (compila y ejecuta el binario desde tidol-workspace/)
 ./dev.sh frontend   # solo Vite
 ./dev.sh check      # .env, MariaDB y puertos, sin arrancar nada
+./dev.sh test-user  # token JWT del usuario de pruebas (ver abajo)
 ```
 Comprueba `.env` y que MariaDB responda (no la arranca: `sudo systemctl start mariadb`),
 espera la misma prueba de vida que el deploy (`/auth/me` → 401) y deja el log en
 `tidol-workspace/target/dev-logs/backend.log`. `PORT`, `VITE_PORT` y `RELEASE=1` opcionales.
+
+### Usuario de pruebas para agentes
+
+Para probar rutas protegidas (🔒) en local **no crees usuarios nuevos**: usa el de pruebas.
+
+```bash
+./dev.sh backend &                 # o en otra terminal
+TOKEN=$(./dev.sh test-user)        # crea el usuario si no existe; solo el token va a stdout
+curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:3000/api/v1/auth/me
+```
+
+- Credenciales: `TIDOL_TEST_USER` y `TIDOL_TEST_PASSWORD` en `tidol-workspace/.env`
+  (git-ignorado). **No copies sus valores al repo ni a estos documentos.**
+- Existe solo en la BD **local** de desarrollo; en producción no hay usuario de pruebas.
+- Cada `test-user` hace un login y crea un `device` nuevo (los devices no se purgan, ver
+  [12](12-pendientes-y-deuda-tecnica.md#p0--seguridad)): reutiliza el token dentro de una sesión
+  de trabajo en vez de pedir uno por petición (vale 7 días).
+- No borres este usuario con `DELETE /auth/me` (es compartido entre agentes).
 
 **Trampa:** con MariaDB ≥ 11.4 en local, `cargo sqlx prepare` puede fallar con
 *"Transport endpoint is not connected (os error 107)"* (negociación TLS de sqlx-cli). Solución

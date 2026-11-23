@@ -132,6 +132,8 @@ Rutas: todas las rutas son relativas a la raíz del repo git
 - **UnifiedTrack (contrato de pista del front)** → [07](07-frontend.md#tipos-y-utilidades) · `types/music.ts`, `utils/trackNormalization.ts`
 - **Upload de música (roto: endpoint inexistente)** → [12](12-pendientes-y-deuda-tecnica.md) · `pages/UploadPage.jsx`
 
+- **Usuario de pruebas para agentes (`./dev.sh test-user`)** → [11](11-desarrollo-local-y-pruebas.md#usuario-de-pruebas-para-agentes) · `dev.sh`, variables `TIDOL_TEST_*` en `tidol-workspace/.env`
+
 ### V
 - **VOX / stems / Spectra (servicios inexistentes)** → [12](12-pendientes-y-deuda-tecnica.md), [07](07-frontend.md) · `hooks/useVoxAudio.ts`, `hooks/useLazyCaching.ts`
 - **VPS (discos, containerd, SSH)** → [10](10-infraestructura-y-deploy.md#el-vps)
