@@ -78,15 +78,12 @@ pub async fn auth_middleware(
         .and_then(|h| h.to_str().ok())
         .and_then(|s| s.strip_prefix("Bearer "));
 
-    let query_token = req.uri().query().and_then(|q| {
-        q.split('&')
-            .find(|pair| pair.starts_with("token="))
-            .map(|pair| pair.trim_start_matches("token="))
-    });
-
-    let token_val = match (auth_header, query_token) {
-        (Some(t), _) if !t.trim().is_empty() => t.trim().to_string(),
-        (_, Some(t)) if !t.trim().is_empty() => t.trim().to_string(),
+    // Solo cabecera. Antes también se aceptaba `?token=` en la query: el JWT
+    // acababa en los logs de acceso de Caddy/Nginx y en el historial del
+    // navegador. Ningún cliente lo usaba (revisado el front: siempre envía
+    // `Authorization: Bearer` desde el interceptor de axios).
+    let token_val = match auth_header {
+        Some(t) if !t.trim().is_empty() => t.trim().to_string(),
         _ => return Err(StatusCode::UNAUTHORIZED),
     };
 
@@ -950,11 +947,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn token_basura_por_query_401() {
-        // La base también aceptaba ?token= como transporte del token.
+    async fn token_valido_por_query_se_ignora_401() {
+        // CAMBIO DE CONTRATO a propósito (2026-11-23): la línea base aceptaba
+        // ?token= como transporte del JWT; ya no (acababa en logs e historial).
+        // Un token VÁLIDO por query daría 500 si se procesara (el núcleo de test
+        // no tiene BD para verificar el device); 401 demuestra que se ignora.
         let hit = Arc::new(AtomicBool::new(false));
         let app = protected_app(test_state(), hit.clone());
-        let status = hit_protected(app, None, "/protected?token=garbage").await;
+        let token = make_token(SECRET, 3600);
+        let status = hit_protected(app, None, &format!("/protected?token={token}")).await;
         assert_eq!(status, StatusCode::UNAUTHORIZED);
         assert!(!hit.load(Ordering::SeqCst));
     }

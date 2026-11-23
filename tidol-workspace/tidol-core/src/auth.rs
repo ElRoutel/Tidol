@@ -142,6 +142,31 @@ fn unix_now() -> Option<u64> {
 }
 
 impl TidolCore {
+    /// Borra los devices (sesiones) de más de 8 días: el JWT dura 7 (`exp` en
+    /// `login`/`register`), así que ya no autentican nada (y `authenticate` exige
+    /// que el device exista). Antes cada login creaba uno y nunca se borraban.
+    /// Devuelve cuántos se borraron (0 ante error de BD, que se registra).
+    pub async fn purge_expired_devices(&self) -> u64 {
+        match sqlx::query("DELETE FROM devices WHERE created_at < NOW() - INTERVAL 8 DAY")
+            .execute(&self.db)
+            .await
+        {
+            Ok(r) => {
+                if r.rows_affected() > 0 {
+                    tracing::info!(
+                        "[Sesiones] {} devices caducados borrados",
+                        r.rows_affected()
+                    );
+                }
+                r.rows_affected()
+            }
+            Err(e) => {
+                tracing::warn!("[Sesiones] no se pudieron purgar devices: {}", e);
+                0
+            }
+        }
+    }
+
     // -------------------------------------------------------------------------
     // GUARDIA: valida el token y resuelve el AuthContext (verifica el device en BD)
     // -------------------------------------------------------------------------

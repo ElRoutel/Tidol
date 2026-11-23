@@ -93,6 +93,7 @@ El `.env` real vive **solo** en `/mnt/storage/.env` del VPS.
 | `LASTFM_API_KEY` | radio y recomendaciones (Last.fm, por HTTPS). Sin ella, radio vacía y Home con recomendaciones aleatorias. Compose la pasa desde 2026-11-23 (antes no, y se usaba una clave escrita en el código) |
 | `MARIADB_ROOT_PASSWORD`, `MARIADB_PASSWORD` | **obligatorias** (`${VAR:?}` en compose desde 2026-11-23: si faltan, el deploy falla con un mensaje claro) |
 | `DUCKDNS_API_TOKEN` | solo el `Caddyfile` de desarrollo (reto DNS de DuckDNS) |
+| `ALLOWED_ORIGINS` | opcional: orígenes CORS permitidos, separados por comas. Vacía (por defecto) = sin CORS, solo mismo origen |
 | (no en la plantilla) `JAMENDO_CLIENT_ID`, `BAD_ENGINE_BIN` | plugins/prefetch sin uso en prod |
 | (no en la plantilla) `ITUNES_ENABLED` | `false`/`0` desactiva iTunes en el core (recomendado en el VPS, donde está bloqueado); sin ella, un cortacircuitos lo omite 10 min tras cada fallo |
 

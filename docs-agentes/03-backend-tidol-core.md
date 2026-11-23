@@ -86,7 +86,7 @@ Bloque `impl TidolCore` de autenticación.
 - Tests: token malformado/expirado/firma inválida, sin secreto → Internal, roundtrip
   de claims, parámetros de argon2.
 
-**Notas:** cada login crea un device y nunca se limpian los viejos (crecen sin límite).
+**Notas:** cada login crea un device; `purge_expired_devices` (lo lanza `tidol-server` al arrancar y cada 6 h) borra los de más de 8 días, que ya no autentican (el JWT dura 7).
 
 ### `catalog.rs`
 Fachada del catálogo + utilidades puras.

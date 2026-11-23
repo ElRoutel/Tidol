@@ -10,7 +10,7 @@ Binario `tidol-server` (Axum 0.7). **Solo transporte**: lee el entorno, construy
 | Fichero | Qué hace |
 |---------|----------|
 | `Cargo.toml` | Dependencias: `axum`, `tower_governor` (rate limit), `tower-http` (CORS). En `dev-dependencies` activa `tidol-core/test-util` para testear el middleware sin BD. |
-| `src/main.rs` | Parseo de env vars → `CoreConfig`, `TidolCore::new`, rate limiters, rutas públicas/protegidas, CORS, bind en `0.0.0.0:$PORT` (default **3000** en local; 8080 en Docker), lanza `hydrate_unknown_tracks` en background. |
+| `src/main.rs` | Parseo de env vars → `CoreConfig`, `TidolCore::new`, rate limiters, rutas públicas/protegidas, CORS, bind en `0.0.0.0:$PORT` (default **3000** en local; 8080 en Docker), lanza `hydrate_unknown_tracks` y la purga de devices caducados (cada 6 h) en background. |
 | `src/state.rs` | `AppState { core: Arc<TidolCore> }`. |
 | `src/handlers.rs` | ~50 handlers delgados (`state.core.<método>()` + mapeo a status/JSON) y `auth_middleware`. Al final, tests del middleware de extremo a extremo. |
 | `src/error.rs` | `ServerError(TidolError)` con `IntoResponse` (newtype por la orphan rule) + tests del mapeo. |
@@ -31,7 +31,7 @@ Binario `tidol-server` (Axum 0.7). **Solo transporte**: lee el entorno, construy
 
 ## Capas globales
 
-- **CORS**: `allow_origin(Any)`, métodos GET/POST/PUT/PATCH/DELETE/OPTIONS, cualquier header.
+- **CORS**: desactivado por defecto (front y API comparten origen); con `ALLOWED_ORIGINS` solo esos orígenes, métodos GET/POST/PUT/PATCH/DELETE/OPTIONS y cabeceras `Authorization`/`Content-Type`. Antes `allow_origin(Any)`.
   (En prod el front es mismo origen, así que el CORS abierto no se necesita.)
 - **Rate limit** (`tower_governor`, por IP): register 1/s ráfaga 5; login 1/s ráfaga 2.
   Respuesta 429 JSON `{status:"error", message}`. Ojo: detrás de Caddy la IP vista puede
@@ -41,7 +41,7 @@ Binario `tidol-server` (Axum 0.7). **Solo transporte**: lee el entorno, construy
 ## Middleware de autenticación
 
 `handlers::auth_middleware` (aplicado con `route_layer` a las rutas protegidas):
-token de `Authorization: Bearer <jwt>` **o** del query `?token=<jwt>` →
+token **solo** de `Authorization: Bearer <jwt>` (el `?token=` de la query se quitó el 2026-11-23: acababa en logs) →
 `core.authenticate` → inserta `Extension<AuthContext>`. Sin token / inválido → 401;
 BD caída o sin `JWT_SECRET` → 500. El handler nunca se ejecuta en esos casos (testeado).
 
@@ -83,7 +83,7 @@ Prefijo común `/api/v1`. 🔓 = pública, 🔒 = requiere JWT.
 | GET | `/albums/:mbid` | 🔒 | `get_album_details` | |
 | POST | `/albums/:mbid/report-cover-404` | 🔒 | `report_cover_404` | marca `albums.cover_status` |
 | GET | `/radio?artist=&title=&limit=` | 🔒 | `get_similar_tracks` | Last.fm |
-| GET | `/embed/search?q=&limit=` | 🔒 | `embed_search` | **consume cuota de YouTube**; pública y sin rate limit |
+| GET | `/embed/search?q=&limit=` | 🔒 | `embed_search` | **consume cuota de YouTube**; 30/min por usuario (429) |
 | GET | `/embed/resolve/:platform_id` | 🔒 | `resolve_embed` | id `plataforma:id` (p.ej. `youtube:dQw4w9WgXcQ`) |
 
 ### Letras, media y portadas

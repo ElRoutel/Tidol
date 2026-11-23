@@ -271,24 +271,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             handlers::auth_middleware,
         ));
 
-    let cors = tower_http::cors::CorsLayer::new()
-        .allow_origin(tower_http::cors::Any)
-        .allow_methods([
-            axum::http::Method::GET,
-            axum::http::Method::POST,
-            axum::http::Method::PUT,
-            // PATCH: el preflight de renombrar playlist (PATCH /api/v1/playlists/:id).
-            axum::http::Method::PATCH,
-            axum::http::Method::DELETE,
-            axum::http::Method::OPTIONS,
-        ])
-        .allow_headers(tower_http::cors::Any);
+    // CORS: antes `allow_origin(Any)`. En producción el front y la API comparten
+    // origen (Caddy) y en desarrollo Vite hace de proxy: no hace falta CORS. Por
+    // defecto no se emite ninguna cabecera (el navegador bloquea las peticiones
+    // de otros orígenes); si algún cliente lo necesita, ALLOWED_ORIGINS con una
+    // lista separada por comas (p.ej. "https://tv.ejemplo.org").
+    let allowed_origins: Vec<axum::http::HeaderValue> = std::env::var("ALLOWED_ORIGINS")
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|o| !o.is_empty())
+        .filter_map(|o| o.parse().ok())
+        .collect();
 
     let app = Router::new()
         .merge(public_routes)
         .merge(protected_routes)
-        .layer(cors)
         .with_state(app_state.clone());
+    let app = if allowed_origins.is_empty() {
+        app
+    } else {
+        info!("[CORS] orígenes permitidos: {}", allowed_origins.len());
+        app.layer(
+            tower_http::cors::CorsLayer::new()
+                .allow_origin(allowed_origins)
+                .allow_methods([
+                    axum::http::Method::GET,
+                    axum::http::Method::POST,
+                    axum::http::Method::PUT,
+                    // PATCH: el preflight de renombrar playlist (PATCH /api/v1/playlists/:id).
+                    axum::http::Method::PATCH,
+                    axum::http::Method::DELETE,
+                    axum::http::Method::OPTIONS,
+                ])
+                .allow_headers([
+                    axum::http::header::AUTHORIZATION,
+                    axum::http::header::CONTENT_TYPE,
+                ]),
+        )
+    };
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
     let bind_addr = format!("0.0.0.0:{}", port);
@@ -299,6 +320,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let core_bg = app_state.core.clone();
     tokio::spawn(async move {
         core_bg.hydrate_unknown_tracks().await;
+    });
+
+    // Background: purga de sesiones caducadas (al arrancar y cada 6 h). Cada login
+    // crea un device y nunca se borraban; un token dura 7 días, así que un device
+    // más antiguo ya no autentica nada. Con varias réplicas el DELETE es idempotente.
+    let core_purge = app_state.core.clone();
+    tokio::spawn(async move {
+        let mut tick = tokio::time::interval(std::time::Duration::from_secs(6 * 60 * 60));
+        loop {
+            tick.tick().await;
+            core_purge.purge_expired_devices().await;
+        }
     });
 
     axum::serve(

@@ -42,11 +42,14 @@ fecha y el commit**. Las prioridades son una propuesta; el dueño del proyecto d
    límite compartido, pero ya exige sesión). Verificado: sin token 401; la 31.ª del minuto, 429.
 4. ✅ *2026-11-23* **Rate limit de login/registro global** → `SmartIpKeyExtractor` (IP real vía
    `X-Forwarded-For`, que Caddy sobrescribe). Verificado: la ráfaga de una IP da 429 y otra IP entra.
-5. **JWT aceptado por `?token=` en la query** (`handlers::auth_middleware`): acaba en logs de
-   Caddy/Nginx e historial. Comprobar si algún cliente lo usa todavía; si no, quitarlo.
-6. **CORS `Any`** en `tidol-server/src/main.rs`: innecesario en prod (mismo origen); restringir.
-7. **Sesiones**: cada login crea un `device` que nunca se purga; tokens de 7 días sin refresh
-   ni lista de sesiones para el usuario. Añadir caducidad/limpieza.
+5. ✅ *2026-11-23* **JWT por `?token=`** → el middleware solo acepta `Authorization: Bearer`
+   (ningún cliente usaba la query). Test de contrato cambiado a propósito: un token válido por
+   query → 401.
+6. ✅ *2026-11-23* **CORS `Any`** → sin cabeceras CORS por defecto (front y API comparten origen);
+   `ALLOWED_ORIGINS` (lista separada por comas) si algún cliente lo necesita.
+7. ✅ *2026-11-23* **Sesiones sin purgar** → `purge_expired_devices` al arrancar y cada 6 h borra los
+   devices de más de 8 días (el JWT dura 7). En la BD local borró 66 de 82. Pendiente (no P0): lista
+   de sesiones para el usuario y refresh tokens.
 
 ## P1 — Funcionalidad rota o engañosa
 
